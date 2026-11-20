@@ -14,6 +14,11 @@ export function generateApiKey(sandbox: boolean) {
   return { key, prefix: key.slice(0, 14), hash: sha256(key) };
 }
 
+export function generateCompanyKey() {
+  const key = `cmp_${randomBytes(24).toString("hex")}`;
+  return { key, prefix: key.slice(0, 12), hash: sha256(key) };
+}
+
 /** Signature de webhook : HMAC-SHA256 de `${timestamp}.${body}`. */
 export function signWebhook(secret: string, body: string, timestamp: number): string {
   return createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
@@ -60,6 +65,20 @@ export class PartnerGuard implements CanActivate {
     if (!apiKey || apiKey.revokedAt || !apiKey.partner.active) throw new HttpException("Clé API invalide", 401);
     req.partner = apiKey.partner;
     req.sandbox = apiKey.sandbox;
+    return true;
+  }
+}
+
+@Injectable()
+export class CompanyGuard implements CanActivate {
+  constructor(@Inject(PrismaService) private prisma: PrismaService) {}
+  async canActivate(ctx: ExecutionContext) {
+    const req = ctx.switchToHttp().getRequest();
+    const key = bearer(req);
+    if (!key) throw new HttpException("Clé société manquante", 401);
+    const company = await this.prisma.company.findUnique({ where: { accessKeyHash: sha256(key) } });
+    if (!company || !company.active) throw new HttpException("Clé société invalide", 401);
+    req.company = company;
     return true;
   }
 }

@@ -55,7 +55,7 @@ export class BookingsService {
           data: {
             partnerId: partner.id, idempotencyKey, externalReference: req.externalReference,
             passengerFirstName: req.passenger.firstName, passengerLastName: req.passenger.lastName,
-            passengerPhone: req.passenger.phone, passengerEmail: req.passenger.email,
+            passengerPhone: req.passenger.phone, passengerEmail: req.passenger.email, signText: req.signText, notes: req.notes,
             passengerLanguage: req.passenger.language, flightNumber: r.flightNumber,
           },
         });
@@ -84,6 +84,15 @@ export class BookingsService {
     await this.dispatch.start(rideId);
     const ride = await this.prisma.ride.findUniqueOrThrow({ where: { id: rideId }, include });
     return { created: true, booking: bookingView(ride) };
+  }
+
+  async rate(partner: Partner, bookingId: string, score: number, comment?: string) {
+    const ride = await this.findForPartner(partner, bookingId);
+    if (ride.status !== "COMPLETED" || !ride.driverId) throw new HttpException("La course doit être terminée pour être notée", 409);
+    await this.prisma.rating.upsert({ where: { rideId: ride.id }, create: { rideId: ride.id, score, comment }, update: { score, comment } });
+    const agg = await this.prisma.rating.aggregate({ _avg: { score: true }, where: { ride: { driverId: ride.driverId } } });
+    await this.prisma.driver.update({ where: { id: ride.driverId }, data: { rating: Math.round((agg._avg.score ?? 5) * 10) / 10 } });
+    return { ok: true };
   }
 
   async cancel(partner: Partner, bookingId: string) {

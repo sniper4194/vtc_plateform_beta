@@ -52,6 +52,10 @@ export type QuoteRequest = z.infer<typeof QuoteRequestSchema>;
 export const BookingRequestSchema = z.object({
   quoteId: z.string().uuid(),
   externalReference: z.string().max(100).optional(),
+  /** Texte de la pancarte d'accueil (par défaut : nom du passager). */
+  signText: z.string().max(100).optional(),
+  /** Consignes de rendez-vous (terminal, porte, étage…). */
+  notes: z.string().max(500).optional(),
   passenger: z.object({
     firstName: z.string().min(1),
     lastName: z.string().min(1),

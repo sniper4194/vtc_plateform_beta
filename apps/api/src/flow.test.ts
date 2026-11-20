@@ -9,12 +9,14 @@ import { BookingsService, cancellationFeeCents } from "./bookings.service";
 import { DISPATCH, DispatchService } from "./dispatch.service";
 import { signWebhook } from "./security";
 import { WebhooksService } from "./webhooks.service";
+import { FlightsService } from "./flights.service";
 
 const prisma = new PrismaClient();
 let app: INestApplication;
 let base: string;
 let dispatch: DispatchService;
 let webhooks: WebhooksService;
+let flights: FlightsService;
 
 // récepteur de webhooks de test
 let hookServer: Server;
@@ -105,6 +107,7 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
   dispatch = app.get(DispatchService);
   webhooks = app.get(WebhooksService);
+  flights = app.get(FlightsService);
 });
 
 afterAll(async () => {
@@ -412,5 +415,273 @@ describe("webhooks : fiabilité", () => {
     const p = await mkPartner(false);
     await mkBooking(p);
     expect(await prisma.webhookDelivery.count()).toBe(0);
+  });
+});
+
+
+/* ============================ Lot 3 : vol, pancarte, société, performance ============================ */
+
+async function assignTo(rideId: string, driverId: string) {
+  expect((await call(`/admin/rides/${rideId}/assign`, { admin: true, body: { driverId } })).status).toBe(201);
+}
+const act = (d: { token: string }, rideId: string, a: string) => call(`/driver/rides/${rideId}/${a}`, { token: d.token, body: {} });
+
+describe("suivi de vol", () => {
+  it("propage le retard : webhook, vue chauffeur, heure effective", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p);
+    const rideId = res.json.rideId;
+    await assignTo(rideId, d.id);
+    await webhooks.deliverDue(); received = [];
+
+    const pickupAt = new Date(res.json.pickupAt);
+    const est = new Date(pickupAt.getTime() + 62 * 60_000).toISOString();
+    const r = await call(`/admin/rides/${rideId}/flight`, { admin: true, body: { estimatedArrivalAt: est } });
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ changed: true, delayMin: 62, status: "DELAYED" });
+
+    await webhooks.deliverDue();
+    const hook = received.map((x) => JSON.parse(x.body)).find((x) => x.type === "flight.delayed");
+    expect(hook.data.flight).toMatchObject({ number: "AF1234", status: "DELAYED", delayMin: 62 });
+    expect(new Date(hook.data.effectivePickupAt).getTime()).toBe(pickupAt.getTime() + 62 * 60_000);
+
+    const view = (await call(`/driver/rides/${rideId}`, { token: d.token })).json;
+    expect(view.flight.delayMin).toBe(62);
+    expect(new Date(view.effectivePickupAt).getTime()).toBe(pickupAt.getTime() + 62 * 60_000);
+
+    // même valeur : aucun nouvel événement ; retour à l'heure : webhook de nouveau
+    expect((await call(`/admin/rides/${rideId}/flight`, { admin: true, body: { estimatedArrivalAt: est } })).json.changed).toBe(false);
+    expect((await call(`/admin/rides/${rideId}/flight`, { admin: true, body: { estimatedArrivalAt: null } })).json).toMatchObject({ changed: true, delayMin: 0, status: "SCHEDULED" });
+  });
+
+  it("refuse une mise à jour sans numéro de vol ou sur une course terminée", async () => {
+    const p = await mkPartner();
+    const { res } = await mkBooking(p, { flightNumber: undefined });
+    expect((await call(`/admin/rides/${res.json.rideId}/flight`, { admin: true, body: { status: "DELAYED" } })).status).toBe(409);
+  });
+
+  it("le fournisseur branché alimente les retards, au plus une fois par minute", async () => {
+    const p = await mkPartner();
+    await mkBooking(p, { pickupAt: new Date(Date.now() + 2 * 3600_000).toISOString() });
+    flights.provider = { lookup: async (_n, around) => ({ estimatedArrivalAt: new Date(around.getTime() + 30 * 60_000) }) };
+    try {
+      expect(await flights.poll(new Date(Date.now() + 120_000))).toBe(1);
+      expect((await prisma.ride.findFirstOrThrow()).flightDelayMin).toBe(30);
+      expect(await flights.poll(new Date(Date.now() + 121_000))).toBe(0); // limité à 1 passage par minute
+    } finally { flights.provider = null; }
+  });
+});
+
+describe("attente et client absent", () => {
+  async function arrivedRide() {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p);
+    const rideId = res.json.rideId;
+    await assignTo(rideId, d.id);
+    for (const a of ["en-route", "arrived"]) expect((await act(d, rideId, a)).status).toBe(201);
+    return { d, rideId };
+  }
+  it("impossible avant l'heure de prise en charge, même après 15 min d'attente", async () => {
+    const { d, rideId } = await arrivedRide();
+    await prisma.rideEvent.updateMany({ where: { rideId, type: "ride.arrived" }, data: { createdAt: new Date(Date.now() - 30 * 60_000) } });
+    expect((await act(d, rideId, "no-show")).status).toBe(409); // la prise en charge est dans 3 jours
+  });
+  it("autorisé 15 min après l'heure effective ; un vol retardé repousse l'autorisation", async () => {
+    const { d, rideId } = await arrivedRide();
+    await prisma.ride.update({ where: { id: rideId }, data: { pickupAt: new Date(Date.now() - 40 * 60_000) } });
+    await prisma.rideEvent.updateMany({ where: { rideId, type: "ride.arrived" }, data: { createdAt: new Date(Date.now() - 35 * 60_000) } });
+    await prisma.ride.update({ where: { id: rideId }, data: { flightDelayMin: 120 } });
+    const blocked = await act(d, rideId, "no-show");
+    expect(blocked.status).toBe(409);
+    expect(blocked.json.message).toMatch(/à partir de/);
+    await prisma.ride.update({ where: { id: rideId }, data: { flightDelayMin: 0 } });
+    expect((await act(d, rideId, "no-show")).status).toBe(201);
+  });
+  it("expose l'heure d'autorisation et la pancarte au chauffeur", async () => {
+    const { d, rideId } = await arrivedRide();
+    const v = (await call(`/driver/rides/${rideId}`, { token: d.token })).json;
+    expect(v.arrivedAt).toBeTruthy();
+    expect(new Date(v.noShowAllowedAt).getTime()).toBeGreaterThan(Date.now());
+    expect(v.signText).toBe("Ana Silva");
+    expect(v.rideType).toBe("FORFAIT");
+    expect((await call(`/driver/rides/${rideId}`, { token: (await mkDriver()).token })).status).toBe(404);
+  });
+});
+
+describe("pancarte et consignes", () => {
+  it("transmet le texte de pancarte et les consignes au chauffeur et au partenaire", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const q = await call("/v1/quotes", { token: p.apiKey, body: { pickup: CDG, dropoff: PARIS, pickupAt: inDays(3), category: "BERLINE", passengers: 1 } });
+    const b = await call("/v1/bookings", {
+      token: p.apiKey, headers: { "idempotency-key": "sign" },
+      body: { quoteId: q.json.quoteId, signText: "Famille Shoniya — Hôtel Eiffel", notes: "Terminal 3, sortie B", passenger: { firstName: "Zinaida", lastName: "Shoniya", phone: "+33600000001" } },
+    });
+    expect(b.json.signText).toBe("Famille Shoniya — Hôtel Eiffel");
+    await assignTo(b.json.rideId, d.id);
+    const v = (await call(`/driver/rides/${b.json.rideId}`, { token: d.token })).json;
+    expect(v).toMatchObject({ signText: "Famille Shoniya — Hôtel Eiffel", notes: "Terminal 3, sortie B" });
+  });
+});
+
+describe("notation", () => {
+  it("n'accepte la note qu'après la course et met à jour la moyenne du chauffeur", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p);
+    const rideId = res.json.rideId;
+    expect((await call(`/v1/bookings/${res.json.id}/rating`, { token: p.apiKey, body: { score: 5 } })).status).toBe(409);
+    await assignTo(rideId, d.id);
+    await prisma.ride.update({ where: { id: rideId }, data: { status: "COMPLETED" } });
+    expect((await call(`/v1/bookings/${res.json.id}/rating`, { token: p.apiKey, body: { score: 6 } })).status).toBe(422);
+    expect((await call(`/v1/bookings/${res.json.id}/rating`, { token: p.apiKey, body: { score: 4, comment: "Ponctuel" } })).status).toBe(201);
+    expect((await call(`/v1/bookings/${res.json.id}/rating`, { token: p.apiKey, body: { score: 5 } })).status).toBe(201); // remplace
+    expect((await prisma.rating.count())).toBe(1);
+    expect((await prisma.driver.findUniqueOrThrow({ where: { id: d.id } })).rating).toBe(5);
+  });
+});
+
+describe("espace société", () => {
+  async function mkCompany(name: string) {
+    const r = await call("/admin/companies", { admin: true, body: { name } });
+    expect(r.status).toBe(201);
+    return { id: r.json.companyId as string, key: r.json.accessKey as string };
+  }
+  let seq = 0;
+  async function companyDriver(co: { key: string }, category = "BERLINE") {
+    const n = ++seq;
+    const r = await call("/company/drivers", {
+      token: co.key,
+      body: { firstName: `Soc${n}`, lastName: "Driver", phone: `+3361234${String(n).padStart(4, "0")}`, email: `soc${n}@test.fr`, vehicle: { plate: `ZZ-${String(n).padStart(3, "0")}-ZZ`, make: "Skoda", model: "Superb", category } },
+    });
+    expect(r.status).toBe(201);
+    const id: string = r.json.id;
+    await prisma.document.createMany({ data: ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"].map((type) => ({ driverId: id, type: type as any, storageKey: "k", status: "APPROVED" as const })) });
+    expect((await call(`/admin/drivers/${id}/approve`, { admin: true, body: {} })).status).toBe(201);
+    const token: string = (await call("/driver/login", { body: { phone: r.json.phone, code: "000000" } })).json.token;
+    await call("/driver/availability", { token, body: { availability: "AVAILABLE" } });
+    return { id, token, vehicleId: r.json.vehicles[0].id as string };
+  }
+  async function finishedRide(p: { apiKey: string }, d: { id: string; token: string }) {
+    const { res } = await mkBooking(p);
+    const rideId = res.json.rideId;
+    await assignTo(rideId, d.id);
+    for (const a of ["en-route", "arrived", "start", "complete"]) expect((await act(d, rideId, a)).status).toBe(201);
+    return { rideId, bookingId: res.json.id };
+  }
+  const range = () => `from=${encodeURIComponent(new Date(Date.now() - 86400_000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 6 * 86400_000).toISOString())}`;
+
+  it("authentifie par clé, refuse l'inconnu", async () => {
+    const co = await mkCompany("Taxis Etoile");
+    expect((await call("/company/me")).status).toBe(401);
+    expect((await call("/company/me", { token: "cmp_nope" })).status).toBe(401);
+    expect((await call("/company/me", { token: co.key })).json.name).toBe("Taxis Etoile");
+    expect((await call("/company/me", { token: (await mkPartner()).apiKey })).status).toBe(401); // une clé partenaire ne passe pas
+  });
+
+  it("isole les sociétés entre elles", async () => {
+    const a = await mkCompany("A"), b = await mkCompany("B");
+    const da = await companyDriver(a);
+    expect((await call("/company/drivers", { token: b.key })).json).toHaveLength(0);
+    expect((await call(`/company/drivers/${da.id}/suspend`, { token: b.key, body: {} })).status).toBe(404);
+    expect((await call("/company/rides?driverId=" + da.id, { token: b.key })).status).toBe(404);
+    expect((await call("/company/vehicles", { token: b.key, body: { plate: "QQ-111-QQ", make: "A", model: "B", category: "BERLINE", driverId: da.id } })).status).toBe(404);
+  });
+
+  it("une société ne lève pas une suspension décidée par la plateforme", async () => {
+    const co = await mkCompany("C");
+    const d = await companyDriver(co);
+    expect((await call(`/company/drivers/${d.id}/suspend`, { token: co.key, body: {} })).status).toBe(201);
+    expect((await call(`/company/drivers/${d.id}/resume`, { token: co.key, body: {} })).status).toBe(201);
+    await call(`/admin/drivers/${d.id}/suspend`, { admin: true, body: {} });
+    const r = await call(`/company/drivers/${d.id}/resume`, { token: co.key, body: {} });
+    expect(r.status).toBe(403);
+    expect((await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} })).status).toBe(201); // la plateforme peut lever
+  });
+
+  it("ajoute des véhicules, refuse les plaques en double", async () => {
+    const co = await mkCompany("V");
+    const d = await companyDriver(co);
+    const ok = await call("/company/vehicles", { token: co.key, body: { plate: "AB-123-CD", make: "Mercedes", model: "Vito", category: "VAN", seats: 8, driverId: d.id } });
+    expect(ok.status).toBe(201);
+    expect((await call("/company/vehicles", { token: co.key, body: { plate: "AB-123-CD", make: "X", model: "Y", category: "VAN" } })).status).toBe(409);
+    expect((await call("/company/vehicles", { token: co.key })).json).toHaveLength(2);
+  });
+
+  it("tableau de performance, relevé de paiements et CSV", async () => {
+    const co = await mkCompany("Perf");
+    const other = await mkCompany("Autre");
+    const p = await mkPartner();
+    const d = await companyDriver(co);
+    const dOther = await companyDriver(other);
+    const done = await finishedRide(p, d);
+    await call(`/v1/bookings/${done.bookingId}/rating`, { token: p.apiKey, body: { score: 4 } });
+    await finishedRide(p, dOther); // course d'une autre société : ne doit jamais apparaître
+
+    const perf = (await call(`/company/performance?${range()}`, { token: co.key })).json;
+    expect(perf.totalValueCents).toBe(4400);
+    expect(perf.rides).toMatchObject({ finished: 1, completed: 1, perfect: 1, average: 0, poor: 0, noShow: 0 });
+    expect(perf.rates.onTimeAtPickupPct).toBe(100);
+    expect(perf.rating).toEqual({ count: 1, average: 4 });
+    expect(perf.deltaPct).toBeNull();
+    expect(perf.series.reduce((s: number, x: any) => s + x.completed, 0)).toBe(1);
+    // filtre véhicule / chauffeur
+    expect((await call(`/company/performance?${range()}&vehicleId=${d.vehicleId}`, { token: co.key })).json.rides.completed).toBe(1);
+    expect((await call(`/company/performance?${range()}&driverId=${dOther.id}`, { token: co.key })).json.rides.completed).toBe(0);
+    // vue plateforme : les deux sociétés ; filtrée par société : une seule
+    expect((await call(`/admin/performance?${range()}`, { admin: true })).json.rides.completed).toBe(2);
+    expect((await call(`/admin/performance?${range()}&companyId=${co.id}`, { admin: true })).json.rides.completed).toBe(1);
+
+    const pay = (await call(`/company/payments?${range()}`, { token: co.key })).json;
+    expect(pay.totals).toEqual({ rides: 1, grossCents: 5500, commissionCents: 1100, netCents: 4400 });
+    expect(pay.byDriver).toHaveLength(1);
+
+    const csv = await fetch(`${base}/company/payments.csv?${range()}`, { headers: { authorization: `Bearer ${co.key}` } });
+    expect(csv.headers.get("content-type")).toMatch(/text\/csv/);
+    const text = await csv.text();
+    expect(text.split("\n")).toHaveLength(2);
+    expect(text).toContain("44");
+    expect(text).not.toContain("Soc2"); // pas de fuite de l'autre société
+  });
+
+  it("un retard à l'arrivée dégrade la ponctualité, sauf si le vol est en retard", async () => {
+    const co = await mkCompany("Late");
+    const p = await mkPartner();
+    const d = await companyDriver(co);
+    const { res } = await mkBooking(p);
+    await assignTo(res.json.rideId, d.id);
+    for (const a of ["en-route", "arrived", "start", "complete"]) await act(d, res.json.rideId, a);
+    // on recule la prise en charge à il y a 40 min : le chauffeur est arrivé 40 min trop tard
+    await prisma.ride.update({ where: { id: res.json.rideId }, data: { pickupAt: new Date(Date.now() - 40 * 60_000) } });
+    let perf = (await call(`/company/performance?${range()}`, { token: co.key })).json;
+    expect(perf.rides).toMatchObject({ poor: 1, perfect: 0 });
+    // le vol avait 60 min de retard : l'arrivée est à l'heure
+    await prisma.ride.update({ where: { id: res.json.rideId }, data: { flightDelayMin: 60 } });
+    perf = (await call(`/company/performance?${range()}`, { token: co.key })).json;
+    expect(perf.rides).toMatchObject({ perfect: 1, poor: 0 });
+  });
+
+  it("taux d'acceptation et annulations chauffeur", async () => {
+    const co = await mkCompany("Acc");
+    const p = await mkPartner();
+    const d1 = await companyDriver(co), d2 = await companyDriver(co);
+    const { res } = await mkBooking(p);
+    const o2 = (await call("/driver/offers", { token: d2.token })).json[0];
+    await call(`/driver/offers/${o2.offerId}/decline`, { token: d2.token, body: {} });
+    const o1 = (await call("/driver/offers", { token: d1.token })).json[0];
+    await call(`/driver/offers/${o1.offerId}/accept`, { token: d1.token, body: {} });
+    await call(`/driver/rides/${res.json.rideId}/cancel`, { token: d1.token, body: {} });
+    const perf = (await call(`/company/performance?${range()}`, { token: co.key })).json;
+    expect(perf.rates.acceptancePct).toBe(50); // 1 acceptée, 1 refusée
+    expect(perf.rides.driverCancelled).toBe(1);
+  });
+
+  it("refuse des périodes invalides", async () => {
+    const co = await mkCompany("P");
+    expect((await call("/company/performance?from=nope", { token: co.key })).status).toBe(422);
+    expect((await call("/company/performance?from=2026-01-01&to=2020-01-01", { token: co.key })).status).toBe(422);
+    expect((await call("/company/performance?from=2020-01-01&to=2026-01-01", { token: co.key })).status).toBe(422);
   });
 });

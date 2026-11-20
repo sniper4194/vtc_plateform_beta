@@ -23,5 +23,16 @@ export const DriverCreateSchema = z.object({
     category: z.enum(["BERLINE", "BUSINESS", "VAN", "GREEN"]), seats: z.number().int().min(1).default(4),
   }).optional(),
 });
+export const VehicleCreateSchema = z.object({
+  plate: z.string().min(4), make: z.string().min(1), model: z.string().min(1),
+  category: z.enum(["BERLINE", "BUSINESS", "VAN", "GREEN"]), seats: z.number().int().min(1).max(9).default(4),
+  driverId: z.string().uuid().optional(),
+});
+export const CompanyCreateSchema = z.object({ name: z.string().min(1), siret: z.string().regex(/^\d{14}$/).optional(), vtcRegistry: z.string().optional() });
+export const FlightUpdateSchema = z.object({
+  estimatedArrivalAt: z.string().datetime().nullable().optional(),
+  status: z.enum(["SCHEDULED", "DELAYED", "LANDED", "CANCELLED"]).optional(),
+});
+export const RatingSchema = z.object({ score: z.number().int().min(1).max(5), comment: z.string().max(500).optional() });
 export const ReviewSchema = z.object({ status: z.enum(["APPROVED", "REJECTED"]) });
 export const AssignSchema = z.object({ driverId: z.string().uuid() });

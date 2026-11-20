@@ -107,6 +107,10 @@ model Company {
   siret      String?  @unique
   vtcRegistry String?
   iban       String?
+  active     Boolean  @default(true)
+  /// Clé d'accès de l'espace société (hash SHA-256 ; la clé en clair n'est jamais stockée)
+  accessKeyHash   String? @unique
+  accessKeyPrefix String?
   drivers    Driver[]
   vehicles   Vehicle[]
   createdAt  DateTime @default(now())
@@ -127,6 +131,7 @@ model Driver {
   reliability   Float              @default(1)
   contractSignedAt DateTime?
   stripeAccountId String?
+  suspendedBy   String? // "admin" | "company" : une société ne peut lever que sa propre suspension
   lastLat       Float?
   lastLng       Float?
   lastSeenAt    DateTime?
@@ -182,6 +187,8 @@ model Booking {
   passengerEmail     String?
   passengerLanguage  String  @default("fr")
   flightNumber      String?
+  signText          String? // texte de la pancarte (par défaut : nom du passager)
+  notes             String? // consignes de rendez-vous (terminal, porte…)
   createdAt         DateTime @default(now())
   rides             Ride[]
 
@@ -210,6 +217,10 @@ model Ride {
   commissionCents Int
   driverNetCents Int
   flatRateId     String?
+  /// Suivi de vol : retard (min) à ajouter à pickupAt, heure d'arrivée estimée, statut
+  flightDelayMin   Int       @default(0)
+  flightEstimatedAt DateTime?
+  flightStatus     String?
   driverId       String?
   driver         Driver?         @relation(fields: [driverId], references: [id])
   vehicleId      String?
@@ -251,11 +262,12 @@ model DispatchOffer {
 }
 
 model Rating {
-  id       String @id @default(uuid())
-  rideId   String
-  ride     Ride   @relation(fields: [rideId], references: [id])
-  score    Int
-  comment  String?
+  id        String   @id @default(uuid())
+  rideId    String   @unique
+  ride      Ride     @relation(fields: [rideId], references: [id])
+  score     Int
+  comment   String?
+  createdAt DateTime @default(now())
 }
 
 model Payout {

@@ -1,13 +1,15 @@
 import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 import { DispatchService } from "./dispatch.service";
+import { missingDocuments, REQUIRED_DOCS } from "./driver-docs";
+import { FlightsService } from "./flights.service";
+import { period } from "./company.controller";
+import { PerformanceService } from "./performance.service";
 import { parse } from "./http";
 import { PrismaService } from "./prisma";
-import { AssignSchema, DriverCreateSchema, PartnerCreateSchema, ReviewSchema } from "./schemas";
-import { AdminGuard, generateApiKey } from "./security";
+import { AssignSchema, CompanyCreateSchema, DriverCreateSchema, FlightUpdateSchema, PartnerCreateSchema, ReviewSchema } from "./schemas";
+import { AdminGuard, generateApiKey, generateCompanyKey } from "./security";
 import { WebhooksService } from "./webhooks.service";
-
-export const REQUIRED_DOCS = ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"] as const;
 
 @Controller("admin")
 @UseGuards(AdminGuard)
@@ -16,6 +18,8 @@ export class AdminController {
     @Inject(PrismaService) private prisma: PrismaService,
     @Inject(DispatchService) private dispatch: DispatchService,
     @Inject(WebhooksService) private webhooks: WebhooksService,
+    @Inject(FlightsService) private flights: FlightsService,
+    @Inject(PerformanceService) private perf: PerformanceService,
   ) {}
 
   /** Crée un partenaire ; la clé API et le secret webhook ne sont affichés QU'UNE FOIS. */
@@ -61,17 +65,14 @@ export class AdminController {
 
   @Post("drivers/:id/approve")
   async approve(@Param("id") id: string) {
-    const docs = await this.prisma.document.findMany({ where: { driverId: id, status: "APPROVED" } });
-    const now = new Date();
-    const valid = new Set(docs.filter((d) => !d.expiresAt || d.expiresAt > now).map((d) => d.type));
-    const missing = REQUIRED_DOCS.filter((t) => !valid.has(t));
+    const missing = await missingDocuments(this.prisma, id);
     if (missing.length) throw new HttpException({ message: "Documents manquants ou expirés", missing }, 409);
-    return this.prisma.driver.update({ where: { id }, data: { status: "ACTIVE" } });
+    return this.prisma.driver.update({ where: { id }, data: { status: "ACTIVE", suspendedBy: null } });
   }
 
   @Post("drivers/:id/suspend")
   suspend(@Param("id") id: string) {
-    return this.prisma.driver.update({ where: { id }, data: { status: "SUSPENDED", availability: "SUSPENDED" } });
+    return this.prisma.driver.update({ where: { id }, data: { status: "SUSPENDED", availability: "SUSPENDED", suspendedBy: "admin" } });
   }
 
   @Get("rides")
@@ -97,6 +98,34 @@ export class AdminController {
   }
 
   /** Courses sans chauffeur après tous les tours de dispatch : à traiter par un opérateur. */
+  /** Crée une société ; sa clé d'accès n'est affichée qu'une fois. */
+  @Post("companies")
+  async createCompany(@Body() body: unknown) {
+    const c = parse(CompanyCreateSchema, body);
+    const k = generateCompanyKey();
+    const company = await this.prisma.company.create({ data: { ...c, accessKeyHash: k.hash, accessKeyPrefix: k.prefix } });
+    return { companyId: company.id, accessKey: k.key };
+  }
+
+  @Get("companies")
+  async companies() {
+    const list = await this.prisma.company.findMany({ include: { _count: { select: { drivers: true, vehicles: true } } }, orderBy: { name: "asc" } });
+    return list.map((c) => ({ id: c.id, name: c.name, siret: c.siret, active: c.active, keyPrefix: c.accessKeyPrefix, drivers: c._count.drivers, vehicles: c._count.vehicles }));
+  }
+
+  @Get("performance")
+  performance(@Query() q: Record<string, string>) {
+    const { from, to } = period(q.from, q.to);
+    return this.perf.compute({ companyId: q.companyId || undefined, driverId: q.driverId || undefined, vehicleId: q.vehicleId || undefined, from, to });
+  }
+
+  /** Mise à jour manuelle du vol (opérateur) : même chemin que le futur fournisseur de données de vol. */
+  @Post("rides/:id/flight")
+  async flight(@Param("id") id: string, @Body() body: unknown) {
+    const b = parse(FlightUpdateSchema, body);
+    return this.flights.update(id, { ...("estimatedArrivalAt" in b ? { estimatedArrivalAt: b.estimatedArrivalAt ? new Date(b.estimatedArrivalAt) : null } : {}), status: b.status }, "admin");
+  }
+
   @Get("alerts")
   async alerts() {
     const rides = await this.prisma.ride.findMany({

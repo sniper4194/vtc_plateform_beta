@@ -3,6 +3,7 @@ import { Prisma, Ride, RideStatus } from "@prisma/client";
 import { canTransition } from "@vtc/shared";
 import { NotificationsService } from "./notifications";
 import { PrismaService } from "./prisma";
+import { effectivePickup, NO_SHOW_WAIT_MIN } from "./metrics";
 import { haversineKm } from "./zones";
 import { WEBHOOK_BY_STATUS } from "./views";
 import { WebhooksService } from "./webhooks.service";
@@ -17,7 +18,7 @@ export const DISPATCH = {
   retryDelaySec: 60,
   maxOffersPerRound: 20,
   bufferMin: 30, // marge entre deux courses d'un même chauffeur
-  noShowWaitMin: 15,
+  noShowWaitMin: NO_SHOW_WAIT_MIN,
 };
 const ACTIVE: RideStatus[] = ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"];
 
@@ -43,8 +44,8 @@ export class DispatchService {
     await db.rideEvent.create({ data: { rideId, type, actor, payload: payload as any } });
   }
 
-  private window(r: Pick<Ride, "pickupAt" | "durationMin">) {
-    const start = r.pickupAt.getTime();
+  private window(r: Pick<Ride, "pickupAt" | "durationMin" | "flightDelayMin">) {
+    const start = effectivePickup(r.pickupAt, r.flightDelayMin).getTime();
     return { start, end: start + (r.durationMin + DISPATCH.bufferMin) * 60_000 };
   }
 
@@ -78,7 +79,11 @@ export class DispatchService {
     const done = await this.roundsDone(rideId);
     if (done >= DISPATCH.maxRounds) return 0;
 
-    const declined = (await this.prisma.dispatchOffer.findMany({ where: { rideId, status: "DECLINED" }, select: { driverId: true } })).map((o) => o.driverId);
+    // Exclus : ceux qui ont refusé, et ceux qui ont rendu cette mission après l'avoir acceptée.
+    const refused = (await this.prisma.dispatchOffer.findMany({ where: { rideId, status: "DECLINED" }, select: { driverId: true } })).map((o) => o.driverId);
+    const gaveBack = (await this.prisma.rideEvent.findMany({ where: { rideId, type: "driver.cancelled" }, select: { actor: true } }))
+      .map((e) => (e.actor ?? "").replace("driver:", "")).filter(Boolean);
+    const declined = [...refused, ...gaveBack];
     const candidates = await this.prisma.driver.findMany({
       where: {
         status: "ACTIVE", availability: "AVAILABLE", id: { notIn: declined },
@@ -183,7 +188,6 @@ export class DispatchService {
         data: { status: "DISPATCHING", driverId: null, vehicleId: null, version: { increment: 1 } },
       });
       if (res.count !== 1) throw new HttpException("Conflit, réessayez", 409);
-      await tx.dispatchOffer.updateMany({ where: { rideId, driverId }, data: { status: "DECLINED" } });
       const d = await tx.driver.findUniqueOrThrow({ where: { id: driverId } });
       await tx.driver.update({ where: { id: driverId }, data: { reliability: Math.max(0, d.reliability - 0.05) } });
       await this.event(tx, rideId, "driver.cancelled", `driver:${driverId}`);
@@ -200,9 +204,12 @@ export class DispatchService {
       if (ride.status !== from || !canTransition(from, to)) throw new HttpException(`Transition impossible depuis ${ride.status}`, 409);
       if (action === "no-show") {
         const arrived = await tx.rideEvent.findFirst({ where: { rideId, type: "ride.arrived" }, orderBy: { createdAt: "desc" } });
-        const waited = arrived ? (Date.now() - arrived.createdAt.getTime()) / 60_000 : 0;
-        if (waited < DISPATCH.noShowWaitMin) {
-          throw new HttpException(`Attendez ${DISPATCH.noShowWaitMin} min après votre arrivée avant de déclarer un no-show`, 409);
+        // Attente comptée à partir de la plus tardive de l'arrivée et de l'heure effective (vol retardé inclus).
+        const ref = Math.max(arrived?.createdAt.getTime() ?? Infinity, effectivePickup(ride.pickupAt, ride.flightDelayMin).getTime());
+        const allowedAt = ref + DISPATCH.noShowWaitMin * 60_000;
+        if (Date.now() < allowedAt) {
+          const hm = new Date(allowedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
+          throw new HttpException(`Client absent déclarable à partir de ${hm}`, 409);
         }
       }
       const res = await tx.ride.updateMany({ where: { id: rideId, status: from, driverId }, data: { status: to, version: { increment: 1 } } });

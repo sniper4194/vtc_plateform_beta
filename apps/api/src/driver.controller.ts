@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, Req, 
 import { DispatchService, DriverAction } from "./dispatch.service";
 import { parse } from "./http";
 import { PrismaService } from "./prisma";
+import { driverRideView } from "./views";
 import { haversineKm } from "./zones";
 import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, LocationUpdateSchema } from "./schemas";
 import { config, DriverGuard, signToken } from "./security";
@@ -54,6 +55,7 @@ export class DriverController {
     ]);
     return {
       upcomingRides: upcoming,
+      liveRideId: (await this.prisma.ride.findFirst({ where: { driverId: id, status: { in: ["EN_ROUTE", "ARRIVED", "IN_PROGRESS"] } }, select: { id: true } }))?.id ?? null,
       pendingOffers: offers.length,
       potentialCents: offers.reduce((s, o) => s + o.ride.driverNetCents, 0),
       fortnightEarningsCents: earned._sum.driverNetCents ?? 0,
@@ -137,18 +139,22 @@ export class DriverController {
         driverId: req.driverId,
         status: upcoming ? { in: ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"] } : { in: ["COMPLETED", "NO_SHOW", "DISPUTED", "REFUNDED"] },
       },
-      include: { booking: true, vehicle: true },
+      include: { booking: { include: { partner: true } }, vehicle: true, driver: true, events: { where: { type: "ride.arrived" }, orderBy: { createdAt: "desc" }, take: 1 } },
       orderBy: { pickupAt: upcoming ? "asc" : "desc" },
       take: 100,
     });
-    return rides.map((r) => ({
-      rideId: r.id, status: r.status, pickupAt: r.pickupAt, category: r.category,
-      pickup: { address: r.pickupAddress, lat: r.pickupLat, lng: r.pickupLng },
-      dropoff: { address: r.dropoffAddress, lat: r.dropoffLat, lng: r.dropoffLng },
-      passenger: { name: `${r.booking.passengerFirstName} ${r.booking.passengerLastName}`, phone: r.booking.passengerPhone, language: r.booking.passengerLanguage },
-      flightNumber: r.booking.flightNumber, passengers: r.passengers, luggage: r.luggage,
-      netCents: r.driverNetCents, vehicle: r.vehicle ? { plate: r.vehicle.plate, model: `${r.vehicle.make} ${r.vehicle.model}` } : null,
-    }));
+    return rides.map((r) => driverRideView(r, r.events[0]?.createdAt ?? null));
+  }
+
+  @Get("rides/:id")
+  @UseGuards(DriverGuard)
+  async ride(@Req() req: any, @Param("id") id: string) {
+    const r = await this.prisma.ride.findFirst({
+      where: { id, driverId: req.driverId },
+      include: { booking: { include: { partner: true } }, vehicle: true, driver: true, events: { where: { type: "ride.arrived" }, orderBy: { createdAt: "desc" }, take: 1 } },
+    });
+    if (!r) throw new HttpException("Mission introuvable", 404);
+    return driverRideView(r, r.events[0]?.createdAt ?? null);
   }
 
   @Post("rides/:id/cancel")
