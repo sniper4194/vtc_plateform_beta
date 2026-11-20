@@ -10,6 +10,10 @@
     "test": "echo \"no tests\""
   },
   "dependencies": {
+    "@fontsource/alfa-slab-one": "^5.3.0",
+    "@fontsource/anton": "^5.3.0",
+    "@fontsource/kaushan-script": "^5.3.0",
+    "@fontsource/rozha-one": "^5.3.0",
     "next": "^14.2.18",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

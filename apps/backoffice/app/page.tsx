@@ -3,10 +3,17 @@ import { useCallback, useEffect, useState } from "react";
 import { api, clearToken, dt, eur, getToken, setToken } from "../lib/api";
 
 type Tab = "rides" | "alerts" | "drivers" | "partners";
-const STATUS_TONE: Record<string, string> = {
-  DISPATCHING: "warn", ASSIGNED: "ok", EN_ROUTE: "ok", ARRIVED: "ok", IN_PROGRESS: "ok", COMPLETED: "",
-  CANCELLED_BY_PARTNER: "bad", CANCELLED_BY_CLIENT: "bad", NO_SHOW: "bad", DISPUTED: "bad",
+const COLUMNS: { title: string; statuses: string[]; tone: string }[] = [
+  { title: "À attribuer", statuses: ["DISPATCHING"], tone: "yel" },
+  { title: "Attribuées", statuses: ["ASSIGNED"], tone: "" },
+  { title: "En mouvement", statuses: ["EN_ROUTE", "ARRIVED", "IN_PROGRESS"], tone: "" },
+  { title: "Bouclées", statuses: ["COMPLETED", "NO_SHOW", "CANCELLED_BY_PARTNER", "CANCELLED_BY_CLIENT", "DISPUTED", "REFUNDED"], tone: "" },
+];
+const STATUS_LABEL: Record<string, string> = {
+  DISPATCHING: "En recherche", ASSIGNED: "Attribuée", EN_ROUTE: "En route", ARRIVED: "Sur place", IN_PROGRESS: "À bord",
+  COMPLETED: "Terminée", NO_SHOW: "Client absent", CANCELLED_BY_PARTNER: "Annulée", CANCELLED_BY_CLIENT: "Annulée", DISPUTED: "Litige", REFUNDED: "Remboursée",
 };
+const chipTone = (s: string) => (["COMPLETED", "ASSIGNED"].includes(s) ? "ok" : ["NO_SHOW", "CANCELLED_BY_PARTNER", "CANCELLED_BY_CLIENT", "DISPUTED"].includes(s) ? "bad" : "blue");
 
 function useLoad<T>(path: string, every = 5000) {
   const [data, setData] = useState<T | null>(null);
@@ -31,85 +38,89 @@ function Login({ onOk }: { onOk: () => void }) {
     try { await api("/admin/alerts"); onOk(); } catch (e: any) { clearToken(); setErr(e.status === 401 ? "Token invalide" : e.message); }
   }
   return (
-    <main style={{ maxWidth: 420, marginTop: 80 }}>
+    <main style={{ maxWidth: 460, marginTop: 70 }}>
+      <div className="brand" style={{ fontSize: 64, marginBottom: 24 }}>ÉTOILE<small>tour de contrôle</small></div>
       <form className="card" onSubmit={submit}>
-        <h2>Back-office</h2>
-        <p className="muted">Saisissez le token administrateur.</p>
-        <input type="password" value={t} onChange={(e) => setT(e.target.value)} placeholder="ADMIN_TOKEN" style={{ width: "100%" }} autoFocus />
+        <div className="cond muted">Token administrateur</div>
+        <input type="password" value={t} onChange={(e) => setT(e.target.value)} placeholder="ADMIN_TOKEN" style={{ width: "100%", margin: "8px 0" }} autoFocus />
         {err && <div className="err">{err}</div>}
-        <p><button className="btn primary" disabled={!t}>Se connecter</button></p>
+        <button className="btn primary" disabled={!t}>Entrer</button>
       </form>
     </main>
   );
 }
 
-function Rides() {
-  const [status, setStatus] = useState("");
-  const rides = useLoad<any[]>(`/admin/rides${status ? `?status=${status}` : ""}`);
+function Route({ from, to }: { from: string; to: string }) {
+  return (
+    <div className="route">
+      <div className="rail"><i /><u /><em /></div>
+      <div><span>{from}</span><span>{to}</span></div>
+    </div>
+  );
+}
+
+function Board() {
+  const rides = useLoad<any[]>("/admin/rides");
   const drivers = useLoad<any[]>("/admin/drivers?status=ACTIVE", 15000);
   const alerts = useLoad<any[]>("/admin/alerts");
   const [pick, setPick] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
-
   async function assign(rideId: string) {
     try { await api(`/admin/rides/${rideId}/assign`, { driverId: pick[rideId] }); setErr(""); rides.reload(); alerts.reload(); }
     catch (e: any) { setErr(e.message); }
   }
   const list = rides.data ?? [];
-  const count = (s: string) => list.filter((r) => r.status === s).length;
+  const n = (...s: string[]) => list.filter((r) => s.includes(r.status)).length;
+  const alerted = new Set((alerts.data ?? []).map((a) => a.rideId));
   return (
     <>
       <div className="kpis">
-        <div className="card kpi"><span className="muted">À attribuer</span><b>{count("DISPATCHING")}</b></div>
-        <div className={`card kpi ${alerts.data?.length ? "alert" : ""}`}><span className="muted">Alertes dispatch</span><b>{alerts.data?.length ?? 0}</b></div>
-        <div className="card kpi"><span className="muted">En cours</span><b>{count("EN_ROUTE") + count("ARRIVED") + count("IN_PROGRESS")}</b></div>
-        <div className="card kpi"><span className="muted">Terminées</span><b>{count("COMPLETED")}</b></div>
+        <div className="sticker s1"><span className="cond">À attribuer</span><b>{n("DISPATCHING")}</b></div>
+        <div className={`sticker s2 ${alerts.data?.length ? "alert" : ""}`}><span className="cond">Alertes</span><b>{alerts.data?.length ?? 0}</b></div>
+        <div className="sticker s3"><span className="cond">En mouvement</span><b>{n("EN_ROUTE", "ARRIVED", "IN_PROGRESS")}</b></div>
+        <div className="sticker s4"><span className="cond">Terminées</span><b>{n("COMPLETED")}</b></div>
       </div>
-      <div className="card">
-        <div className="row" style={{ marginBottom: 12 }}>
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">Tous les statuts</option>
-            {["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS", "COMPLETED", "CANCELLED_BY_PARTNER", "NO_SHOW"].map((s) => <option key={s}>{s}</option>)}
-          </select>
-          <span className="muted">Actualisation automatique toutes les 5 s</span>
-        </div>
-        {(rides.error || err) && <div className="err">{rides.error || err}</div>}
-        <div className="scroll">
-          <table>
-            <thead><tr><th>Prise en charge</th><th>Trajet</th><th>Partenaire</th><th>Prix / net</th><th>Statut</th><th>Chauffeur</th></tr></thead>
-            <tbody>
-              {list.map((r) => {
-                const alerted = alerts.data?.some((a) => a.rideId === r.id);
+      {(rides.error || err) && <div className="card redbg">{rides.error || err}</div>}
+      <div className="board">
+        {COLUMNS.map((col) => {
+          const items = list.filter((r) => col.statuses.includes(r.status));
+          return (
+            <section className="col" key={col.title}>
+              <h2>{col.title}<span className="n">{items.length}</span></h2>
+              {items.map((r) => {
                 const pending = r.offers.filter((o: any) => o.status === "PENDING").length;
                 return (
-                  <tr key={r.id}>
-                    <td>{dt(r.pickupAt)}<br /><span className="muted">{r.category}</span></td>
-                    <td>{r.pickupAddress}<br /><span className="muted">→ {r.dropoffAddress}</span></td>
-                    <td>{r.booking.partner?.name ?? "—"}<br /><span className="muted">{r.booking.externalReference ?? ""}</span></td>
-                    <td>{eur(r.priceCents)}<br /><span className="muted">net {eur(r.driverNetCents)}</span></td>
-                    <td>
-                      <span className={`badge ${STATUS_TONE[r.status] ?? ""}`}>{r.status}</span>
-                      {r.status === "DISPATCHING" && <div className="muted">{pending} offre(s) en attente</div>}
-                      {alerted && <div className="err">⚠ Aucun chauffeur : à traiter</div>}
-                    </td>
-                    <td>
-                      {r.driver ? `${r.driver.firstName} ${r.driver.lastName}` : r.status === "DISPATCHING" ? (
-                        <div className="row">
+                  <article className="card ride" key={r.id}>
+                    <div className="price"><div><b style={{ fontSize: eur(r.driverNetCents).replace(",00", "").length > 6 ? 15 : 20 }}>{eur(r.driverNetCents).replace(",00", "")}</b><br /><span>net</span></div></div>
+                    <div className="when">{dt(r.pickupAt)}</div>
+                    <Route from={r.pickupAddress} to={r.dropoffAddress} />
+                    <div className="chips">
+                      <span className={`chip ${chipTone(r.status)}`}>{STATUS_LABEL[r.status] ?? r.status}</span>
+                      <span className="chip">{r.category}</span>
+                      <span className="chip">{r.booking.partner?.name ?? "—"}</span>
+                      <span className="chip">Client {eur(r.priceCents).replace(",00", "")}</span>
+                    </div>
+                    {r.driver && <p style={{ margin: "10px 0 0" }}><span className="cond muted">Chauffeur</span><br /><b style={{ fontFamily: "var(--slab)", fontWeight: 400 }}>{r.driver.firstName} {r.driver.lastName}</b></p>}
+                    {r.status === "DISPATCHING" && (
+                      <>
+                        <p className="muted" style={{ margin: "10px 0 6px" }}>{pending} offre(s) en circulation</p>
+                        {alerted.has(r.id) && <div className="alertbar">⚠ Personne n'a pris la mission : à vous de jouer</div>}
+                        <div className="row" style={{ marginTop: 10 }}>
                           <select value={pick[r.id] ?? ""} onChange={(e) => setPick({ ...pick, [r.id]: e.target.value })}>
                             <option value="">Attribuer à…</option>
                             {drivers.data?.map((d) => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
                           </select>
                           <button className="btn primary" disabled={!pick[r.id]} onClick={() => assign(r.id)}>OK</button>
                         </div>
-                      ) : "—"}
-                    </td>
-                  </tr>
+                      </>
+                    )}
+                  </article>
                 );
               })}
-              {!list.length && <tr><td colSpan={6} className="muted">Aucune course.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+              {!items.length && <div className="card muted" style={{ boxShadow: "none", borderStyle: "dashed", background: "transparent", color: "var(--cream)" }}>Rien ici.</div>}
+            </section>
+          );
+        })}
       </div>
     </>
   );
@@ -123,39 +134,38 @@ function Drivers() {
     drivers.reload();
   }
   return (
-    <div className="card">
-      {(drivers.error || msg) && <div className="err">{drivers.error || msg}</div>}
-      <div className="scroll">
-        <table>
-          <thead><tr><th>Chauffeur</th><th>Véhicule</th><th>Statut</th><th>Documents</th><th></th></tr></thead>
-          <tbody>
-            {drivers.data?.map((d) => (
-              <tr key={d.id}>
-                <td>{d.firstName} {d.lastName}<br /><span className="muted">{d.phone}</span></td>
-                <td>{d.vehicles.map((v: any) => `${v.make} ${v.model} (${v.plate})`).join(", ") || "—"}</td>
-                <td><span className={`badge ${d.status === "ACTIVE" ? "ok" : d.status === "SUSPENDED" ? "bad" : "warn"}`}>{d.status}</span></td>
-                <td>
-                  {d.documents.map((x: any) => (
-                    <div key={x.id} className="row">
-                      <span>{x.type}</span><span className={`badge ${x.status === "APPROVED" ? "ok" : x.status === "REJECTED" ? "bad" : "warn"}`}>{x.status}</span>
-                      {x.status === "PENDING" && <>
-                        <button className="btn" onClick={() => act(`/admin/documents/${x.id}/review`, { status: "APPROVED" })}>✓</button>
-                        <button className="btn danger" onClick={() => act(`/admin/documents/${x.id}/review`, { status: "REJECTED" })}>✗</button>
-                      </>}
-                    </div>
-                  )) || "—"}
-                </td>
-                <td>
-                  {d.status !== "ACTIVE" && <button className="btn primary" onClick={() => act(`/admin/drivers/${d.id}/approve`)}>Valider</button>}{" "}
-                  {d.status === "ACTIVE" && <button className="btn danger" onClick={() => act(`/admin/drivers/${d.id}/suspend`)}>Suspendre</button>}
-                </td>
-              </tr>
-            ))}
-            {!drivers.data?.length && <tr><td colSpan={5} className="muted">Aucun chauffeur.</td></tr>}
-          </tbody>
-        </table>
+    <>
+      <h1 className="title">Chauffeurs</h1>
+      {(drivers.error || msg) && <div className="card redbg">{drivers.error || msg}</div>}
+      <div className="grid">
+        {drivers.data?.map((d) => (
+          <div className="card" key={d.id}>
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <b style={{ fontFamily: "var(--slab)", fontWeight: 400, fontSize: 18 }}>{d.firstName} {d.lastName}</b>
+              <span className={`chip ${d.status === "ACTIVE" ? "ok" : d.status === "SUSPENDED" ? "bad" : ""}`}>{d.status}</span>
+            </div>
+            <div className="muted">{d.phone}</div>
+            <div className="chips">{d.vehicles.map((v: any) => <span className="chip blue" key={v.id}>{v.make} {v.model} · {v.plate}</span>)}</div>
+            <div style={{ margin: "12px 0" }}>
+              {d.documents.map((x: any) => (
+                <div className="doc" key={x.id}>
+                  <span className="cond">{x.type}</span>
+                  <span className={`chip ${x.status === "APPROVED" ? "ok" : x.status === "REJECTED" ? "bad" : ""}`}>{x.status}</span>
+                  {x.status === "PENDING" && <>
+                    <button className="btn" onClick={() => act(`/admin/documents/${x.id}/review`, { status: "APPROVED" })}>✓</button>
+                    <button className="btn danger" onClick={() => act(`/admin/documents/${x.id}/review`, { status: "REJECTED" })}>✗</button>
+                  </>}
+                </div>
+              ))}
+              {!d.documents.length && <span className="muted">Aucun document</span>}
+            </div>
+            {d.status !== "ACTIVE" && <button className="btn primary" onClick={() => act(`/admin/drivers/${d.id}/approve`)}>Valider le chauffeur</button>}
+            {d.status === "ACTIVE" && <button className="btn danger" onClick={() => act(`/admin/drivers/${d.id}/suspend`)}>Suspendre</button>}
+          </div>
+        ))}
       </div>
-    </div>
+      {!drivers.data?.length && <div className="card">Aucun chauffeur.</div>}
+    </>
   );
 }
 
@@ -172,39 +182,38 @@ function Partners() {
   }
   return (
     <>
-      <form className="card" onSubmit={create}>
+      <h1 className="title">Partenaires</h1>
+      <form className="card yel" onSubmit={create}>
         <h3>Nouveau partenaire</h3>
         <div className="row">
-          <input placeholder="Nom (ex. Booking.com)" value={name} onChange={(e) => setName(e.target.value)} />
-          <input placeholder="URL webhook (https://…)" value={url} onChange={(e) => setUrl(e.target.value)} style={{ minWidth: 280 }} />
-          <button className="btn primary" disabled={!name}>Créer</button>
+          <input placeholder="Nom (ex. une agence de voyage)" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: 260 }} />
+          <input placeholder="URL webhook (https://…)" value={url} onChange={(e) => setUrl(e.target.value)} style={{ minWidth: 300 }} />
+          <button className="btn" disabled={!name}>Créer</button>
         </div>
         {err && <div className="err">{err}</div>}
         {created && (
-          <div style={{ marginTop: 12 }}>
-            <b>Copiez ces secrets maintenant : ils ne seront plus affichés.</b>
+          <div style={{ marginTop: 14 }}>
+            <b>À copier maintenant : ces secrets ne seront plus jamais affichés.</b>
             <p>Clé API (sandbox) : <code>{created.apiKey}</code></p>
             {created.webhookSecret && <p>Secret webhook : <code>{created.webhookSecret}</code></p>}
           </div>
         )}
       </form>
       <div className="card">
-        <h3>Derniers webhooks</h3>
-        <div className="scroll">
-          <table>
-            <thead><tr><th>Date</th><th>Événement</th><th>Statut</th><th>Tentatives</th><th>Erreur</th></tr></thead>
-            <tbody>
-              {hooks.data?.map((h) => (
-                <tr key={h.id}>
-                  <td>{dt(h.createdAt)}</td><td>{h.eventType}</td>
-                  <td><span className={`badge ${h.status === "DELIVERED" ? "ok" : h.status === "FAILED" ? "bad" : "warn"}`}>{h.status}</span></td>
-                  <td>{h.attempts}</td><td className="muted">{h.lastError ?? ""}</td>
-                </tr>
-              ))}
-              {!hooks.data?.length && <tr><td colSpan={5} className="muted">Aucun webhook.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+        <h3>Courrier sortant (webhooks)</h3>
+        <table>
+          <thead><tr><th>Date</th><th>Événement</th><th>Statut</th><th>Essais</th><th>Erreur</th></tr></thead>
+          <tbody>
+            {hooks.data?.map((h) => (
+              <tr key={h.id}>
+                <td>{dt(h.createdAt)}</td><td>{h.eventType}</td>
+                <td><span className={`chip ${h.status === "DELIVERED" ? "ok" : h.status === "FAILED" ? "bad" : ""}`}>{h.status}</span></td>
+                <td>{h.attempts}</td><td className="muted">{h.lastError ?? ""}</td>
+              </tr>
+            ))}
+            {!hooks.data?.length && <tr><td colSpan={5} className="muted">Aucun envoi.</td></tr>}
+          </tbody>
+        </table>
       </div>
     </>
   );
@@ -213,16 +222,19 @@ function Partners() {
 function AlertsTab() {
   const alerts = useLoad<any[]>("/admin/alerts");
   return (
-    <div className="card">
-      <h3>Courses sans chauffeur après tous les tours de dispatch</h3>
-      {alerts.error && <div className="err">{alerts.error}</div>}
-      {alerts.data?.length ? (
-        <table>
-          <thead><tr><th>Prise en charge</th><th>Départ</th><th>Partenaire</th></tr></thead>
-          <tbody>{alerts.data.map((a) => <tr key={a.rideId}><td>{dt(a.pickupAt)}</td><td>{a.pickup}</td><td>{a.partner}</td></tr>)}</tbody>
-        </table>
-      ) : <p className="muted">Aucune alerte. Attribuez manuellement depuis l'onglet Courses si besoin.</p>}
-    </div>
+    <>
+      <h1 className="title">Alertes</h1>
+      <div className="card">
+        <h3>Missions restées sans chauffeur après tous les tours de recherche</h3>
+        {alerts.error && <div className="err">{alerts.error}</div>}
+        {alerts.data?.length ? (
+          <table>
+            <thead><tr><th>Prise en charge</th><th>Départ</th><th>Partenaire</th></tr></thead>
+            <tbody>{alerts.data.map((a) => <tr key={a.rideId}><td>{dt(a.pickupAt)}</td><td>{a.pickup}</td><td>{a.partner}</td></tr>)}</tbody>
+          </table>
+        ) : <p className="muted">Aucune alerte. Vous pouvez attribuer à la main depuis le tableau.</p>}
+      </div>
+    </>
   );
 }
 
@@ -230,19 +242,27 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [tab, setTab] = useState<Tab>("rides");
+  const alerts = useLoad<any[]>("/admin/alerts", 8000);
   useEffect(() => { setAuthed(Boolean(getToken())); setReady(true); }, []);
   if (!ready) return null;
   if (!authed) return <Login onOk={() => setAuthed(true)} />;
-  const tabs: [Tab, string][] = [["rides", "Courses"], ["alerts", "Alertes"], ["drivers", "Chauffeurs"], ["partners", "Partenaires"]];
+  const tabs: [Tab, string][] = [["rides", "Tableau"], ["alerts", "Alertes"], ["drivers", "Chauffeurs"], ["partners", "Partenaires"]];
+  const nAlerts = alerts.data?.length ?? 0;
   return (
     <>
       <header>
-        <h1>VTC Back-office</h1>
-        <nav>{tabs.map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}</nav>
-        <button className="btn" style={{ marginLeft: "auto" }} onClick={() => { clearToken(); setAuthed(false); }}>Déconnexion</button>
+        <div className="brand">ÉTOILE<small>tour de contrôle</small></div>
+        <nav>
+          {tabs.map(([k, l]) => (
+            <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
+              {l}{k === "alerts" && nAlerts > 0 && <span className="dot">{nAlerts}</span>}
+            </button>
+          ))}
+        </nav>
+        <button className="btn" style={{ marginLeft: "auto" }} onClick={() => { clearToken(); setAuthed(false); }}>Quitter</button>
       </header>
       <main>
-        {tab === "rides" && <Rides />}
+        {tab === "rides" && <Board />}
         {tab === "alerts" && <AlertsTab />}
         {tab === "drivers" && <Drivers />}
         {tab === "partners" && <Partners />}

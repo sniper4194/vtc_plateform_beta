@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdown, eur, NEXT_ACTION, whenLabel } from "./format";
+import { countdown, eurShort, fuseFraction, NEXT_ACTION, stepIndex, whenLabel } from "./format";
 
 describe("format", () => {
   it("compte à rebours mm:ss", () => {
@@ -9,13 +9,22 @@ describe("format", () => {
   });
   it("libellé de date relatif", () => {
     const now = new Date(2026, 10, 20, 12, 0);
-    expect(whenLabel(new Date(2026, 10, 21, 4, 10).toISOString(), now)).toBe("Demain à 04:10");
-    expect(whenLabel(new Date(2026, 10, 20, 18, 5).toISOString(), now)).toBe("Aujourd'hui à 18:05");
+    expect(whenLabel(new Date(2026, 10, 21, 4, 10).toISOString(), now)).toBe("Demain · 04:10");
+    expect(whenLabel(new Date(2026, 10, 20, 18, 5).toISOString(), now)).toBe("Ce jour · 18:05");
   });
-  it("montants en euros", () => expect(eur(4400).replace(/\s/g, " ")).toContain("44,00"));
-  it("enchaîne les actions jusqu'à la fin", () => {
-    expect(NEXT_ACTION.ASSIGNED?.action).toBe("en-route");
-    expect(NEXT_ACTION.IN_PROGRESS?.action).toBe("complete");
-    expect(NEXT_ACTION.COMPLETED).toBeUndefined();
+  it("montants", () => {
+    expect(eurShort(4400)).toBe("44 €");
+    expect(eurShort(4450).replace(/\s/g, " ")).toContain("44,50");
+  });
+  it("étapes de mission alignées sur l'API", () => {
+    expect(NEXT_ACTION("ASSIGNED")?.action).toBe("en-route");
+    expect(NEXT_ACTION("IN_PROGRESS")?.action).toBe("complete");
+    expect(NEXT_ACTION("COMPLETED")).toBeUndefined();
+    expect(stepIndex("ARRIVED")).toBe(2);
+  });
+  it("mèche : fraction bornée", () => {
+    expect(fuseFraction(150, 300)).toBe(0.5);
+    expect(fuseFraction(-5, 300)).toBe(0);
+    expect(fuseFraction(999, 300)).toBe(1);
   });
 });

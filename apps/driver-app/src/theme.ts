@@ -1,4 +1,14 @@
+/** Identité visuelle : aplats bleu / jaune / rouge, serif massif, pastilles. Nom de marque provisoire : une seule constante. */
+export const BRAND = "ÉTOILE";
+
 export const c = {
-  brand: "#e8590c", blue: "#1636b5", ink: "#14201b", muted: "#667085", line: "#e3e6ea",
-  bg: "#f6f7f9", card: "#ffffff", ok: "#0a8f5b", bad: "#e53935", soft: "#fdeae2",
+  blue: "#2a2fd2", dblue: "#1a2299", red: "#ee2a14", yel: "#f7b30a", org: "#f59a0c",
+  cream: "#f5eedd", ink: "#14172b", white: "#ffffff", muted: "#5b5f7a", ok: "#0a8f5b",
+};
+
+export const font = {
+  display: "RozhaOne_400Regular",
+  slab: "AlfaSlabOne_400Regular",
+  cond: "Anton_400Regular",
+  script: "KaushanScript_400Regular",
 };

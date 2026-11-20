@@ -40,11 +40,11 @@ Objectif commercial : obtenir des contrats avec Booking.com / Trip.com. Ils atte
 
 ## 3. Fonctionnalités par module
 
-### 3.1 App chauffeur (React Native / Expo) — inspirée Allocab
-- Accueil : bienvenue, prochaine course, véhicule actuel, CA potentiel autour de soi, courses à venir, CA de la quinzaine.
-- **Courses à prendre** : fiche course (date/heure, prix net, €/h estimé, type de véhicule, client/partenaire, conditions, adresses, durée, distance, compte à rebours avant redistribution) → Accepter / Refuser.
-- **Mes courses** : à venir / historique / calendrier, course en cours.
-- Statut Disponible / Suspendu, véhicule actif (plaque), changement de véhicule.
+### 3.1 App chauffeur (React Native / Expo) — identité et ergonomie propres
+- **Cap** (accueil) : gains de la quinzaine, potentiel « à l'horizon », missions au programme, bascule En ligne / Hors ligne, véhicule actif.
+- **Radar** : offres sous forme de « billets » (prix net, €/h, trajet, partenaire, vol) avec une barre-mèche de sursis ; prise de mission par **appui maintenu** (anti-erreur au volant) ou « Passer ».
+- **Agenda** : missions à venir (rail en 4 étapes : Départ → Sur place → À bord → Arrivée, chaque étape validée par appui maintenu) et archives ; « Un souci ? » pour no-show ou abandon (avec avertissement fiabilité).
+- Changement de véhicule : à venir.
 - Exécution : en route → sur place → client à bord → terminée ; navigation (Waze/Google/Apple Maps) ; no-show avec preuve (attente chronométrée).
 - Compte : documents, véhicules et services, comptabilité (relevés, factures, gains), notifications (push), messages.
 - Plus tard : Tap to Pay, offres partenaires.

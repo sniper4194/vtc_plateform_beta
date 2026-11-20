@@ -33,8 +33,8 @@ Le simulateur crée un partenaire et deux chauffeurs, réserve un CDG → Paris 
 | Chemin | Contenu |
 |---|---|
 | `apps/api` | API NestJS + schéma Prisma (`prisma/schema.prisma`) |
-| `apps/backoffice` | Back-office Next.js : courses, attribution manuelle, alertes, validation chauffeurs, partenaires, webhooks (`pnpm -F @vtc/backoffice dev`, port 3001) |
-| `apps/driver-app` | App chauffeur Expo : connexion, accueil, courses à prendre (compte à rebours), mes courses, actions (`pnpm -F @vtc/driver-app start`) |
+| `apps/backoffice` | « Tour de contrôle » Next.js : tableau en colonnes des missions, attribution manuelle, alertes, validation chauffeurs, partenaires, webhooks (`pnpm -F @vtc/backoffice dev`, port 3001) |
+| `apps/driver-app` | App chauffeur Expo : Cap / Radar / Agenda, prise de mission par appui maintenu (`pnpm -F @vtc/driver-app start`) |
 | `apps/web-booking` | Site de réservation client — à initialiser (phase 2) |
 | `packages/pricing` | Moteur de tarification pur, testé |
 | `packages/shared` | Schémas Zod, machine à états des courses |
@@ -52,3 +52,5 @@ Le simulateur crée un partenaire et deux chauffeurs, réserve un CDG → Paris 
 | Routage, suivi de vol, push/SMS, paiements, e-signature | ⏳ phase 2 (stubs : `RoutingService`, `NotificationsService`) |
 
 Connexion chauffeur en dev : téléphone d'un chauffeur créé via `/admin/drivers`, code `DRIVER_DEV_OTP` (000000 par défaut).
+
+**Identité visuelle** : aplats bleu/jaune/rouge, serif massif, pastilles, grain d'impression (voir `apps/driver-app/src/theme.ts`). « ÉTOILE » est un nom de travail : il se change dans une seule constante (`BRAND`) et dans le back-office.
