@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Linking, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, View } from "react-native";
 import { api, ApiError } from "./api";
-import { countdown, eur, eurShort, fuseFraction, NEXT_ACTION, stepIndex, STEPS, whenLabel } from "./format";
+import { countdown, eurShort, fuseFraction, groupByDay, NEXT_ACTION, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker } from "./ui";
 import { useFetch } from "./useFetch";
@@ -98,70 +98,112 @@ export function Cap({ goRadar, onQuit, notify }: { goRadar: () => void; onQuit: 
   );
 }
 
-/* ------------------------------ RADAR (offres) ------------------------------ */
-function Ticket({ o, left, total, onTake, onPass }: { o: any; left: number; total: number; onTake: () => void; onPass: () => void }) {
-  return (
-    <Card style={{ paddingVertical: 14 }}>
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <View style={{ flex: 1 }}>
-          <Script size={26} color={c.red}>{whenLabel(o.pickupAt)}</Script>
-          <Route from={o.pickup} to={o.dropoff} />
+/* ------------------------------ LISTE : briques communes ------------------------------ */
+const CAT_COLOR: Record<string, string> = { BERLINE: c.yel, BUSINESS: c.cream, VAN: c.red, GREEN: "#3ddc84" };
+
+/** Une ligne de liste : heure + distance | barre de catégorie | trajet + prix. Se déplie en carte. */
+function Row({ time, dist, category, from, to, price, flight, badge, expanded, onPress, children }: {
+  time: string; dist?: number | null; category: string; from: string; to: string; price: string; flight?: boolean;
+  badge?: React.ReactNode; expanded: boolean; onPress?: () => void; children?: React.ReactNode;
+}) {
+  const ink = expanded ? c.ink : c.cream;
+  const body = (
+    <View style={{ flexDirection: "row", gap: 12 }}>
+      <View style={{ width: 76 }}>
+        <Display size={26} color={ink} shadow={expanded ? c.yel : c.red}>{time}</Display>
+        {dist != null && <Cond size={12} color={expanded ? c.muted : c.yel}>à {dist} km</Cond>}
+      </View>
+      <View style={{ width: 6, borderRadius: 3, backgroundColor: CAT_COLOR[category] ?? c.yel, borderWidth: expanded ? 1.5 : 0, borderColor: c.ink }} />
+      <View style={{ flex: 1, gap: 3 }}>
+        <Slab size={14} color={ink} shadow={null} lines={expanded ? undefined : 2}>{from}</Slab>
+        <Cond size={11} color={expanded ? c.red : c.yel}>vers</Cond>
+        <Slab size={14} color={ink} shadow={null} lines={expanded ? undefined : 2}>{to}</Slab>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
+          <Display size={24} color={expanded ? c.ink : c.yel} shadow={expanded ? c.yel : c.red}>{price}</Display>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+            {badge}
+            <Cond size={12} color={expanded ? c.muted : c.cream}>{category}</Cond>
+            {flight ? <Slab size={18} color={ink} shadow={null}>✈︎</Slab> : null}
+          </View>
         </View>
-        <Sticker size={96} color={c.yel} rot={-8}>
-          <Display size={eurShort(o.netCents).length > 5 ? 21 : 28} color={c.ink} shadow={c.red}>{eurShort(o.netCents)}</Display>
-          <Cond size={11}>net</Cond>
-        </Sticker>
       </View>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginVertical: 6 }}>
-        <Chip label={`≈ ${eurShort(o.netPerHourCents)}/h`} color={c.yel} />
-        <Chip label={`${o.durationMin} min · ${o.distanceKm} km`} />
-        <Chip label={o.category} />
-        {o.partner ? <Chip label={o.partner} color={c.blue} text={c.cream} /> : null}
-        {o.flightNumber ? <Chip label={`Vol ${o.flightNumber}`} color={c.red} text={c.cream} /> : null}
+    </View>
+  );
+  if (expanded) {
+    return (
+      <View style={{ marginVertical: 10 }}>
+        <Card>
+          <Pressable onPress={onPress}>{body}</Pressable>
+          <View style={{ marginTop: 14 }}>{children}</View>
+        </Card>
       </View>
-      {/* perforation du billet */}
-      <View style={{ height: 24, justifyContent: "center", marginVertical: 4 }}>
-        <View style={{ borderTopWidth: 3, borderStyle: "dashed", borderColor: c.ink }} />
-        <View style={{ position: "absolute", left: -32, width: 26, height: 26, borderRadius: 13, backgroundColor: c.blue, borderWidth: 2.5, borderColor: c.ink }} />
-        <View style={{ position: "absolute", right: -32, width: 26, height: 26, borderRadius: 13, backgroundColor: c.blue, borderWidth: 2.5, borderColor: c.ink }} />
-      </View>
-      <Fuse fraction={fuseFraction(left, total)} label={left > 0 ? `Sursis ${countdown(left)} · ensuite la mission part ailleurs` : "Sursis écoulé"} />
-      <View style={{ flexDirection: "row", gap: 10, marginTop: 12, alignItems: "flex-start" }}>
-        <View style={{ flex: 1 }}><Btn label="Passer" onPress={onPass} /></View>
-        <View style={{ flex: 2 }}><HoldButton label="Je prends" hint="Maintenir pour valider" onComplete={onTake} disabled={left <= 0} /></View>
-      </View>
-    </Card>
+    );
+  }
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button">
+      <View style={{ paddingVertical: 16, borderBottomWidth: 2, borderStyle: "dashed", borderColor: "rgba(245,238,221,.4)" }}>{body}</View>
+    </Pressable>
   );
 }
 
+function DayHeader({ title, count, unit }: { title: string; count: number; unit: string }) {
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 18, paddingBottom: 8, borderBottomWidth: 3, borderColor: c.cream }}>
+      <Cond size={15} color={c.cream}>{title}</Cond>
+      <Cond size={14} color={c.yel}>{count} {unit}{count > 1 ? "s" : ""}</Cond>
+    </View>
+  );
+}
+
+function FilterChips<T extends string>({ options, value, onChange }: { options: { key: T; label: string }[]; value: T; onChange: (k: T) => void }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 20, paddingVertical: 12, alignItems: "center" }} style={{ flexGrow: 0, flexShrink: 0 }}>
+      {options.map((o) => (
+        <Pressable key={o.key} onPress={() => onChange(o.key)}>
+          <View style={{ paddingHorizontal: 16, paddingVertical: 7, borderRadius: 999, borderWidth: 2.5, borderColor: c.ink, backgroundColor: value === o.key ? c.yel : c.cream }}>
+            <Slab size={13} color={c.ink} shadow={null}>{o.label}</Slab>
+          </View>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
+/* ------------------------------ RADAR (offres en liste) ------------------------------ */
 export function Radar({ notify }: { notify: Notify }) {
   const offers = useFetch<any[]>("/driver/offers", 4000);
   const [, setTick] = useState(0);
+  const [open, setOpen] = useState<string | null>(null);
+  const [filter, setFilter] = useState<string>("all");
   const seen = useRef<Record<string, { at: number; total: number }>>({});
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 1000); return () => clearInterval(t); }, []);
-  // On mémorise la durée de sursis vue à l'arrivée de l'offre (la barre part de 100 %).
-  useEffect(() => {
-    for (const o of offers.data ?? []) {
-      const s = seen.current[o.offerId];
-      if (!s) seen.current[o.offerId] = { at: Date.now(), total: o.secondsLeft };
-    }
-  }, [offers.data]);
+  // La barre-mèche part de 100 % à l'arrivée de l'offre.
+  for (const o of offers.data ?? []) if (!seen.current[o.offerId]) seen.current[o.offerId] = { at: Date.now(), total: o.secondsLeft };
   const leftOf = (o: any) => Math.max(0, o.secondsLeft - Math.floor((Date.now() - (seen.current[o.offerId]?.at ?? Date.now())) / 1000));
+
   async function act(id: string, what: "accept" | "decline") {
-    try { await api(`/driver/offers/${id}/${what}`, {}); if (what === "accept") notify("Mission à vous ! Direction l'Agenda", "ok"); }
+    try { await api(`/driver/offers/${id}/${what}`, {}); if (what === "accept") notify("Mission à vous ! Direction l'Agenda", "ok"); setOpen(null); }
     catch (e: any) { notify(e instanceof ApiError ? e.message : "Réseau indisponible"); }
     offers.reload();
   }
+
+  const all = offers.data ?? [];
+  const cats = Array.from(new Set(all.map((o) => o.category as string)));
+  const options = [{ key: "all", label: "Tout" }, ...(all.some((o) => o.flightNumber) ? [{ key: "flight", label: "Avec vol" }] : []), ...cats.map((k) => ({ key: k, label: k }))];
+  const shown = all.filter((o) => filter === "all" || (filter === "flight" ? Boolean(o.flightNumber) : o.category === filter));
+  const sections = groupByDay(shown, (o) => o.pickupAt);
+
   return (
     <View style={{ flex: 1 }}>
-      <Header title="Radar" right={
-        <Sticker size={54} color={c.yel} rot={8}><Display size={24} color={c.ink} shadow={null}>{offers.data?.length ?? 0}</Display></Sticker>
-      } />
-      <FlatList
-        data={offers.data ?? []}
+      <Header title="Radar" right={<Sticker size={54} color={c.yel} rot={8}><Display size={24} color={c.ink} shadow={null}>{all.length}</Display></Sticker>} />
+      <FilterChips options={options} value={options.some((o) => o.key === filter) ? filter : "all"} onChange={setFilter} />
+      <SectionList
+        sections={sections}
         keyExtractor={(o) => o.offerId}
-        contentContainerStyle={{ padding: 20, paddingTop: 12, gap: 22 }}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 30 }}
         refreshControl={<RefreshControl refreshing={false} onRefresh={offers.reload} tintColor={c.cream} />}
+        renderSectionHeader={({ section }) => <DayHeader title={section.title} count={section.data.length} unit="mission" />}
         ListEmptyComponent={
           <View style={{ alignItems: "center", marginTop: 50, gap: 12 }}>
             <Sticker size={150} color={c.cream} rot={-5}><Script size={30} color={c.blue}>Calme plat</Script><Cond size={12}>Rien à l'horizon</Cond></Sticker>
@@ -169,15 +211,35 @@ export function Radar({ notify }: { notify: Notify }) {
           </View>
         }
         renderItem={({ item: o }) => {
-          const total = seen.current[o.offerId]?.total ?? o.secondsLeft;
-          return <Ticket o={o} left={leftOf(o)} total={total} onTake={() => act(o.offerId, "accept")} onPass={() => act(o.offerId, "decline")} />;
+          const left = leftOf(o), total = seen.current[o.offerId]?.total ?? o.secondsLeft;
+          const expanded = open === o.offerId;
+          return (
+            <Row
+              time={timeOf(o.pickupAt)} dist={o.pickupDistanceKm} category={o.category}
+              from={o.pickup} to={o.dropoff} price={eurShort(o.netCents)} flight={Boolean(o.flightNumber)}
+              badge={!expanded ? <Chip label={countdown(left)} color={left < 60 ? c.red : c.cream} text={left < 60 ? c.cream : c.ink} /> : null}
+              expanded={expanded} onPress={() => setOpen(expanded ? null : o.offerId)}
+            >
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                <Chip label={`≈ ${eurShort(o.netPerHourCents)}/h`} color={c.yel} />
+                <Chip label={`${o.durationMin} min · ${o.distanceKm} km`} />
+                {o.partner ? <Chip label={o.partner} color={c.blue} text={c.cream} /> : null}
+                {o.flightNumber ? <Chip label={`Vol ${o.flightNumber}`} color={c.red} text={c.cream} /> : null}
+              </View>
+              <Fuse fraction={fuseFraction(left, total)} label={left > 0 ? `Sursis ${countdown(left)} · ensuite la mission part ailleurs` : "Sursis écoulé"} />
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 12, alignItems: "flex-start" }}>
+                <View style={{ flex: 1 }}><Btn label="Passer" onPress={() => act(o.offerId, "decline")} /></View>
+                <View style={{ flex: 2 }}><HoldButton label="Je prends" hint="Maintenir pour valider" onComplete={() => act(o.offerId, "accept")} disabled={left <= 0} /></View>
+              </View>
+            </Row>
+          );
         }}
       />
     </View>
   );
 }
 
-/* ------------------------------ AGENDA (missions) ------------------------------ */
+/* ------------------------------ AGENDA (missions en liste) ------------------------------ */
 function Stepper({ status }: { status: string }) {
   const idx = stepIndex(status);
   return (
@@ -199,74 +261,75 @@ function Stepper({ status }: { status: string }) {
   );
 }
 
-function Mission({ r, upcoming, run, notify }: { r: any; upcoming: boolean; run: (id: string, action: string) => void; notify: Notify }) {
+function MissionDetail({ r, run, notify }: { r: any; run: (id: string, action: string) => void; notify: Notify }) {
   const next = NEXT_ACTION(r.status);
   const [problem, setProblem] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const target = r.status === "IN_PROGRESS" ? r.dropoff : r.pickup;
   return (
-    <Card>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <Script size={26} color={c.red}>{whenLabel(r.pickupAt)}</Script>
-        <Chip label={upcoming ? eurShort(r.netCents) + " net" : r.status} color={upcoming ? c.yel : c.cream} />
-      </View>
-      <Route from={r.pickup.address} to={r.dropoff.address} />
+    <View style={{ gap: 10 }}>
       <View style={{ backgroundColor: c.cream, borderWidth: 2, borderColor: c.ink, borderRadius: 12, padding: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
         <View style={{ flex: 1 }}>
           <Cond size={11} color={c.muted}>Passager</Cond>
           <Slab size={16} color={c.ink} shadow={null}>{r.passenger.name}</Slab>
           <Cond size={12} color={c.muted}>{r.passengers} pers. · {r.luggage} bagage(s){r.flightNumber ? ` · vol ${r.flightNumber}` : ""}</Cond>
         </View>
-        {upcoming && <Btn label="Appeler" onPress={() => Linking.openURL(`tel:${r.passenger.phone}`)} color={c.yel} />}
+        <Btn label="Appeler" onPress={() => Linking.openURL(`tel:${r.passenger.phone}`)} color={c.yel} />
       </View>
-      {upcoming && (
-        <>
-          <Stepper status={r.status} />
-          <View style={{ gap: 10 }}>
-            <Btn label="Guidage GPS" onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${target.lat},${target.lng}`)} />
-            {next && <HoldButton label={next.hold} onComplete={() => run(r.rideId, next.action)} />}
-            <Pressable onPress={() => { setProblem(!problem); setConfirm(false); }}><Cond size={13} color={c.blue} style={{ textAlign: "center", textDecorationLine: "underline" }}>Un souci ?</Cond></Pressable>
-            {problem && r.status === "ARRIVED" && <Btn label="Client introuvable (no-show)" color={c.red} text={c.cream} onPress={() => run(r.rideId, "no-show")} />}
-            {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && (
-              <Btn
-                label={confirm ? "Confirmer : je rends la mission" : "Je ne peux plus la faire"}
-                color={c.red} text={c.cream}
-                onPress={() => { if (confirm) run(r.rideId, "cancel"); else { setConfirm(true); notify("Cela pèse sur votre score de fiabilité. Touchez à nouveau pour confirmer."); } }}
-              />
-            )}
-          </View>
-        </>
+      <Stepper status={r.status} />
+      <Btn label="Guidage GPS" onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${target.lat},${target.lng}`)} />
+      {next && <HoldButton label={next.hold} onComplete={() => run(r.rideId, next.action)} />}
+      <Pressable onPress={() => { setProblem(!problem); setConfirm(false); }}><Cond size={13} color={c.blue} style={{ textAlign: "center", textDecorationLine: "underline" }}>Un souci ?</Cond></Pressable>
+      {problem && r.status === "ARRIVED" && <Btn label="Client introuvable (no-show)" color={c.red} text={c.cream} onPress={() => run(r.rideId, "no-show")} />}
+      {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && (
+        <Btn
+          label={confirm ? "Confirmer : je rends la mission" : "Je ne peux plus la faire"}
+          color={c.red} text={c.cream}
+          onPress={() => { if (confirm) run(r.rideId, "cancel"); else { setConfirm(true); notify("Cela pèse sur votre score de fiabilité. Touchez à nouveau pour confirmer."); } }}
+        />
       )}
-    </Card>
+    </View>
   );
 }
 
 export function Agenda({ notify }: { notify: Notify }) {
   const [scope, setScope] = useState<"upcoming" | "history">("upcoming");
   const rides = useFetch<any[]>(`/driver/rides?scope=${scope}`, 5000);
+  const [open, setOpen] = useState<string | null>(null);
+  const upcoming = scope === "upcoming";
+  // Une mission déjà commencée s'ouvre toute seule.
+  const live = upcoming ? rides.data?.find((r) => r.status !== "ASSIGNED")?.rideId ?? null : null;
+  const openId = open ?? live;
   async function run(rideId: string, action: string) {
     try { await api(`/driver/rides/${rideId}/${action}`, {}); } catch (e: any) { notify(e.message); }
     rides.reload();
   }
+  const sections = groupByDay(rides.data ?? [], (r) => r.pickupAt);
   return (
     <View style={{ flex: 1 }}>
       <Header title="Agenda" />
-      <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingVertical: 8 }}>
-        {(["upcoming", "history"] as const).map((k) => (
-          <Pressable key={k} onPress={() => setScope(k)}>
-            <View style={{ paddingHorizontal: 18, paddingVertical: 8, borderRadius: 999, borderWidth: 2.5, borderColor: c.ink, backgroundColor: scope === k ? c.yel : c.cream }}>
-              <Slab size={14} color={c.ink} shadow={null}>{k === "upcoming" ? "À venir" : "Archives"}</Slab>
-            </View>
-          </Pressable>
-        ))}
-      </View>
-      <FlatList
-        data={rides.data ?? []}
+      <FilterChips options={[{ key: "upcoming", label: "À venir" }, { key: "history", label: "Archives" }]} value={scope} onChange={(k) => { setScope(k); setOpen(null); }} />
+      <SectionList
+        sections={sections}
         keyExtractor={(r) => r.rideId}
-        contentContainerStyle={{ padding: 20, paddingTop: 12, gap: 22 }}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 30 }}
         refreshControl={<RefreshControl refreshing={false} onRefresh={rides.reload} tintColor={c.cream} />}
-        ListEmptyComponent={<View style={{ alignItems: "center", marginTop: 40 }}><Script size={30}>{rides.error || (scope === "upcoming" ? "Aucune mission au programme" : "Rien dans les archives")}</Script></View>}
-        renderItem={({ item: r }) => <Mission r={r} upcoming={scope === "upcoming"} run={run} notify={notify} />}
+        renderSectionHeader={({ section }) => <DayHeader title={section.title} count={section.data.length} unit="mission" />}
+        ListEmptyComponent={<View style={{ alignItems: "center", marginTop: 40 }}><Script size={30}>{rides.error || (upcoming ? "Aucune mission au programme" : "Rien dans les archives")}</Script></View>}
+        renderItem={({ item: r }) => {
+          const expanded = upcoming && openId === r.rideId;
+          return (
+            <Row
+              time={timeOf(r.pickupAt)} category={r.category} from={r.pickup.address} to={r.dropoff.address}
+              price={eurShort(r.netCents)} flight={Boolean(r.flightNumber)}
+              badge={<Chip label={upcoming ? (STEPS[stepIndex(r.status)]?.short ?? r.status) : r.status} color={upcoming ? c.yel : c.cream} />}
+              expanded={expanded} onPress={upcoming ? () => setOpen(expanded ? "" : r.rideId) : undefined}
+            >
+              <MissionDetail r={r} run={run} notify={notify} />
+            </Row>
+          );
+        }}
       />
     </View>
   );

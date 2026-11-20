@@ -3,11 +3,11 @@ import { Animated, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, View
 import { c, font } from "./theme";
 
 /** Texte à ombre « imprimée » (décalée, sans flou). */
-export function Display({ children, size = 32, color = c.cream, shadow = c.dblue, style, family = font.display }: {
-  children: ReactNode; size?: number; color?: string; shadow?: string | null; style?: StyleProp<TextStyle>; family?: string;
+export function Display({ children, size = 32, color = c.cream, shadow = c.dblue, style, family = font.display, lines }: {
+  children: ReactNode; size?: number; color?: string; shadow?: string | null; style?: StyleProp<TextStyle>; family?: string; lines?: number;
 }) {
   return (
-    <Text style={[{ fontFamily: family, fontSize: size, color, lineHeight: size * 1.1 },
+    <Text numberOfLines={lines} style={[{ fontFamily: family, fontSize: size, color, lineHeight: size * 1.1 },
       shadow ? { textShadowColor: shadow, textShadowOffset: { width: size * 0.06, height: size * 0.06 }, textShadowRadius: 0 } : null, style]}>
       {children}
     </Text>

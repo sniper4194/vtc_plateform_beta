@@ -210,6 +210,8 @@ describe("parcours complet partenaire ↔ chauffeur", () => {
     expect(JSON.stringify(o1.json)).not.toContain("Silva");
     expect(o1.json[0].netCents).toBe(4400); // 55 € − 20 %
     expect(o1.json[0].secondsLeft).toBeGreaterThan(200);
+    expect(o1.json[0].pickupDistanceKm).toBeLessThan(5); // d1 est positionné près de CDG
+    expect(o2.json[0].pickupDistanceKm).toBeGreaterThan(15); // d2 est à Paris
 
     // acceptations simultanées : un seul gagnant
     const [a1, a2] = await Promise.all([

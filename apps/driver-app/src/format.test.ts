@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdown, eurShort, fuseFraction, NEXT_ACTION, stepIndex, whenLabel } from "./format";
+import { countdown, eurShort, fuseFraction, groupByDay, NEXT_ACTION, stepIndex, timeOf, whenLabel } from "./format";
 
 describe("format", () => {
   it("compte à rebours mm:ss", () => {
@@ -26,5 +26,13 @@ describe("format", () => {
     expect(fuseFraction(150, 300)).toBe(0.5);
     expect(fuseFraction(-5, 300)).toBe(0);
     expect(fuseFraction(999, 300)).toBe(1);
+  });
+  it("regroupe par jour en conservant l'ordre", () => {
+    const now = new Date(2026, 10, 20, 12, 0);
+    const mk = (d: number, h: number) => ({ at: new Date(2026, 10, d, h, 0).toISOString() });
+    const secs = groupByDay([mk(21, 4), mk(21, 13), mk(22, 6)], (x) => x.at, now);
+    expect(secs.map((s) => s.data.length)).toEqual([2, 1]);
+    expect(secs[0].title.startsWith("Demain")).toBe(true);
+    expect(timeOf(secs[0].data[1].at)).toBe("13:00");
   });
 });

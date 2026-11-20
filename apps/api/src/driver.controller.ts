@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, Req, 
 import { DispatchService, DriverAction } from "./dispatch.service";
 import { parse } from "./http";
 import { PrismaService } from "./prisma";
+import { haversineKm } from "./zones";
 import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, LocationUpdateSchema } from "./schemas";
 import { config, DriverGuard, signToken } from "./security";
 
@@ -90,6 +91,9 @@ export class DriverController {
   @UseGuards(DriverGuard)
   async offers(@Req() req: any) {
     const now = new Date();
+    const me = await this.prisma.driver.findUnique({ where: { id: req.driverId }, select: { lastLat: true, lastLng: true } });
+    const distTo = (lat: number, lng: number) =>
+      me?.lastLat != null && me.lastLng != null ? Math.round(haversineKm({ lat: me.lastLat, lng: me.lastLng }, { lat, lng }) * 10) / 10 : null;
     const offers = await this.prisma.dispatchOffer.findMany({
       where: { driverId: req.driverId, status: "PENDING", expiresAt: { gt: now }, ride: { status: "DISPATCHING" } },
       include: { ride: { include: { booking: { include: { partner: true } } } } },
@@ -102,6 +106,7 @@ export class DriverController {
       pickupAt: o.ride.pickupAt, category: o.ride.category,
       partner: o.ride.booking.partner?.name ?? null,
       pickup: o.ride.pickupAddress, dropoff: o.ride.dropoffAddress,
+      pickupDistanceKm: distTo(o.ride.pickupLat, o.ride.pickupLng),
       distanceKm: Math.round(o.ride.distanceKm * 10) / 10, durationMin: Math.round(o.ride.durationMin),
       netCents: o.ride.driverNetCents,
       netPerHourCents: Math.round(o.ride.driverNetCents / Math.max(o.ride.durationMin / 60, 0.25)),
