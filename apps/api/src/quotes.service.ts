@@ -1,10 +1,10 @@
 import { HttpException, Inject, Injectable } from "@nestjs/common";
 import { Partner } from "@prisma/client";
-import { computeQuote, FlatRate, PricingConfig } from "@vtc/pricing";
+import { computeQuote, findFlatRate, FlatRate, PricingConfig, VehicleCategory } from "@vtc/pricing";
 import { QuoteRequest } from "@vtc/shared";
 import { cents, euros } from "./http";
 import { PrismaService } from "./prisma";
-import { haversineKm, zoneOf } from "./zones";
+import { haversineKm, zonesOf } from "./zones";
 
 /** Config par défaut, utilisée tant qu'aucun PricingRuleSet actif n'existe en base. */
 export const DEFAULT_PRICING: PricingConfig = {
@@ -19,6 +19,14 @@ export const DEFAULT_FLAT_RATES: FlatRate[] = [
   { id: "orly-paris", fromZone: "ORLY", toZone: "PARIS", bidirectional: true, prices: { BERLINE: 45, BUSINESS: 65, VAN: 75, GREEN: 50 } },
 ];
 export const QUOTE_TTL_MIN = 15;
+
+/** Cherche le forfait le plus précis : une adresse près de la Gare du Nord retombe sur « PARIS » si aucun forfait gare n'existe. */
+export function matchZones(from: string[], to: string[], flat: FlatRate[], category: VehicleCategory) {
+  for (const f of from) for (const t of to) {
+    if (findFlatRate(flat, f, t)?.prices[category] !== undefined) return { fromZone: f, toZone: t };
+  }
+  return { fromZone: from[0], toZone: to[0] };
+}
 
 /** Estimation provisoire (à vol d'oiseau). Brancher OSRM/Google ici sans toucher au reste. */
 export class RoutingService {
@@ -55,7 +63,7 @@ export class QuotesService {
     const q = computeQuote(
       {
         distanceKm, durationMin, category: req.category, pickupAt, luggage: req.luggage,
-        fromZone: zoneOf(req.pickup), toZone: zoneOf(req.dropoff),
+        ...matchZones(zonesOf(req.pickup), zonesOf(req.dropoff), flat, req.category),
       },
       { ...cfg, partnerMultiplier: Number(partner.priceMultiplier), commissionRate: Number(partner.commissionRate) },
       flat,

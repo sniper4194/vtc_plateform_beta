@@ -1,17 +1,24 @@
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 const KEY = "driver_token";
 
 let token: string | null = null;
+// SecureStore n'existe pas sur le web (démo/dev) : repli sur sessionStorage.
+const store = {
+  get: async () => (Platform.OS === "web" ? globalThis.sessionStorage?.getItem(KEY) ?? null : SecureStore.getItemAsync(KEY)),
+  set: async (v: string) => (Platform.OS === "web" ? globalThis.sessionStorage?.setItem(KEY, v) : SecureStore.setItemAsync(KEY, v)),
+  del: async () => (Platform.OS === "web" ? globalThis.sessionStorage?.removeItem(KEY) : SecureStore.deleteItemAsync(KEY)),
+};
 export async function loadToken() {
-  token = await SecureStore.getItemAsync(KEY);
+  token = await store.get();
   return token;
 }
 export async function saveToken(t: string | null) {
   token = t;
-  if (t) await SecureStore.setItemAsync(KEY, t);
-  else await SecureStore.deleteItemAsync(KEY);
+  if (t) await store.set(t);
+  else await store.del();
 }
 
 export class ApiError extends Error {

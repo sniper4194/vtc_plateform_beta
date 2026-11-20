@@ -20,3 +20,8 @@ export function haversineKm(a: { lat: number; lng: number }, b: { lat: number; l
 export function zoneOf(p: { lat: number; lng: number }): string | undefined {
   return ZONES.find((z) => haversineKm(p, z) <= z.radiusKm)?.code;
 }
+
+/** Toutes les zones contenant le point, de la plus précise à la plus large (ex. GARE_NORD puis PARIS). */
+export function zonesOf(p: { lat: number; lng: number }): string[] {
+  return ZONES.filter((z) => haversineKm(p, z) <= z.radiusKm).map((z) => z.code);
+}

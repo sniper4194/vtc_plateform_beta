@@ -146,6 +146,13 @@ describe("devis", () => {
     const bad = await call("/v1/quotes", { token: p.apiKey, body: { pickup: CDG, dropoff: PARIS, pickupAt: inDays(-1), category: "BERLINE", passengers: 2 } });
     expect(bad.status).toBe(422);
   });
+  it("retombe sur le forfait « Paris » quand l'adresse est aussi dans une zone gare sans forfait", async () => {
+    const p = await mkPartner();
+    const nearGareNord = { address: "175 rue du Faubourg Saint-Denis, Paris", lat: 48.8766, lng: 2.3571 };
+    const q = await call("/v1/quotes", { token: p.apiKey, body: { pickup: CDG, dropoff: nearGareNord, pickupAt: inDays(3), category: "BERLINE", passengers: 2 } });
+    expect(q.json.total).toBe(55);
+    expect(q.json.flatRate).toBe(true);
+  });
   it("un devis ne sert qu'une fois et appartient à son partenaire", async () => {
     const p = await mkPartner(), other = await mkPartner();
     const { quote } = await mkBooking(p, {}, "k1");
