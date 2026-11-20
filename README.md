@@ -82,3 +82,8 @@ ADMIN_PASSWORD='une phrase de passe longue' pnpm -F @vtc/api admin:create vous@e
 `POST /driver/otp {phone}` envoie un code à 6 chiffres (5 min, 5 essais, 1 renvoi / 30 s, 3 demandes / 10 min, réponse identique pour un numéro inconnu) ; `POST /driver/login {phone, code}` le vérifie. Seule l'empreinte HMAC est stockée.
 Fournisseur : `SMS_PROVIDER=twilio` (adaptateur écrit d'après la documentation, **non essayé contre un vrai compte**) ; en production sans fournisseur, l'envoi répond 501.
 Pour le simulateur et les démos locales, lancer l'API avec `DRIVER_DEV_OTP=000000` (interdit en production).
+
+## Charte graphique
+
+Fond **bleu ciel** `#8fd0f5` avec texte **bleu nuit** `#0b2a4a` posé dessus (contraste 8,7) ; **bleu soutenu** `#1a66c2` pour les boutons et pastilles (texte crème dessus : 4,9) ; jaune `#f7b30a` et rouge `#ee2a14` en accents ; crème `#f5eedd` pour les cartes.
+Le rouge et le jaune ne servent jamais de couleur de texte directement sur le fond ciel (contraste insuffisant). Définition : `apps/driver-app/src/theme.ts` et `apps/backoffice/app/globals.css`.

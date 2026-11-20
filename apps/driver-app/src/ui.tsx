@@ -3,7 +3,7 @@ import { Animated, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, View
 import { c, font } from "./theme";
 
 /** Texte à ombre « imprimée » (décalée, sans flou). */
-export function Display({ children, size = 32, color = c.cream, shadow = c.dblue, style, family = font.display, lines }: {
+export function Display({ children, size = 32, color = c.onSky, shadow = c.cream, style, family = font.display, lines }: {
   children: ReactNode; size?: number; color?: string; shadow?: string | null; style?: StyleProp<TextStyle>; family?: string; lines?: number;
 }) {
   return (
@@ -17,7 +17,7 @@ export const Slab = (p: Parameters<typeof Display>[0]) => <Display family={font.
 export const Cond = ({ children, size = 14, color = c.ink, style }: { children: ReactNode; size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
   <Text style={[{ fontFamily: font.cond, fontSize: size, color, letterSpacing: 1.5, textTransform: "uppercase" }, style]}>{children}</Text>
 );
-export const Script = ({ children, size = 28, color = c.cream, style }: { children: ReactNode; size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+export const Script = ({ children, size = 28, color = c.onSky, style }: { children: ReactNode; size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
   <Text style={[{ fontFamily: font.script, fontSize: size, color }, style]}>{children}</Text>
 );
 
@@ -122,4 +122,4 @@ export function useToast() {
   return { show, node };
 }
 
-export const screen = StyleSheet.create({ root: { flex: 1, backgroundColor: c.blue } });
+export const screen = StyleSheet.create({ root: { flex: 1, backgroundColor: c.sky } });

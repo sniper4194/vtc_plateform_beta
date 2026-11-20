@@ -149,7 +149,7 @@ function Board() {
                   </article>
                 );
               })}
-              {!items.length && <div className="card muted" style={{ boxShadow: "none", borderStyle: "dashed", background: "transparent", color: "var(--cream)" }}>Rien ici.</div>}
+              {!items.length && <div className="card muted" style={{ boxShadow: "none", borderStyle: "dashed", background: "transparent", color: "var(--on-sky)" }}>Rien ici.</div>}
             </section>
           );
         })}
@@ -423,7 +423,6 @@ export default function Home() {
   const tabs: [Tab, string][] = [
     ["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"],
     ...(isAdmin ? ([["companies", "Sociétés"], ["partners", "Partenaires"], ["team", "Équipe"]] as [Tab, string][]) : []),
-    ["account", "Mon compte"],
   ];
   const nAlerts = alerts.data?.length ?? 0;
   return (
@@ -437,7 +436,7 @@ export default function Home() {
             </button>
           ))}
         </nav>
-        <span style={{ marginLeft: "auto", color: "var(--cream)" }} className="cond">{user?.name}</span>
+        <button className={`btn ${tab === "account" ? "primary" : ""}`} style={{ marginLeft: "auto", whiteSpace: "nowrap" }} onClick={() => setTab("account")} title="Mon compte">{user?.name}</button>
         <button className="btn" onClick={() => { clearToken(); sync(); }}>Quitter</button>
       </header>
       <main>

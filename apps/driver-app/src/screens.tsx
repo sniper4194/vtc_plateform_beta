@@ -47,10 +47,10 @@ export function Cap({ goRadar, onQuit, notify, openMission }: { goRadar: () => v
     try { await api("/driver/availability", { availability: online ? "SUSPENDED" : "AVAILABLE" }); await me.reload(); notify(online ? "Vous êtes hors ligne" : "Vous êtes en ligne", "ok"); }
     catch (e: any) { notify(e.message); } finally { setBusy(false); }
   }
-  if (me.loading) return <ActivityIndicator color={c.cream} style={{ marginTop: 80 }} />;
+  if (me.loading) return <ActivityIndicator color={c.onSky} style={{ marginTop: 80 }} />;
   const v = me.data?.vehicles?.[0];
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 22 }} refreshControl={<RefreshControl refreshing={false} onRefresh={() => { me.reload(); home.reload(); }} tintColor={c.cream} />}>
+    <ScrollView contentContainerStyle={{ padding: 20, gap: 22 }} refreshControl={<RefreshControl refreshing={false} onRefresh={() => { me.reload(); home.reload(); }} tintColor={c.onSky} />}>
       <View>
         <Script size={34}>Salut {me.data?.firstName},</Script>
         <Display size={40} shadow={c.red}>cap sur la journée</Display>
@@ -106,30 +106,30 @@ export function Cap({ goRadar, onQuit, notify, openMission }: { goRadar: () => v
 }
 
 /* ------------------------------ LISTE : briques communes ------------------------------ */
-const CAT_COLOR: Record<string, string> = { BERLINE: c.yel, BUSINESS: c.cream, VAN: c.red, GREEN: "#3ddc84" };
+const CAT_COLOR: Record<string, string> = { BERLINE: c.yel, BUSINESS: c.onSky, VAN: c.red, GREEN: "#3ddc84" };
 
 /** Une ligne de liste : heure + distance | barre de catégorie | trajet + prix. Se déplie en carte. */
 function Row({ time, dist, category, from, to, price, flight, badge, expanded, onPress, children }: {
   time: string; dist?: number | null; category: string; from: string; to: string; price: string; flight?: boolean;
   badge?: React.ReactNode; expanded: boolean; onPress?: () => void; children?: React.ReactNode;
 }) {
-  const ink = expanded ? c.ink : c.cream;
+  const ink = expanded ? c.ink : c.onSky;
   const body = (
     <View style={{ flexDirection: "row", gap: 12 }}>
       <View style={{ width: 76 }}>
         <Display size={26} color={ink} shadow={expanded ? c.yel : c.red}>{time}</Display>
-        {dist != null && <Cond size={12} color={expanded ? c.muted : c.yelSoft}>à {dist} km</Cond>}
+        {dist != null && <Cond size={12} color={expanded ? c.muted : c.dblue}>à {dist} km</Cond>}
       </View>
-      <View style={{ width: 6, borderRadius: 3, backgroundColor: CAT_COLOR[category] ?? c.yel, borderWidth: expanded ? 1.5 : 0, borderColor: c.ink }} />
+      <View style={{ width: 8, borderRadius: 4, backgroundColor: CAT_COLOR[category] ?? c.yel, borderWidth: 2, borderColor: c.ink }} />
       <View style={{ flex: 1, gap: 3 }}>
         <Slab size={14} color={ink} shadow={null} lines={expanded ? undefined : 2}>{from}</Slab>
-        <Cond size={11} color={expanded ? c.red : c.yelSoft}>vers</Cond>
+        <Cond size={11} color={expanded ? c.red : c.dblue}>vers</Cond>
         <Slab size={14} color={ink} shadow={null} lines={expanded ? undefined : 2}>{to}</Slab>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
-          <Display size={24} color={expanded ? c.ink : c.yel} shadow={expanded ? c.yel : c.red}>{price}</Display>
+          <Display size={24} color={expanded ? c.ink : c.onSky} shadow={expanded ? c.yel : c.yel}>{price}</Display>
           <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
             {badge}
-            <Cond size={12} color={expanded ? c.muted : c.cream}>{category}</Cond>
+            <Cond size={12} color={expanded ? c.muted : c.onSky}>{category}</Cond>
             {flight ? <Slab size={18} color={ink} shadow={null}>✈︎</Slab> : null}
           </View>
         </View>
@@ -148,16 +148,16 @@ function Row({ time, dist, category, from, to, price, flight, badge, expanded, o
   }
   return (
     <Pressable onPress={onPress} accessibilityRole="button">
-      <View style={{ paddingVertical: 16, borderBottomWidth: 2, borderStyle: "dashed", borderColor: "rgba(245,238,221,.4)" }}>{body}</View>
+      <View style={{ paddingVertical: 16, borderBottomWidth: 2, borderStyle: "dashed", borderColor: "rgba(11,42,74,.35)" }}>{body}</View>
     </Pressable>
   );
 }
 
 function DayHeader({ title, count, unit }: { title: string; count: number; unit: string }) {
   return (
-    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 18, paddingBottom: 8, borderBottomWidth: 3, borderColor: c.cream }}>
-      <Cond size={15} color={c.cream}>{title}</Cond>
-      <Cond size={14} color={c.yelSoft}>{count} {unit}{count > 1 ? "s" : ""}</Cond>
+    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 18, paddingBottom: 8, borderBottomWidth: 3, borderColor: c.onSky }}>
+      <Cond size={15} color={c.onSky}>{title}</Cond>
+      <Cond size={14} color={c.dblue}>{count} {unit}{count > 1 ? "s" : ""}</Cond>
     </View>
   );
 }
@@ -214,7 +214,7 @@ export function Radar({ notify }: { notify: Notify }) {
         ListEmptyComponent={
           <View style={{ alignItems: "center", marginTop: 50, gap: 12 }}>
             <Sticker size={150} color={c.cream} rot={-5}><Script size={30} color={c.blue}>Calme plat</Script><Cond size={12}>Rien à l'horizon</Cond></Sticker>
-            <Cond size={13} color={c.cream}>{offers.error || "Les nouvelles missions apparaissent ici."}</Cond>
+            <Cond size={13} color={c.onSky}>{offers.error || "Les nouvelles missions apparaissent ici."}</Cond>
           </View>
         }
         renderItem={({ item: o }) => {

@@ -29,12 +29,12 @@ export function MissionMap({ pickup, dropoff, driver, target }: MissionMapProps)
     </View>
   );
   return (
-    <View style={{ flex: 1, backgroundColor: "#dfe3ff" }} onLayout={(e: LayoutChangeEvent) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+    <View style={{ flex: 1, backgroundColor: "#e3f4fd" }} onLayout={(e: LayoutChangeEvent) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
       {Array.from({ length: 9 }).map((_, i) => (
-        <View key={`h${i}`} style={{ position: "absolute", left: 0, right: 0, top: `${i * 12.5}%`, height: 2, backgroundColor: "#c4caf5" }} />
+        <View key={`h${i}`} style={{ position: "absolute", left: 0, right: 0, top: `${i * 12.5}%`, height: 2, backgroundColor: "#b9dff3" }} />
       ))}
       {Array.from({ length: 6 }).map((_, i) => (
-        <View key={`v${i}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${i * 20}%`, width: 2, backgroundColor: "#c4caf5" }} />
+        <View key={`v${i}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${i * 20}%`, width: 2, backgroundColor: "#b9dff3" }} />
       ))}
       {size.w > 0 && (
         <>

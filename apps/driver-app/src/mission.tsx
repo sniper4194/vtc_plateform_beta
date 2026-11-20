@@ -56,7 +56,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
   }, []);
 
   const r = ride.data;
-  if (!r) return <View style={{ flex: 1, backgroundColor: c.blue, justifyContent: "center", alignItems: "center" }}><Cond size={14} color={c.cream}>{ride.error || "Chargement…"}</Cond></View>;
+  if (!r) return <View style={{ flex: 1, backgroundColor: c.sky, justifyContent: "center", alignItems: "center" }}><Cond size={14} color={c.onSky}>{ride.error || "Chargement…"}</Cond></View>;
 
   const target: "pickup" | "dropoff" = r.status === "IN_PROGRESS" ? "dropoff" : "pickup";
   const place = r[target];
@@ -76,7 +76,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.blue }}>
+    <View style={{ flex: 1, backgroundColor: c.sky }}>
       <View style={{ flex: 1 }}>
         <MissionMap pickup={r.pickup} dropoff={r.dropoff} driver={pos} target={target} />
         <View style={{ position: "absolute", top: 14, left: 16 }}>

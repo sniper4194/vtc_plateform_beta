@@ -2,9 +2,10 @@
 export const BRAND = "ÉTOILE";
 
 export const c = {
-  blue: "#4a58e0", dblue: "#3441b8", red: "#ee2a14", yel: "#f7b30a", org: "#f59a0c",
-  cream: "#f5eedd", yelSoft: "#ffe08a", // jaune pâle : petit texte sur fond bleu (contraste ≥ 4,3)
-  ink: "#14172b", white: "#ffffff", muted: "#5b5f7a", ok: "#0a8f5b",
+  sky: "#8fd0f5", onSky: "#0b2a4a", // fond bleu ciel + texte bleu nuit posé dessus (contraste 8,7)
+  blue: "#1a66c2", dblue: "#0f4a96", // bleu soutenu : boutons, pastilles, accents (texte crème dessus : contraste 4,9)
+  red: "#ee2a14", yel: "#f7b30a", org: "#f59a0c",
+  cream: "#f5eedd", ink: "#14172b", white: "#ffffff", muted: "#5b5f7a", ok: "#0a8f5b",
 };
 
 export const font = {

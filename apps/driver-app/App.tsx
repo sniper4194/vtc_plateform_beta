@@ -47,7 +47,7 @@ function Login({ onDone }: { onDone: () => void }) {
   }
   const input = { fontFamily: font.slab, fontSize: 18, color: c.ink, paddingVertical: 4 } as const;
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.blue }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.sky }}>
       <View style={{ position: "absolute", top: -40, right: -50 }}><Sticker size={190} color={c.yel} rot={12}><Display size={60} color={c.blue} shadow={c.red}>V</Display></Sticker></View>
       <View style={{ position: "absolute", bottom: -60, left: -60 }}><Sticker size={220} color={c.red} rot={-10}><Slab size={22} color={c.yel} shadow={null}>PRIX FIXE</Slab></Sticker></View>
       <View style={{ padding: 24, marginTop: 90, gap: 18 }}>
@@ -66,7 +66,7 @@ function Login({ onDone }: { onDone: () => void }) {
           </>
         ) : (
           <>
-            <Cond size={13} color={c.cream}>Code envoyé par SMS au {phone.trim()}</Cond>
+            <Cond size={13} color={c.onSky}>Code envoyé par SMS au {phone.trim()}</Cond>
             <Card>
               <Cond size={12} color={c.muted}>Code à 6 chiffres</Cond>
               <TextInput style={input} placeholder="••••••" placeholderTextColor="#9a9ab0" keyboardType="number-pad" value={code} onChangeText={setCode} maxLength={6} autoComplete="sms-otp" textContentType="oneTimeCode" />
@@ -117,11 +117,11 @@ export default function App() {
     return () => { stop = true; clearInterval(t); };
   }, [authed]);
 
-  if (!ready || !fontsLoaded) return <View style={{ flex: 1, backgroundColor: c.blue, justifyContent: "center" }}><ActivityIndicator color={c.cream} /></View>;
+  if (!ready || !fontsLoaded) return <View style={{ flex: 1, backgroundColor: c.sky, justifyContent: "center" }}><ActivityIndicator color={c.onSky} /></View>;
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
   if (missionId) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: c.blue }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.sky }}>
         <StatusBar style="light" />
         <MissionScreen rideId={missionId} onClose={() => setMissionId(null)} notify={toast.show} />
         {toast.node}
@@ -129,7 +129,7 @@ export default function App() {
     );
   }
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.blue }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.sky }}>
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
         {tab === "radar" && <Radar notify={toast.show} />}
