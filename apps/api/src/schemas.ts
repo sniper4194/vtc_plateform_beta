@@ -1,6 +1,10 @@
 import { z } from "zod";
+import { normalizePhone } from "./phone";
 
-export const DriverLoginSchema = z.object({ phone: z.string().min(6), code: z.string().min(4) });
+export const DriverOtpRequestSchema = z.object({ phone: z.string().min(6).max(30) });
+export const DriverLoginSchema = z.object({ phone: z.string().min(6).max(30), code: z.string().min(4).max(10) });
+/** Numéro normalisé en E.164 (06 12… → +33612…). */
+const phoneField = z.string().min(6).max(30).transform((v, ctx) => { const n = normalizePhone(v); if (!n) ctx.addIssue({ code: "custom", message: "numéro invalide" }); return n ?? v; });
 export const AvailabilitySchema = z.object({ availability: z.enum(["AVAILABLE", "SUSPENDED"]) });
 export const LocationUpdateSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
 export const DocumentUploadSchema = z.object({
@@ -17,7 +21,7 @@ export const PartnerCreateSchema = z.object({
 });
 export const DriverCreateSchema = z.object({
   firstName: z.string().min(1), lastName: z.string().min(1),
-  phone: z.string().min(6), email: z.string().email(),
+  phone: phoneField, email: z.string().email(),
   vehicle: z.object({
     plate: z.string().min(4), make: z.string(), model: z.string(),
     category: z.enum(["BERLINE", "BUSINESS", "VAN", "GREEN"]), seats: z.number().int().min(1).default(4),

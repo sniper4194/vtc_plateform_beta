@@ -7,6 +7,8 @@ export default defineConfig({
       ADMIN_TOKEN: "test-admin-token-test-admin-token",
       TOKEN_SECRET: "test-token-secret-test-token-secret",
       DISABLE_WORKERS: "1",
+      OTP_IP_PER_MIN: "100000", LOGIN_IP_PER_MIN: "100000", // les limites par IP sont testées explicitement
+      DRIVER_DEV_OTP: "000000", // les tests de parcours se connectent avec le code de dév ; les tests OTP le retirent
     },
     fileParallelism: false,
     testTimeout: 30_000,

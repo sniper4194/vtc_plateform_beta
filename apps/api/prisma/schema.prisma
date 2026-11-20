@@ -370,3 +370,16 @@ model AdminUser {
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
 }
+
+/// Codes à usage unique envoyés par SMS aux chauffeurs. Seule l'empreinte (HMAC) est stockée.
+model OtpCode {
+  id         String    @id @default(uuid())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}

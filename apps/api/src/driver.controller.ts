@@ -4,7 +4,8 @@ import { parse } from "./http";
 import { PrismaService } from "./prisma";
 import { driverRideView } from "./views";
 import { haversineKm } from "./zones";
-import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, LocationUpdateSchema } from "./schemas";
+import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, DriverOtpRequestSchema, LocationUpdateSchema } from "./schemas";
+import { OtpService } from "./otp.service";
 import { config, DriverGuard, signToken } from "./security";
 
 const ACTION_SET = new Set<DriverAction>(["en-route", "arrived", "start", "complete", "no-show"]);
@@ -18,16 +19,20 @@ export class DriverController {
   constructor(
     @Inject(PrismaService) private prisma: PrismaService,
     @Inject(DispatchService) private dispatch: DispatchService,
+    @Inject(OtpService) private otp: OtpService,
   ) {}
 
-  /** Connexion MVP : code OTP de développement. Les SMS OTP réels arrivent en phase 2. */
+  /** Envoie un code à usage unique par SMS (réponse identique que le numéro soit connu ou non). */
+  @Post("otp")
+  requestCode(@Req() req: any, @Body() body: unknown) {
+    return this.otp.request(parse(DriverOtpRequestSchema, body).phone, req.ip ?? "unknown");
+  }
+
   @Post("login")
-  async login(@Body() body: unknown) {
+  async login(@Req() req: any, @Body() body: unknown) {
     const { phone, code } = parse(DriverLoginSchema, body);
-    if (process.env.NODE_ENV === "production" && !process.env.DRIVER_DEV_OTP) throw new HttpException("OTP SMS non configuré", 501);
-    const driver = await this.prisma.driver.findUnique({ where: { phone } });
-    if (!driver || code !== (process.env.DRIVER_DEV_OTP ?? "000000")) throw new HttpException("Identifiants invalides", 401);
-    return { token: signToken({ sub: driver.id, role: "driver" }, config.tokenSecret, 12 * 3600), driverId: driver.id };
+    const driverId = await this.otp.verify(phone, code, req.ip ?? "unknown");
+    return { token: signToken({ sub: driverId, role: "driver" }, config.tokenSecret, 12 * 3600), driverId };
   }
 
   @Get("me")

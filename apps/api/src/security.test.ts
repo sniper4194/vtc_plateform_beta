@@ -20,6 +20,11 @@ describe("security", () => {
     expect(signWebhook("k", "{}", 1)).toBe(signWebhook("k", "{}", 1));
     expect(signWebhook("k", "{}", 1)).not.toBe(signWebhook("k", "{ }", 1));
   });
+  it("refuse le code de développement en production", () => {
+    const ok = { NODE_ENV: "production", TOKEN_SECRET: "x".repeat(32) };
+    expect(() => checkEnv(ok as any)).not.toThrow();
+    expect(() => checkEnv({ ...ok, DRIVER_DEV_OTP: "000000" } as any)).toThrow(/interdit/);
+  });
   it("refuse de démarrer en production sans secrets", () => {
     expect(() => checkEnv({ NODE_ENV: "production" } as any)).toThrow();
     expect(() => checkEnv({ NODE_ENV: "development" } as any)).not.toThrow();

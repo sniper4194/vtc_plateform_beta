@@ -7,7 +7,7 @@ import { config, signToken } from "./security";
 export const MAX_FAILED_LOGINS = 5;
 export const LOCK_MINUTES = 15;
 export const SESSION_HOURS = 8;
-const THROTTLE_PER_MIN = 20;
+const throttlePerMin = () => Number(process.env.LOGIN_IP_PER_MIN) || 20;
 
 export const normalizeEmail = (e: string) => e.trim().toLowerCase();
 export const publicUser = (u: AdminUser) => ({ id: u.id, email: u.email, name: u.name, role: u.role, active: u.active, lastLoginAt: u.lastLoginAt });
@@ -25,7 +25,7 @@ export class AuthService {
   /** Limite par adresse IP (en mémoire, par instance) : complète le verrouillage par compte. */
   private throttle(key: string, now = Date.now()) {
     const recent = (this.attempts.get(key) ?? []).filter((t) => now - t < 60_000);
-    if (recent.length >= THROTTLE_PER_MIN) throw new HttpException("Trop de tentatives, réessayez dans une minute", 429);
+    if (recent.length >= throttlePerMin()) throw new HttpException("Trop de tentatives, réessayez dans une minute", 429);
     recent.push(now);
     this.attempts.set(key, recent);
     if (this.attempts.size > 10_000) this.attempts.clear();

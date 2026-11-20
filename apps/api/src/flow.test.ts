@@ -11,6 +11,8 @@ import { signWebhook } from "./security";
 import { WebhooksService } from "./webhooks.service";
 import { FlightsService } from "./flights.service";
 import { RoutingService } from "./routing";
+import { SmsService } from "./sms";
+import { OTP, OtpService } from "./otp.service";
 
 const prisma = new PrismaClient();
 let app: INestApplication;
@@ -121,7 +123,7 @@ beforeEach(async () => {
   received = [];
   hookStatus = 200;
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
+    'TRUNCATE "OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
   );
 });
 
@@ -806,5 +808,131 @@ describe("comptes back-office", () => {
     expect(actions).toEqual(expect.arrayContaining(["user.created", "login.failed", "login.ok"]));
     const ev = await prisma.rideEvent.findFirst({ where: { rideId: res.json.rideId, type: "ride.assigned" } });
     expect(ev?.actor).toBe("admin:audit@exemple.fr");
+  });
+});
+
+
+/* ============================ Codes SMS à usage unique ============================ */
+
+describe("codes SMS des chauffeurs", () => {
+  let sent: { to: string; text: string }[] = [];
+  let sms: SmsService;
+  const savedDev = process.env.DRIVER_DEV_OTP;
+  beforeEach(() => {
+    sent = [];
+    sms = app.get(SmsService);
+    sms.provider = { send: async (to, text) => { sent.push({ to, text }); } };
+    process.env.DRIVER_DEV_OTP = ""; // on teste le vrai flux, pas le code de développement
+  });
+  afterAll(() => { process.env.DRIVER_DEV_OTP = savedDev; });
+  // Les chauffeurs de test se connectent d'abord avec le code de développement (le temps de les créer).
+  const mk = async () => { process.env.DRIVER_DEV_OTP = "000000"; try { return await mkDriver(); } finally { process.env.DRIVER_DEV_OTP = ""; } };
+  const lastCode = () => /(\d{6})/.exec(sent[sent.length - 1].text)![1];
+  const requestCode = (phone: string) => call("/driver/otp", { body: { phone } });
+  const loginWith = (phone: string, code: string) => call("/driver/login", { body: { phone, code } });
+
+  it("envoie un code à 6 chiffres, valable une seule fois", async () => {
+    const d = await mk();
+    expect((await requestCode(d.phone)).status).toBe(201);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toBe(d.phone);
+    const code = lastCode();
+    const ok = await loginWith(d.phone, code);
+    expect(ok.status).toBe(201);
+    expect(ok.json.driverId).toBe(d.id);
+    expect((await call("/driver/me", { token: ok.json.token })).status).toBe(200);
+    expect((await loginWith(d.phone, code)).status).toBe(401); // déjà utilisé
+  });
+
+  it("n'enregistre jamais le code en clair", async () => {
+    const d = await mk();
+    await requestCode(d.phone);
+    const row = await prisma.otpCode.findFirstOrThrow({ where: { phone: d.phone } });
+    expect(row.codeHash).not.toContain(lastCode());
+    expect(row.codeHash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("accepte un numéro saisi à la française", async () => {
+    const d = await mk();
+    const local = "0" + d.phone.slice(3); // +33600000001 → 0600000001
+    expect((await requestCode(local)).status).toBe(201);
+    expect(sent[0].to).toBe(d.phone);
+    expect((await loginWith(local, lastCode())).status).toBe(201);
+  });
+
+  it("répond pareil pour un numéro inconnu, sans envoyer de SMS", async () => {
+    const d = await mk();
+    const known = await requestCode(d.phone);
+    const unknown = await requestCode("+33699999999");
+    expect(unknown.status).toBe(known.status);
+    expect(unknown.json).toEqual(known.json);
+    expect(sent.map((s) => s.to)).toEqual([d.phone]);
+    expect((await loginWith("+33699999999", "123456")).status).toBe(401);
+    expect((await requestCode("pas un numéro")).status).toBe(422);
+  });
+
+  it("bloque le code après 5 essais erronés, même avec le bon code ensuite", async () => {
+    const d = await mk();
+    await requestCode(d.phone);
+    const good = lastCode();
+    const wrong = good === "000001" ? "000002" : "000001";
+    for (let i = 0; i < OTP.maxAttempts; i++) expect((await loginWith(d.phone, wrong)).status).toBe(401);
+    expect((await loginWith(d.phone, good)).status).toBe(401);
+  });
+
+  it("refuse un code expiré", async () => {
+    const d = await mk();
+    await requestCode(d.phone);
+    await prisma.otpCode.updateMany({ data: { expiresAt: new Date(Date.now() - 1000) } });
+    expect((await loginWith(d.phone, lastCode())).status).toBe(401);
+  });
+
+  it("un nouveau code invalide le précédent ; renvoi limité (30 s, 3 par 10 min)", async () => {
+    const d = await mk();
+    await requestCode(d.phone);
+    const first = lastCode();
+    expect((await requestCode(d.phone)).status).toBe(429); // trop tôt
+    await prisma.otpCode.updateMany({ data: { createdAt: new Date(Date.now() - 60_000) } });
+    expect((await requestCode(d.phone)).status).toBe(201);
+    expect((await loginWith(d.phone, first)).status).toBe(401); // ancien code périmé
+    await prisma.otpCode.updateMany({ data: { createdAt: new Date(Date.now() - 50_000) } });
+    expect((await requestCode(d.phone)).status).toBe(201); // 3e dans la fenêtre
+    await prisma.otpCode.updateMany({ data: { createdAt: new Date(Date.now() - 40_000) } });
+    expect((await requestCode(d.phone)).status).toBe(429); // 4e : fenêtre épuisée
+  });
+
+  it("consommation atomique : deux connexions simultanées avec le même code, une seule réussit", async () => {
+    const d = await mk();
+    await requestCode(d.phone);
+    const code = lastCode();
+    const rs = await Promise.all([1, 2, 3, 4].map(() => loginWith(d.phone, code)));
+    expect(rs.filter((r) => r.status === 201)).toHaveLength(1);
+  });
+
+  it("limite les demandes par adresse IP", async () => {
+    const saved = process.env.OTP_IP_PER_MIN;
+    process.env.OTP_IP_PER_MIN = "3";
+    (app.get(OtpService) as any).ipHits.clear(); // repart d'un compteur vide
+    try {
+      const codes = [];
+      for (let i = 0; i < 4; i++) codes.push((await requestCode(`+3369999000${i}`)).status);
+      expect(codes).toEqual([201, 201, 201, 429]);
+    } finally { process.env.OTP_IP_PER_MIN = saved; }
+  });
+
+  it("répond 501 si aucun fournisseur SMS n'est configuré (et pas de code de développement)", async () => {
+    sms.provider = null;
+    const d = await mk();
+    expect((await requestCode(d.phone)).status).toBe(501);
+  });
+
+  it("le code de développement ne fonctionne que s'il est défini, et jamais en production", async () => {
+    const d = await mk();
+    expect((await loginWith(d.phone, "000000")).status).toBe(401); // non défini ici
+    process.env.DRIVER_DEV_OTP = "424242";
+    expect((await loginWith(d.phone, "424242")).status).toBe(201);
+    const env = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try { expect((await loginWith(d.phone, "424242")).status).toBe(401); } finally { process.env.NODE_ENV = env; }
   });
 });

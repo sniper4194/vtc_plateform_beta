@@ -5,6 +5,7 @@ import { AppModule } from "./app.module";
 export function checkEnv(env = process.env) {
   if (env.NODE_ENV === "production") {
     // ADMIN_TOKEN (token de service pour scripts) est optionnel ; s'il est défini, il doit être robuste.
+    if (env.DRIVER_DEV_OTP) throw new Error("DRIVER_DEV_OTP (code de développement) est interdit en production");
     if (env.ADMIN_TOKEN && env.ADMIN_TOKEN.length < 24) throw new Error("ADMIN_TOKEN doit faire au moins 24 caractères");
     if (!env.TOKEN_SECRET || env.TOKEN_SECRET.length < 32) throw new Error("TOKEN_SECRET (≥ 32 caractères) requis en production");
   }
