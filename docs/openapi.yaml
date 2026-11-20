@@ -1,0 +1,170 @@
+openapi: 3.0.3
+info:
+  title: VTC Platform — API partenaires
+  version: 0.1.0
+  description: |
+    API B2B pour devis, réservation, annulation et suivi de transferts VTC à prix fixe.
+    Authentification : en-tête `Authorization: Bearer <clé API>`. Une clé sandbox ne déclenche aucune vraie course.
+    Les créations de réservation exigent un en-tête `Idempotency-Key`.
+servers:
+  - url: https://sandbox.api.example.com/v1
+    description: Sandbox
+security:
+  - bearerAuth: []
+paths:
+  /quotes:
+    post:
+      summary: Obtenir un devis à prix fixe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuoteRequest' }
+      responses:
+        '200':
+          description: Devis valable 15 minutes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Quote' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /bookings:
+    post:
+      summary: Créer une réservation à partir d'un devis
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, maxLength: 100 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingRequest' }
+      responses:
+        '201':
+          description: Réservation confirmée
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Booking' }
+        '409': { description: Devis expiré ou déjà utilisé }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /bookings/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Statut d'une réservation (chauffeur, véhicule, position)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Booking' }
+        '404': { description: Introuvable }
+    delete:
+      summary: Annuler une réservation
+      description: Des frais d'annulation peuvent s'appliquer selon la politique du partenaire.
+      responses:
+        '200':
+          description: Annulée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: CANCELLED_BY_PARTNER }
+                  cancellationFee: { type: number, example: 0 }
+        '409': { description: Annulation impossible (course commencée) }
+webhooks:
+  bookingEvent:
+    post:
+      summary: Événement de réservation (signé HMAC-SHA256 dans `X-Signature`)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebhookEvent' }
+      responses:
+        '200': { description: Reçu }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  responses:
+    ValidationError:
+      description: Données invalides
+      content:
+        application/json:
+          schema: { type: object, properties: { errors: { type: object } } }
+  schemas:
+    VehicleCategory:
+      type: string
+      enum: [BERLINE, BUSINESS, VAN, GREEN]
+    Location:
+      type: object
+      required: [address, lat, lng]
+      properties:
+        address: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+    QuoteRequest:
+      type: object
+      required: [pickup, dropoff, pickupAt, category, passengers]
+      properties:
+        pickup: { $ref: '#/components/schemas/Location' }
+        dropoff: { $ref: '#/components/schemas/Location' }
+        pickupAt: { type: string, format: date-time }
+        category: { $ref: '#/components/schemas/VehicleCategory' }
+        passengers: { type: integer, minimum: 1, maximum: 8 }
+        luggage: { type: integer, minimum: 0, default: 0 }
+        flightNumber: { type: string, example: AF1234 }
+    Quote:
+      type: object
+      properties:
+        quoteId: { type: string, format: uuid }
+        total: { type: number, example: 55.0 }
+        currency: { type: string, example: EUR }
+        distanceKm: { type: number }
+        durationMin: { type: number }
+        expiresAt: { type: string, format: date-time }
+    BookingRequest:
+      type: object
+      required: [quoteId, passenger]
+      properties:
+        quoteId: { type: string, format: uuid }
+        externalReference: { type: string }
+        passenger:
+          type: object
+          required: [firstName, lastName, phone]
+          properties:
+            firstName: { type: string }
+            lastName: { type: string }
+            phone: { type: string }
+            email: { type: string, format: email }
+            language: { type: string, example: fr }
+    Booking:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [CONFIRMED, DISPATCHING, ASSIGNED, EN_ROUTE, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED_BY_CLIENT, CANCELLED_BY_PARTNER, NO_SHOW, DISPUTED, REFUNDED]
+        driver:
+          nullable: true
+          type: object
+          properties:
+            firstName: { type: string }
+            phone: { type: string }
+            vehicle: { type: string }
+            plate: { type: string }
+        pickupAt: { type: string, format: date-time }
+        total: { type: number }
+    WebhookEvent:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type:
+          type: string
+          enum: [booking.confirmed, driver.assigned, driver.en_route, driver.arrived, ride.started, ride.completed, booking.cancelled, flight.delayed]
+        createdAt: { type: string, format: date-time }
+        data: { $ref: '#/components/schemas/Booking' }
