@@ -1,16 +1,31 @@
-import { Body, Controller, Get, HttpException, Delete, Headers, Inject, Param, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpException, Delete, ServiceUnavailableException, Headers, Inject, Param, Post, Req, Res, UseGuards } from "@nestjs/common";
 import { BookingRequestSchema, QuoteRequestSchema } from "@vtc/shared";
 import { BookingsService } from "./bookings.service";
 import { parse } from "./http";
 import { RatingSchema } from "./schemas";
 import { QuotesService } from "./quotes.service";
 import { PartnerGuard } from "./security";
+import { PrismaService } from "./prisma";
 
 @Controller()
 export class HealthController {
+  constructor(@Inject(PrismaService) private prisma: PrismaService) {}
+
+  /** Liveness : le processus répond (ne dépend d'aucun service externe). */
   @Get("health")
   health() {
     return { status: "ok" };
+  }
+
+  /** Readiness : l'instance peut servir du trafic (base de données joignable). */
+  @Get("ready")
+  async ready() {
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+      return { status: "ok", db: true };
+    } catch {
+      throw new ServiceUnavailableException({ status: "unavailable", db: false });
+    }
   }
 }
 

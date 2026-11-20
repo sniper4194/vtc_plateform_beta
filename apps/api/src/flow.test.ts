@@ -127,6 +127,13 @@ beforeEach(async () => {
   );
 });
 
+describe("santé", () => {
+  it("liveness et readiness (base joignable)", async () => {
+    expect((await call("/health")).json).toEqual({ status: "ok" });
+    expect((await call("/ready")).json).toEqual({ status: "ok", db: true });
+  });
+});
+
 describe("authentification", () => {
   it("refuse une clé API absente ou inconnue", async () => {
     expect((await call("/v1/quotes", { body: {} })).status).toBe(401);

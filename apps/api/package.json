@@ -12,7 +12,7 @@
     "simulate": "tsx scripts/simulate.ts",
     "seed": "tsx scripts/seed.ts",
     "db:deploy": "prisma migrate deploy",
-    "admin:create": "tsx scripts/create-admin.ts"
+    "admin:create": "tsx src/cli/create-admin.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
@@ -21,13 +21,13 @@
     "@prisma/client": "^5.22.0",
     "@vtc/pricing": "workspace:*",
     "@vtc/shared": "workspace:*",
+    "prisma": "^5.22.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "prisma": "^5.22.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"

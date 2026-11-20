@@ -1,0 +1,20 @@
+# HTTPS automatique (Let's Encrypt) : les deux noms de domaine doivent pointer vers ce serveur (ports 80 et 443 ouverts).
+(securite) {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+{$API_DOMAIN} {
+	import securite
+	reverse_proxy api:3000
+}
+
+{$ADMIN_DOMAIN} {
+	import securite
+	reverse_proxy backoffice:3001
+}

@@ -1,0 +1,69 @@
+# Pré-production / petite production sur un seul serveur.
+#   cp infra/.env.prod.example infra/.env.prod   (puis renseigner les secrets)
+#   docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vtc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis}
+      POSTGRES_DB: vtc
+    volumes: [dbdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vtc -d vtc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Aucun port publié : la base n'est joignable que par l'API.
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://vtc:${POSTGRES_PASSWORD}@db:5432/vtc?schema=public
+      TOKEN_SECRET: ${TOKEN_SECRET:?TOKEN_SECRET requis (openssl rand -hex 32)}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      CORS_ORIGINS: https://${ADMIN_DOMAIN:?ADMIN_DOMAIN requis}
+      TRUST_PROXY: "1"
+      ROUTING_URL: ${ROUTING_URL:-}
+      SMS_PROVIDER: ${SMS_PROVIDER:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM: ${TWILIO_FROM:-}
+      BRAND_NAME: ${BRAND_NAME:-Étoile}
+    expose: ["3000"]
+
+  backoffice:
+    build:
+      context: ..
+      dockerfile: apps/backoffice/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?API_DOMAIN requis}
+    restart: unless-stopped
+    depends_on: [api]
+    expose: ["3001"]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [api, backoffice]
+    ports: ["80:80", "443:443"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  dbdata:
+  caddy_data:
+  caddy_config:

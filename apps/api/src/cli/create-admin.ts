@@ -1,10 +1,11 @@
 /**
  * Crée (ou promeut) un administrateur du back-office.
  *   ADMIN_PASSWORD='phrase de passe longue' pnpm -F @vtc/api admin:create vous@exemple.fr "Votre Nom"
+ * En production (image Docker) : docker compose exec -e ADMIN_PASSWORD=... api node dist/cli/create-admin.js vous@exemple.fr "Votre Nom"
  * Le mot de passe se passe par variable d'environnement (jamais en argument : il apparaîtrait dans l'historique du shell).
  */
 import { PrismaClient } from "@prisma/client";
-import { hashPassword, passwordProblem } from "../src/passwords";
+import { hashPassword, passwordProblem } from "../passwords";
 
 async function main() {
   const [emailRaw, name] = process.argv.slice(2);
