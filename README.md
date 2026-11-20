@@ -33,7 +33,22 @@ Le simulateur crée un partenaire et deux chauffeurs, réserve un CDG → Paris 
 | Chemin | Contenu |
 |---|---|
 | `apps/api` | API NestJS + schéma Prisma (`prisma/schema.prisma`) |
-| `apps/backoffice`, `apps/web-booking`, `apps/driver-app` | À initialiser (phase 1) |
+| `apps/backoffice` | Back-office Next.js : courses, attribution manuelle, alertes, validation chauffeurs, partenaires, webhooks (`pnpm -F @vtc/backoffice dev`, port 3001) |
+| `apps/driver-app` | App chauffeur Expo : connexion, accueil, courses à prendre (compte à rebours), mes courses, actions (`pnpm -F @vtc/driver-app start`) |
+| `apps/web-booking` | Site de réservation client — à initialiser (phase 2) |
 | `packages/pricing` | Moteur de tarification pur, testé |
 | `packages/shared` | Schémas Zod, machine à états des courses |
 | `infra` | docker-compose |
+
+## État de la phase 1
+
+| Élément | État |
+|---|---|
+| API partenaires (clé API, devis 15 min, réservation idempotente, annulation, webhooks signés) | ✅ testé (PostgreSQL réel) |
+| Dispatch (bourse, acceptation exclusive, relances, redistribution, alertes, attribution manuelle) | ✅ testé |
+| Onboarding chauffeur (documents requis, validation) | ✅ testé — upload réel S3 : phase 2 |
+| Back-office | ✅ vérifié dans un navigateur — authentification par token partagé (comptes nominatifs : phase 2) |
+| App chauffeur | ✅ typée, bundle Android compilé, logique testée — **non essayée sur un téléphone/émulateur** |
+| Routage, suivi de vol, push/SMS, paiements, e-signature | ⏳ phase 2 (stubs : `RoutingService`, `NotificationsService`) |
+
+Connexion chauffeur en dev : téléphone d'un chauffeur créé via `/admin/drivers`, code `DRIVER_DEV_OTP` (000000 par défaut).

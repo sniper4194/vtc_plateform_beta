@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "VTC Chauffeur",
+    "slug": "vtc-driver",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": [["expo-location", { "locationWhenInUsePermission": "Votre position sert à vous proposer les courses proches." }]],
+    "ios": { "bundleIdentifier": "com.example.vtcdriver", "supportsTablet": false },
+    "android": { "package": "com.example.vtcdriver" }
+  }
+}

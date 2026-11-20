@@ -1,0 +1,30 @@
+:root {
+  --bg: #f6f7f9; --card: #fff; --ink: #14201b; --muted: #667; --line: #e3e6ea;
+  --brand: #e8590c; --ok: #0a8f5b; --warn: #b7791f; --bad: #d63b3b; --blue: #1636b5;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #11151a; --card: #1a2027; --ink: #e8ecef; --muted: #98a2ad; --line: #2b333c; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+header { display: flex; gap: 24px; align-items: center; padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header h1 { font-size: 18px; margin: 0; color: var(--brand); }
+nav { display: flex; gap: 4px; flex-wrap: wrap; }
+nav button { border: 0; background: none; padding: 8px 12px; border-radius: 8px; color: var(--ink); cursor: pointer; font: inherit; }
+nav button.on { background: var(--brand); color: #fff; }
+main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--line); }
+.badge.ok { background: #d6f3e6; color: #075e3d; } .badge.warn { background: #fdecc8; color: #7a4f06; } .badge.bad { background: #fbd9d9; color: #8a1f1f; }
+button.btn, select, input { font: inherit; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+button.btn { cursor: pointer; } button.btn.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+button.btn.danger { color: var(--bad); } button.btn:disabled { opacity: .5; cursor: not-allowed; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.err { color: var(--bad); margin: 8px 0; } .muted { color: var(--muted); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi b { display: block; font-size: 26px; } .kpi.alert b { color: var(--bad); }
+code { background: var(--line); padding: 2px 6px; border-radius: 6px; word-break: break-all; }
+@media (max-width: 700px) { main { padding: 12px; } .scroll { overflow-x: auto; } }

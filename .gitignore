@@ -4,3 +4,7 @@ dist
 *.log
 .turbo
 .DS_Store
+.next
+next-env.d.ts
+.expo
+*.tsbuildinfo
