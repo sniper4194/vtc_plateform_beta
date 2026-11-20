@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdown, eurShort, fuseFraction, groupByDay, NEXT_ACTION, stepIndex, timeOf, whenLabel } from "./format";
+import { countdown, delayLabel, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel } from "./format";
 
 describe("format", () => {
   it("compte à rebours mm:ss", () => {
@@ -34,5 +34,14 @@ describe("format", () => {
     expect(secs.map((s) => s.data.length)).toEqual([2, 1]);
     expect(secs[0].title.startsWith("Demain")).toBe(true);
     expect(timeOf(secs[0].data[1].at)).toBe("13:00");
+  });
+  it("attente et compte à rebours", () => {
+    const now = new Date("2026-11-21T10:00:00Z");
+    expect(waitedMin("2026-11-21T08:57:00Z", now)).toBe(63);
+    expect(waitedMin(null, now)).toBe(0);
+    expect(secondsUntil("2026-11-21T10:12:00Z", now)).toBe(720);
+    expect(secondsUntil("2026-11-21T09:00:00Z", now)).toBe(0);
+    expect(delayLabel(62)).toBe("+62 min");
+    expect(delayLabel(0)).toBe("à l'heure");
   });
 });

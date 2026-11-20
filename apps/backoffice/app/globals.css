@@ -65,3 +65,14 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 2px dashed var(--ink); } th { font: 13px var(--cond); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
 .title { font-family: var(--display); font-size: 34px; color: var(--cream); text-shadow: 3px 3px 0 var(--red); margin: 0 0 14px; }
 @media (max-width: 800px) { .board { grid-template-columns: repeat(4, 280px); } main, header { padding-left: 14px; padding-right: 14px; } }
+
+/* ---- performance ---- */
+.filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.bars { display: flex; gap: 12px; align-items: flex-end; height: 220px; padding-top: 8px; overflow-x: auto; }
+.barcol { flex: 1; min-width: 44px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.bar { width: 100%; max-width: 70px; display: flex; flex-direction: column; border: 2.5px solid var(--ink); border-radius: 10px 10px 0 0; overflow: hidden; min-height: 4px; background: var(--cream); }
+.seg { display: block; } .seg.perfect { background: var(--blue); } .seg.avg { background: var(--yel); } .seg.poor { background: var(--red); }
+.tabs2 { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
+.flightrow { display: flex; gap: 6px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.flightrow input { width: 128px; padding: 5px 8px; font-size: 13px; }
+.flightrow .chip { white-space: nowrap; }

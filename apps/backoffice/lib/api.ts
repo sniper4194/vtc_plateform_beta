@@ -1,14 +1,20 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
-const KEY = "vtc_admin_token";
-export const getToken = () => (typeof window === "undefined" ? "" : sessionStorage.getItem(KEY) ?? "");
-export const setToken = (t: string) => sessionStorage.setItem(KEY, t);
-export const clearToken = () => sessionStorage.removeItem(KEY);
+const ADMIN = "vtc_admin_token";
+const COMPANY = "vtc_company_key";
+const read = (k: string) => (typeof window === "undefined" ? "" : sessionStorage.getItem(k) ?? "");
 
-export async function api<T = any>(path: string, body?: unknown): Promise<T> {
+export const getToken = () => read(ADMIN);
+export const setToken = (t: string) => sessionStorage.setItem(ADMIN, t);
+export const clearToken = () => sessionStorage.removeItem(ADMIN);
+export const getCompanyKey = () => read(COMPANY);
+export const setCompanyKey = (t: string) => sessionStorage.setItem(COMPANY, t);
+export const clearCompanyKey = () => sessionStorage.removeItem(COMPANY);
+
+async function request<T>(path: string, headers: Record<string, string>, body?: unknown): Promise<T> {
   const res = await fetch(API_URL + path, {
     method: body === undefined ? "GET" : "POST",
-    headers: { "content-type": "application/json", "x-admin-token": getToken() },
+    headers: { "content-type": "application/json", ...headers },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
@@ -17,6 +23,21 @@ export async function api<T = any>(path: string, body?: unknown): Promise<T> {
   return json as T;
 }
 
+/** Appel authentifié en administrateur. */
+export const api = <T = any>(path: string, body?: unknown) => request<T>(path, { "x-admin-token": getToken() }, body);
+/** Appel authentifié avec la clé d'une société partenaire. */
+export const capi = <T = any>(path: string, body?: unknown) => request<T>(path, { authorization: `Bearer ${getCompanyKey()}` }, body);
+
+/** Télécharge un fichier protégé (en-tête d'autorisation) puis le propose à l'enregistrement. */
+export async function downloadCompanyFile(path: string, filename: string) {
+  const res = await fetch(API_URL + path, { headers: { authorization: `Bearer ${getCompanyKey()}` } });
+  if (!res.ok) throw new Error(`Erreur ${res.status}`);
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export const eur = (cents: number) => (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
-export const dt = (s: string) =>
-  new Date(s).toLocaleString("fr-FR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+export const dt = (s: string) => new Date(s).toLocaleString("fr-FR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+export const day = (s: string) => new Date(s + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" });

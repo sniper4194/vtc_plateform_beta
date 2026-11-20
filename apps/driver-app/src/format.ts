@@ -59,3 +59,19 @@ export function groupByDay<T>(items: T[], iso: (t: T) => string, now = new Date(
   }
   return out;
 }
+
+export const waitedMin = (arrivedAt: string | Date | null | undefined, now = new Date()) =>
+  arrivedAt ? Math.max(0, Math.floor((now.getTime() - new Date(arrivedAt).getTime()) / 60_000)) : 0;
+
+export const secondsUntil = (iso: string | Date | null | undefined, now = new Date()) =>
+  iso ? Math.max(0, Math.ceil((new Date(iso).getTime() - now.getTime()) / 1000)) : 0;
+
+export const MISSION_TITLE: Record<string, string> = {
+  ASSIGNED: "Mission au programme",
+  EN_ROUTE: "En route vers le client",
+  ARRIVED: "Le client est attendu",
+  IN_PROGRESS: "Course en cours",
+  COMPLETED: "Mission terminée",
+};
+
+export const delayLabel = (min: number) => (min > 0 ? `+${min} min` : "à l'heure");

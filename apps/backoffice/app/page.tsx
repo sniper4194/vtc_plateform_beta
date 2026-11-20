@@ -1,8 +1,10 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { api, clearToken, dt, eur, getToken, setToken } from "../lib/api";
+import { PerformanceView } from "./perf";
 
-type Tab = "rides" | "alerts" | "drivers" | "partners";
+type Tab = "rides" | "alerts" | "perf" | "drivers" | "companies" | "partners";
+const OPEN_FLIGHT = ["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
 const COLUMNS: { title: string; statuses: string[]; tone: string }[] = [
   { title: "À attribuer", statuses: ["DISPATCHING"], tone: "yel" },
   { title: "Attribuées", statuses: ["ASSIGNED"], tone: "" },
@@ -59,6 +61,24 @@ function Route({ from, to }: { from: string; to: string }) {
   );
 }
 
+function FlightControl({ ride, onDone, onError }: { ride: any; onDone: () => void; onError: (m: string) => void }) {
+  const [min, setMin] = useState("");
+  async function apply() {
+    const m = Number(min);
+    if (!Number.isFinite(m) || m < 0) return onError("Retard invalide");
+    try {
+      await api(`/admin/rides/${ride.id}/flight`, { estimatedArrivalAt: m > 0 ? new Date(new Date(ride.pickupAt).getTime() + m * 60_000).toISOString() : null });
+      onError(""); setMin(""); onDone();
+    } catch (e: any) { onError(e.message); }
+  }
+  return (
+    <>
+      <input type="number" min={0} placeholder="Retard (min)" value={min} onChange={(e) => setMin(e.target.value)} aria-label="Retard du vol en minutes" />
+      <button className="btn" disabled={min === ""} onClick={apply}>Vol</button>
+    </>
+  );
+}
+
 function Board() {
   const rides = useLoad<any[]>("/admin/rides");
   const drivers = useLoad<any[]>("/admin/drivers?status=ACTIVE", 15000);
@@ -100,6 +120,12 @@ function Board() {
                       <span className="chip">{r.booking.partner?.name ?? "—"}</span>
                       <span className="chip">Client {eur(r.priceCents).replace(",00", "")}</span>
                     </div>
+                    {r.booking.flightNumber && (
+                      <div className="flightrow">
+                        <span className={`chip ${r.flightDelayMin > 0 ? "ok" : ""}`}>✈ {r.booking.flightNumber}{r.flightDelayMin > 0 ? ` +${r.flightDelayMin} min` : ""}</span>
+                        {OPEN_FLIGHT.includes(r.status) && <FlightControl ride={r} onDone={rides.reload} onError={setErr} />}
+                      </div>
+                    )}
                     {r.driver && <p style={{ margin: "10px 0 0" }}><span className="cond muted">Chauffeur</span><br /><b style={{ fontFamily: "var(--slab)", fontWeight: 400 }}>{r.driver.firstName} {r.driver.lastName}</b></p>}
                     {r.status === "DISPATCHING" && (
                       <>
@@ -165,6 +191,67 @@ function Drivers() {
         ))}
       </div>
       {!drivers.data?.length && <div className="card">Aucun chauffeur.</div>}
+    </>
+  );
+}
+
+function AdminPerformance() {
+  const companies = useLoad<any[]>("/admin/companies", 30000);
+  const drivers = useLoad<any[]>("/admin/drivers", 30000);
+  const [companyId, setCompanyId] = useState("");
+  const load = useCallback((qs: string) => api(`/admin/performance?${qs}${companyId ? `&companyId=${companyId}` : ""}`), [companyId]);
+  const scoped = (drivers.data ?? []).filter((d) => !companyId || d.companyId === companyId);
+  return (
+    <>
+      <div className="card filters">
+        <span className="cond muted">Société</span>
+        <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+          <option value="">Toutes (plateforme)</option>
+          {companies.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+      <PerformanceView
+        load={load} scopeKey={companyId}
+        drivers={scoped.map((d) => ({ id: d.id, label: `${d.firstName} ${d.lastName}` }))}
+        vehicles={scoped.flatMap((d) => d.vehicles.map((v: any) => ({ id: v.id, label: `${v.plate} · ${d.firstName}` })))}
+      />
+    </>
+  );
+}
+
+function Companies() {
+  const list = useLoad<any[]>("/admin/companies", 10000);
+  const [name, setName] = useState("");
+  const [siret, setSiret] = useState("");
+  const [created, setCreated] = useState<any>(null);
+  const [err, setErr] = useState("");
+  async function create(e: React.FormEvent) {
+    e.preventDefault();
+    try { setCreated(await api("/admin/companies", { name, siret: siret || undefined })); setErr(""); setName(""); setSiret(""); list.reload(); }
+    catch (e: any) { setErr(e.body?.errors ? "SIRET : 14 chiffres" : e.message); }
+  }
+  return (
+    <>
+      <h1 className="title">Sociétés</h1>
+      <form className="card yel" onSubmit={create}>
+        <h3>Nouvelle société partenaire</h3>
+        <div className="row">
+          <input placeholder="Raison sociale" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: 260 }} />
+          <input placeholder="SIRET (14 chiffres)" value={siret} onChange={(e) => setSiret(e.target.value)} />
+          <button className="btn" disabled={!name}>Créer</button>
+        </div>
+        {err && <div className="err">{err}</div>}
+        {created && <div style={{ marginTop: 14 }}><b>Clé d'accès de l'espace société — à transmettre maintenant, elle ne sera plus affichée :</b><p><code>{created.accessKey}</code></p><p className="muted">Espace société : <code>/societe</code></p></div>}
+      </form>
+      <div className="grid">
+        {list.data?.map((c) => (
+          <div className="card" key={c.id}>
+            <b style={{ fontFamily: "var(--slab)", fontWeight: 400, fontSize: 18 }}>{c.name}</b>
+            <div className="muted">{c.siret ?? "SIRET non renseigné"}</div>
+            <div className="chips"><span className="chip blue">{c.drivers} chauffeur(s)</span><span className="chip">{c.vehicles} véhicule(s)</span><span className="chip">clé {c.keyPrefix}…</span></div>
+          </div>
+        ))}
+      </div>
     </>
   );
 }
@@ -246,7 +333,7 @@ export default function Home() {
   useEffect(() => { setAuthed(Boolean(getToken())); setReady(true); }, []);
   if (!ready) return null;
   if (!authed) return <Login onOk={() => setAuthed(true)} />;
-  const tabs: [Tab, string][] = [["rides", "Tableau"], ["alerts", "Alertes"], ["drivers", "Chauffeurs"], ["partners", "Partenaires"]];
+  const tabs: [Tab, string][] = [["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"], ["companies", "Sociétés"], ["partners", "Partenaires"]];
   const nAlerts = alerts.data?.length ?? 0;
   return (
     <>
@@ -264,7 +351,9 @@ export default function Home() {
       <main>
         {tab === "rides" && <Board />}
         {tab === "alerts" && <AlertsTab />}
+        {tab === "perf" && <AdminPerformance />}
         {tab === "drivers" && <Drivers />}
+        {tab === "companies" && <Companies />}
         {tab === "partners" && <Partners />}
       </main>
     </>

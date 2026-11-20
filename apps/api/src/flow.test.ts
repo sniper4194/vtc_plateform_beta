@@ -581,6 +581,13 @@ describe("espace société", () => {
     expect((await call("/company/me", { token: (await mkPartner()).apiKey })).status).toBe(401); // une clé partenaire ne passe pas
   });
 
+  it("refuse deux sociétés avec le même SIRET", async () => {
+    const body = { name: "X", siret: "12345678901234" };
+    expect((await call("/admin/companies", { admin: true, body })).status).toBe(201);
+    expect((await call("/admin/companies", { admin: true, body: { ...body, name: "Y" } })).status).toBe(409);
+    expect((await call("/admin/companies", { admin: true, body: { name: "Z", siret: "123" } })).status).toBe(422);
+  });
+
   it("isole les sociétés entre elles", async () => {
     const a = await mkCompany("A"), b = await mkCompany("B");
     const da = await companyDriver(a);

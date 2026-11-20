@@ -35,7 +35,7 @@ function Header({ title, right }: { title: string; right?: React.ReactNode }) {
 }
 
 /* ------------------------------ CAP (accueil) ------------------------------ */
-export function Cap({ goRadar, onQuit, notify }: { goRadar: () => void; onQuit: () => void; notify: Notify }) {
+export function Cap({ goRadar, onQuit, notify, openMission }: { goRadar: () => void; onQuit: () => void; notify: Notify; openMission: (id: string) => void }) {
   const me = useFetch<any>("/driver/me", 15000);
   const home = useFetch<any>("/driver/home");
   const [busy, setBusy] = useState(false);
@@ -55,6 +55,13 @@ export function Cap({ goRadar, onQuit, notify }: { goRadar: () => void; onQuit: 
         <Script size={34}>Salut {me.data?.firstName},</Script>
         <Display size={40} shadow={c.red}>cap sur la journée</Display>
       </View>
+
+      {home.data?.liveRideId && (
+        <Card color={c.red} onPress={() => openMission(home.data.liveRideId)}>
+          <Slab size={17} color={c.cream} shadow={null}>Mission en cours</Slab>
+          <Cond size={13} color={c.cream}>Toucher pour la reprendre →</Cond>
+        </Card>
+      )}
 
       {!active && (
         <Card color={c.red}>
@@ -261,13 +268,14 @@ function Stepper({ status }: { status: string }) {
   );
 }
 
-function MissionDetail({ r, run, notify }: { r: any; run: (id: string, action: string) => void; notify: Notify }) {
+function MissionDetail({ r, run, notify, openMission }: { r: any; run: (id: string, action: string) => void; notify: Notify; openMission: (id: string) => void }) {
   const next = NEXT_ACTION(r.status);
   const [problem, setProblem] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const target = r.status === "IN_PROGRESS" ? r.dropoff : r.pickup;
   return (
     <View style={{ gap: 10 }}>
+      <Btn label="Ouvrir le mode mission" color={c.blue} text={c.cream} onPress={() => openMission(r.rideId)} />
       <View style={{ backgroundColor: c.cream, borderWidth: 2, borderColor: c.ink, borderRadius: 12, padding: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
         <View style={{ flex: 1 }}>
           <Cond size={11} color={c.muted}>Passager</Cond>
@@ -292,7 +300,7 @@ function MissionDetail({ r, run, notify }: { r: any; run: (id: string, action: s
   );
 }
 
-export function Agenda({ notify }: { notify: Notify }) {
+export function Agenda({ notify, openMission }: { notify: Notify; openMission: (id: string) => void }) {
   const [scope, setScope] = useState<"upcoming" | "history">("upcoming");
   const rides = useFetch<any[]>(`/driver/rides?scope=${scope}`, 5000);
   const [open, setOpen] = useState<string | null>(null);
@@ -326,7 +334,7 @@ export function Agenda({ notify }: { notify: Notify }) {
               badge={<Chip label={upcoming ? (STEPS[stepIndex(r.status)]?.short ?? r.status) : r.status} color={upcoming ? c.yel : c.cream} />}
               expanded={expanded} onPress={upcoming ? () => setOpen(expanded ? "" : r.rideId) : undefined}
             >
-              <MissionDetail r={r} run={run} notify={notify} />
+              <MissionDetail r={r} run={run} notify={notify} openMission={openMission} />
             </Row>
           );
         }}

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { DispatchService } from "./dispatch.service";
 import { missingDocuments, REQUIRED_DOCS } from "./driver-docs";
 import { FlightsService } from "./flights.service";
@@ -103,8 +104,13 @@ export class AdminController {
   async createCompany(@Body() body: unknown) {
     const c = parse(CompanyCreateSchema, body);
     const k = generateCompanyKey();
-    const company = await this.prisma.company.create({ data: { ...c, accessKeyHash: k.hash, accessKeyPrefix: k.prefix } });
-    return { companyId: company.id, accessKey: k.key };
+    try {
+      const company = await this.prisma.company.create({ data: { ...c, accessKeyHash: k.hash, accessKeyPrefix: k.prefix } });
+      return { companyId: company.id, accessKey: k.key };
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new HttpException("Une société avec ce SIRET existe déjà", 409);
+      throw e;
+    }
   }
 
   @Get("companies")

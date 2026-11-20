@@ -8,6 +8,7 @@ import { RozhaOne_400Regular } from "@expo-google-fonts/rozha-one";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, TextInput, View } from "react-native";
 import { api, loadToken, saveToken } from "./src/api";
+import { MissionScreen } from "./src/mission";
 import { Agenda, Cap, Radar } from "./src/screens";
 import { BRAND, c, font } from "./src/theme";
 import { Btn, Card, Cond, Display, Script, Slab, Sticker, useToast } from "./src/ui";
@@ -63,6 +64,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [tab, setTab] = useState<Tab>("cap");
+  const [missionId, setMissionId] = useState<string | null>(null);
   const toast = useToast();
 
   useEffect(() => { loadToken().then((t) => { setAuthed(Boolean(t)); setReady(true); }); }, []);
@@ -86,13 +88,22 @@ export default function App() {
 
   if (!ready || !fontsLoaded) return <View style={{ flex: 1, backgroundColor: c.blue, justifyContent: "center" }}><ActivityIndicator color={c.cream} /></View>;
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
+  if (missionId) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.blue }}>
+        <StatusBar style="light" />
+        <MissionScreen rideId={missionId} onClose={() => setMissionId(null)} notify={toast.show} />
+        {toast.node}
+      </SafeAreaView>
+    );
+  }
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.blue }}>
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
         {tab === "radar" && <Radar notify={toast.show} />}
-        {tab === "cap" && <Cap goRadar={() => setTab("radar")} onQuit={async () => { await saveToken(null); setAuthed(false); }} notify={toast.show} />}
-        {tab === "agenda" && <Agenda notify={toast.show} />}
+        {tab === "cap" && <Cap goRadar={() => setTab("radar")} onQuit={async () => { await saveToken(null); setAuthed(false); }} notify={toast.show} openMission={setMissionId} />}
+        {tab === "agenda" && <Agenda notify={toast.show} openMission={setMissionId} />}
         {toast.node}
       </View>
       <View style={{ flexDirection: "row", backgroundColor: c.cream, borderTopWidth: 3, borderColor: c.ink, paddingVertical: 8 }}>
