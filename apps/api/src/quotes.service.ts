@@ -4,7 +4,8 @@ import { computeQuote, findFlatRate, FlatRate, PricingConfig, VehicleCategory } 
 import { QuoteRequest } from "@vtc/shared";
 import { cents, euros } from "./http";
 import { PrismaService } from "./prisma";
-import { haversineKm, zonesOf } from "./zones";
+import { RoutingService } from "./routing";
+import { zonesOf } from "./zones";
 
 /** Config par défaut, utilisée tant qu'aucun PricingRuleSet actif n'existe en base. */
 export const DEFAULT_PRICING: PricingConfig = {
@@ -28,18 +29,12 @@ export function matchZones(from: string[], to: string[], flat: FlatRate[], categ
   return { fromZone: from[0], toZone: to[0] };
 }
 
-/** Estimation provisoire (à vol d'oiseau). Brancher OSRM/Google ici sans toucher au reste. */
-export class RoutingService {
-  estimate(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-    const distanceKm = haversineKm(a, b) * 1.3;
-    return { distanceKm, durationMin: Math.max(5, (distanceKm / 35) * 60) };
-  }
-}
-
 @Injectable()
 export class QuotesService {
-  private routing = new RoutingService();
-  constructor(@Inject(PrismaService) private prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private prisma: PrismaService,
+    @Inject(RoutingService) private routing: RoutingService,
+  ) {}
 
   private async loadConfig(): Promise<{ cfg: PricingConfig; flat: FlatRate[] }> {
     const [rules, flats] = await Promise.all([
@@ -59,7 +54,7 @@ export class QuotesService {
     if (pickupAt.getTime() <= Date.now()) throw new HttpException({ errors: { pickupAt: ["doit être dans le futur"] } }, 422);
 
     const { cfg, flat } = await this.loadConfig();
-    const { distanceKm, durationMin } = this.routing.estimate(req.pickup, req.dropoff);
+    const { distanceKm, durationMin, source } = await this.routing.estimate(req.pickup, req.dropoff);
     const q = computeQuote(
       {
         distanceKm, durationMin, category: req.category, pickupAt, luggage: req.luggage,
@@ -85,6 +80,7 @@ export class QuotesService {
       distanceKm: Math.round(distanceKm * 10) / 10,
       durationMin: Math.round(durationMin),
       flatRate: Boolean(q.flatRateId),
+      routing: source,
       expiresAt: expiresAt.toISOString(),
     };
   }

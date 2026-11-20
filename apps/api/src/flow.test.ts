@@ -10,6 +10,7 @@ import { DISPATCH, DispatchService } from "./dispatch.service";
 import { signWebhook } from "./security";
 import { WebhooksService } from "./webhooks.service";
 import { FlightsService } from "./flights.service";
+import { RoutingService } from "./routing";
 
 const prisma = new PrismaClient();
 let app: INestApplication;
@@ -156,6 +157,21 @@ describe("devis", () => {
     expect(q.json.total).toBe(55);
     expect(q.json.flatRate).toBe(true);
   });
+  it("utilise le routage routier quand il est disponible, et l'indique", async () => {
+    const p = await mkPartner();
+    const routing = app.get(RoutingService);
+    const nearby = { address: "Rue voisine", lat: 48.8700, lng: 2.3400 };
+    const body = { pickup: nearby, dropoff: PARIS, pickupAt: inDays(3), category: "BERLINE", passengers: 1 };
+    const before = await call("/v1/quotes", { token: p.apiKey, body });
+    expect(before.json.routing).toBe("estimate");
+    routing.provider = { route: async () => ({ distanceKm: 12, durationMin: 40 }) };
+    try {
+      const after = await call("/v1/quotes", { token: p.apiKey, body });
+      expect(after.json).toMatchObject({ routing: "road", distanceKm: 12, durationMin: 40 });
+      expect(after.json.total).toBeGreaterThan(before.json.total); // 12 km / 40 min coûtent plus que l'estimation de 2 km
+    } finally { routing.provider = null; }
+  });
+
   it("un devis ne sert qu'une fois et appartient à son partenaire", async () => {
     const p = await mkPartner(), other = await mkPartner();
     const { quote } = await mkBooking(p, {}, "k1");
