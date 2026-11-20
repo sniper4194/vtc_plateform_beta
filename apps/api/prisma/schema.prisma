@@ -349,3 +349,24 @@ model WebhookDelivery {
 
   @@index([status, nextAttemptAt])
 }
+
+enum AdminRole {
+  ADMIN
+  DISPATCHER
+}
+
+/// Comptes du back-office (tour de contrôle). Mot de passe haché (scrypt), jamais stocké en clair.
+model AdminUser {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  name         String
+  role         AdminRole @default(DISPATCHER)
+  passwordHash String
+  active       Boolean   @default(true)
+  /// Incrémenté à chaque changement de mot de passe ou désactivation : invalide les sessions en cours.
+  tokenVersion Int       @default(0)
+  failedLogins Int       @default(0)
+  lockedUntil  DateTime?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+}

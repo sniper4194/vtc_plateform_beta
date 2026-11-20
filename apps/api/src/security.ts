@@ -1,4 +1,5 @@
-import { CanActivate, ExecutionContext, HttpException, Inject, Injectable } from "@nestjs/common";
+import { CanActivate, ExecutionContext, HttpException, Inject, Injectable, SetMetadata } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { PrismaService } from "./prisma";
 
@@ -83,15 +84,36 @@ export class CompanyGuard implements CanActivate {
   }
 }
 
+export const ROLES_KEY = "admin_roles";
+/** Réserve une route (ou un contrôleur) aux administrateurs ; sans cette marque, un régulateur y a accès. */
+export const AdminOnly = () => SetMetadata(ROLES_KEY, ["ADMIN"]);
+
+export interface AdminIdentity { id: string | null; email: string; role: "ADMIN" | "DISPATCHER"; actor: string }
+
+/**
+ * Accepte soit une session de compte nominatif (`Authorization: Bearer`), soit le token de service `x-admin-token`
+ * (scripts, simulateur). Le token de service est refusé si ADMIN_TOKEN n'est pas défini.
+ */
 @Injectable()
 export class AdminGuard implements CanActivate {
-  canActivate(ctx: ExecutionContext) {
+  constructor(@Inject(PrismaService) private prisma: PrismaService, @Inject(Reflector) private reflector: Reflector) {}
+  async canActivate(ctx: ExecutionContext) {
     const req = ctx.switchToHttp().getRequest();
-    const given = req.headers["x-admin-token"];
-    // Refuse si ADMIN_TOKEN n'est pas configuré : pas d'accès par défaut.
-    if (!config.adminToken || typeof given !== "string" || !safeEqual(given, config.adminToken)) {
-      throw new HttpException("Accès refusé", 401);
+    const required = this.reflector.getAllAndOverride<string[] | undefined>(ROLES_KEY, [ctx.getHandler(), ctx.getClass()]);
+    const legacy = req.headers["x-admin-token"];
+    if (typeof legacy === "string") {
+      if (!config.adminToken || !safeEqual(legacy, config.adminToken)) throw new HttpException("Accès refusé", 401);
+      req.admin = { id: null, email: "service", role: "ADMIN", actor: "service" } satisfies AdminIdentity;
+      return true;
     }
+    const token = bearer(req);
+    const payload = token ? verifyToken(token, config.tokenSecret) : null;
+    if (!payload || payload.role !== "admin") throw new HttpException("Non authentifié", 401);
+    const user = await this.prisma.adminUser.findUnique({ where: { id: payload.sub } });
+    // tokenVersion : un changement de mot de passe ou une désactivation coupe immédiatement les sessions ouvertes.
+    if (!user || !user.active || user.tokenVersion !== payload.tv) throw new HttpException("Session expirée", 401);
+    if (required && !required.includes(user.role)) throw new HttpException("Droits insuffisants", 403);
+    req.admin = { id: user.id, email: user.email, role: user.role, actor: `admin:${user.email}` } satisfies AdminIdentity;
     return true;
   }
 }

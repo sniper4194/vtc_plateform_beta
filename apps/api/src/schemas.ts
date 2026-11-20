@@ -34,5 +34,10 @@ export const FlightUpdateSchema = z.object({
   status: z.enum(["SCHEDULED", "DELAYED", "LANDED", "CANCELLED"]).optional(),
 });
 export const RatingSchema = z.object({ score: z.number().int().min(1).max(5), comment: z.string().max(500).optional() });
+export const AdminUserCreateSchema = z.object({
+  email: z.string().email().max(200), name: z.string().min(1).max(100),
+  role: z.enum(["ADMIN", "DISPATCHER"]).default("DISPATCHER"), password: z.string().min(1).max(200),
+});
+export const PasswordResetSchema = z.object({ password: z.string().min(1).max(200) });
 export const ReviewSchema = z.object({ status: z.enum(["APPROVED", "REJECTED"]) });
 export const AssignSchema = z.object({ driverId: z.string().uuid() });

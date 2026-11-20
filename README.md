@@ -65,3 +65,14 @@ Sans clé, la carte native reste vide ; sur le web, un schéma sans carte est af
 Le retard est mesuré par rapport à l'heure d'arrivée prévue (`pickupAt`). `POST /admin/rides/:id/flight` (opérateur) et le fournisseur branchable
 (`FlightsService.provider`, interface `FlightProvider`) passent par le même chemin : webhook `flight.delayed`, notification chauffeur, heure effective,
 et décompte du no-show à partir de l'heure effective. **Aucun fournisseur de données de vol n'est branché pour l'instant.**
+
+## Comptes du back-office
+
+Le back-office utilise des comptes nominatifs (mot de passe haché scrypt, verrouillage 15 min après 5 échecs, sessions de 8 h révoquées au changement de mot de passe ou à la désactivation, journal d'audit, rôles Administrateur / Régulateur).
+Premier administrateur :
+
+```bash
+ADMIN_PASSWORD='une phrase de passe longue' pnpm -F @vtc/api admin:create vous@exemple.fr "Votre Nom"
+```
+
+`ADMIN_TOKEN` (en-tête `x-admin-token`) reste un **token de service** pour les scripts et le simulateur ; sans cette variable, il est refusé. Derrière un proxy, définir `TRUST_PROXY=1`.

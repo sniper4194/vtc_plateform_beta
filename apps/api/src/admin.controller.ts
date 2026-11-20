@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { DispatchService } from "./dispatch.service";
@@ -8,8 +8,9 @@ import { period } from "./company.controller";
 import { PerformanceService } from "./performance.service";
 import { parse } from "./http";
 import { PrismaService } from "./prisma";
-import { AssignSchema, CompanyCreateSchema, DriverCreateSchema, FlightUpdateSchema, PartnerCreateSchema, ReviewSchema } from "./schemas";
-import { AdminGuard, generateApiKey, generateCompanyKey } from "./security";
+import { AdminUserCreateSchema, PasswordResetSchema, AssignSchema, CompanyCreateSchema, DriverCreateSchema, FlightUpdateSchema, PartnerCreateSchema, ReviewSchema } from "./schemas";
+import { AdminGuard, AdminOnly, generateApiKey, generateCompanyKey } from "./security";
+import { AuthService, publicUser } from "./auth.service";
 import { WebhooksService } from "./webhooks.service";
 
 @Controller("admin")
@@ -21,10 +22,46 @@ export class AdminController {
     @Inject(WebhooksService) private webhooks: WebhooksService,
     @Inject(FlightsService) private flights: FlightsService,
     @Inject(PerformanceService) private perf: PerformanceService,
+    @Inject(AuthService) private auth: AuthService,
   ) {}
+
+  // ---- équipe (comptes du back-office) : administrateurs uniquement ----
+  @Get("users")
+  @AdminOnly()
+  async users() {
+    return (await this.prisma.adminUser.findMany({ orderBy: { createdAt: "asc" } })).map(publicUser);
+  }
+
+  @Post("users")
+  @AdminOnly()
+  createUser(@Req() req: any, @Body() body: unknown) {
+    return this.auth.createUser(req.admin.actor, parse(AdminUserCreateSchema, body));
+  }
+
+  @Post("users/:id/deactivate")
+  @AdminOnly()
+  async deactivate(@Req() req: any, @Param("id") id: string) {
+    await this.auth.setActive(req.admin.actor, id, false);
+    return { ok: true };
+  }
+
+  @Post("users/:id/activate")
+  @AdminOnly()
+  async activate(@Req() req: any, @Param("id") id: string) {
+    await this.auth.setActive(req.admin.actor, id, true);
+    return { ok: true };
+  }
+
+  @Post("users/:id/password")
+  @AdminOnly()
+  async resetPassword(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
+    await this.auth.setPassword(req.admin.actor, id, parse(PasswordResetSchema, body).password);
+    return { ok: true };
+  }
 
   /** Crée un partenaire ; la clé API et le secret webhook ne sont affichés QU'UNE FOIS. */
   @Post("partners")
+  @AdminOnly()
   async createPartner(@Body() body: unknown) {
     const p = parse(PartnerCreateSchema, body);
     const webhookSecret = p.webhookUrl ? `whsec_${randomBytes(24).toString("hex")}` : null;
@@ -37,6 +74,7 @@ export class AdminController {
   }
 
   @Post("drivers")
+  @AdminOnly()
   async createDriver(@Body() body: unknown) {
     const d = parse(DriverCreateSchema, body);
     return this.prisma.driver.create({
@@ -59,12 +97,14 @@ export class AdminController {
   }
 
   @Post("documents/:id/review")
+  @AdminOnly()
   async reviewDocument(@Param("id") id: string, @Body() body: unknown) {
     const { status } = parse(ReviewSchema, body);
     return this.prisma.document.update({ where: { id }, data: { status, reviewedAt: new Date(), reviewedBy: "admin" } });
   }
 
   @Post("drivers/:id/approve")
+  @AdminOnly()
   async approve(@Param("id") id: string) {
     const missing = await missingDocuments(this.prisma, id);
     if (missing.length) throw new HttpException({ message: "Documents manquants ou expirés", missing }, 409);
@@ -72,6 +112,7 @@ export class AdminController {
   }
 
   @Post("drivers/:id/suspend")
+  @AdminOnly()
   suspend(@Param("id") id: string) {
     return this.prisma.driver.update({ where: { id }, data: { status: "SUSPENDED", availability: "SUSPENDED", suspendedBy: "admin" } });
   }
@@ -92,15 +133,16 @@ export class AdminController {
   }
 
   @Post("rides/:id/assign")
-  async assign(@Param("id") id: string, @Body() body: unknown) {
+  async assign(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
     const { driverId } = parse(AssignSchema, body);
-    await this.dispatch.adminAssign(id, driverId);
+    await this.dispatch.adminAssign(id, driverId, req.admin.actor);
     return { status: "ASSIGNED" };
   }
 
   /** Courses sans chauffeur après tous les tours de dispatch : à traiter par un opérateur. */
   /** Crée une société ; sa clé d'accès n'est affichée qu'une fois. */
   @Post("companies")
+  @AdminOnly()
   async createCompany(@Body() body: unknown) {
     const c = parse(CompanyCreateSchema, body);
     const k = generateCompanyKey();
@@ -127,9 +169,9 @@ export class AdminController {
 
   /** Mise à jour manuelle du vol (opérateur) : même chemin que le futur fournisseur de données de vol. */
   @Post("rides/:id/flight")
-  async flight(@Param("id") id: string, @Body() body: unknown) {
+  async flight(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
     const b = parse(FlightUpdateSchema, body);
-    return this.flights.update(id, { ...("estimatedArrivalAt" in b ? { estimatedArrivalAt: b.estimatedArrivalAt ? new Date(b.estimatedArrivalAt) : null } : {}), status: b.status }, "admin");
+    return this.flights.update(id, { ...("estimatedArrivalAt" in b ? { estimatedArrivalAt: b.estimatedArrivalAt ? new Date(b.estimatedArrivalAt) : null } : {}), status: b.status }, req.admin.actor);
   }
 
   @Get("alerts")

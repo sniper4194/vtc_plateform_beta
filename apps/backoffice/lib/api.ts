@@ -1,12 +1,16 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 const ADMIN = "vtc_admin_token";
+const USER = "vtc_admin_user";
 const COMPANY = "vtc_company_key";
 const read = (k: string) => (typeof window === "undefined" ? "" : sessionStorage.getItem(k) ?? "");
 
 export const getToken = () => read(ADMIN);
 export const setToken = (t: string) => sessionStorage.setItem(ADMIN, t);
-export const clearToken = () => sessionStorage.removeItem(ADMIN);
+export const clearToken = () => { sessionStorage.removeItem(ADMIN); sessionStorage.removeItem(USER); };
+export interface AdminSession { email: string; name: string; role: "ADMIN" | "DISPATCHER" }
+export const getUser = (): AdminSession | null => { try { return JSON.parse(read(USER) || "null"); } catch { return null; } };
+export const setUser = (u: AdminSession) => sessionStorage.setItem(USER, JSON.stringify(u));
 export const getCompanyKey = () => read(COMPANY);
 export const setCompanyKey = (t: string) => sessionStorage.setItem(COMPANY, t);
 export const clearCompanyKey = () => sessionStorage.removeItem(COMPANY);
@@ -23,8 +27,16 @@ async function request<T>(path: string, headers: Record<string, string>, body?: 
   return json as T;
 }
 
+/** Connexion d'un compte du back-office. */
+export const login = (email: string, password: string) => request<{ token: string; user: AdminSession }>("/auth/login", {}, { email, password });
+
 /** Appel authentifié en administrateur. */
-export const api = <T = any>(path: string, body?: unknown) => request<T>(path, { "x-admin-token": getToken() }, body);
+export const api = <T = any>(path: string, body?: unknown) =>
+  request<T>(path, { authorization: `Bearer ${getToken()}` }, body).catch((e) => {
+    // Session expirée ou révoquée : retour à l'écran de connexion.
+    if (e?.status === 401 && typeof window !== "undefined") { clearToken(); window.dispatchEvent(new Event("vtc-auth-expired")); }
+    throw e;
+  });
 /** Appel authentifié avec la clé d'une société partenaire. */
 export const capi = <T = any>(path: string, body?: unknown) => request<T>(path, { authorization: `Bearer ${getCompanyKey()}` }, body);
 

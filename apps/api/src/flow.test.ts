@@ -121,7 +121,7 @@ beforeEach(async () => {
   received = [];
   hookStatus = 200;
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
+    'TRUNCATE "AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
   );
 });
 
@@ -706,5 +706,105 @@ describe("espace société", () => {
     expect((await call("/company/performance?from=nope", { token: co.key })).status).toBe(422);
     expect((await call("/company/performance?from=2026-01-01&to=2020-01-01", { token: co.key })).status).toBe(422);
     expect((await call("/company/performance?from=2020-01-01&to=2026-01-01", { token: co.key })).status).toBe(422);
+  });
+});
+
+
+/* ============================ Comptes back-office ============================ */
+
+describe("comptes back-office", () => {
+  const PW = "une-phrase-de-passe-solide";
+  async function mkUser(email: string, role = "DISPATCHER", password = PW) {
+    const r = await call("/admin/users", { admin: true, body: { email, name: email.split("@")[0], role, password } });
+    expect(r.status).toBe(201);
+    return r.json;
+  }
+  async function login(email: string, password = PW) {
+    return call("/auth/login", { body: { email, password } });
+  }
+  const bearer = (token: string) => ({ token });
+
+  it("connexion : session valide, jamais le hash dans la réponse", async () => {
+    await mkUser("Marie@Exemple.fr", "ADMIN");
+    const r = await login("marie@exemple.fr");
+    expect(r.status).toBe(201);
+    expect(r.json.user).toMatchObject({ email: "marie@exemple.fr", role: "ADMIN" });
+    expect(JSON.stringify(r.json)).not.toMatch(/scrypt|passwordHash/);
+    expect((await call("/admin/rides", bearer(r.json.token))).status).toBe(200);
+    expect((await call("/auth/me", bearer(r.json.token))).json).toMatchObject({ email: "marie@exemple.fr", role: "ADMIN", service: false });
+  });
+
+  it("identifiants invalides : même réponse pour compte inconnu et mauvais mot de passe", async () => {
+    await mkUser("a@exemple.fr");
+    const wrong = await login("a@exemple.fr", "mauvais-mot-de-passe-long");
+    const unknown = await login("inconnu@exemple.fr", "mauvais-mot-de-passe-long");
+    expect(wrong.status).toBe(401);
+    expect(unknown.status).toBe(401);
+    expect(wrong.json.message).toBe(unknown.json.message);
+  });
+
+  it("verrouille le compte après 5 échecs, même avec le bon mot de passe", async () => {
+    await mkUser("lock@exemple.fr");
+    for (let i = 0; i < 5; i++) expect((await login("lock@exemple.fr", "mauvais-mot-de-passe-long")).status).toBe(401);
+    expect((await login("lock@exemple.fr")).status).toBe(429);
+    await prisma.adminUser.update({ where: { email: "lock@exemple.fr" }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+    expect((await login("lock@exemple.fr")).status).toBe(201);
+  });
+
+  it("un régulateur gère les courses mais ne crée ni partenaire, ni société, ni compte", async () => {
+    await mkUser("regul@exemple.fr", "DISPATCHER");
+    const t = (await login("regul@exemple.fr")).json.token;
+    expect((await call("/admin/rides", bearer(t))).status).toBe(200);
+    expect((await call("/admin/alerts", bearer(t))).status).toBe(200);
+    for (const [path, body] of [["/admin/partners", { name: "X" }], ["/admin/companies", { name: "X" }], ["/admin/users", { email: "z@exemple.fr", name: "Z", password: PW }]] as const) {
+      expect((await call(path, { ...bearer(t), body })).status).toBe(403);
+    }
+    const d = await mkDriver({ docs: false });
+    expect((await call(`/admin/drivers/${d.id}/approve`, { ...bearer(t), body: {} })).status).toBe(403);
+  });
+
+  it("changer le mot de passe ou désactiver le compte coupe les sessions ouvertes", async () => {
+    const u = await mkUser("rev@exemple.fr", "ADMIN");
+    await mkUser("autre-admin@exemple.fr", "ADMIN");
+    const t1 = (await login("rev@exemple.fr")).json.token;
+    expect((await call("/auth/password", { ...bearer(t1), body: { current: PW, next: "nouvelle-phrase-de-passe-2" } })).status).toBe(201);
+    expect((await call("/auth/me", bearer(t1))).status).toBe(401); // ancienne session révoquée
+    expect((await login("rev@exemple.fr")).status).toBe(401); // ancien mot de passe
+    const t2 = (await login("rev@exemple.fr", "nouvelle-phrase-de-passe-2")).json.token;
+    expect((await call("/auth/me", bearer(t2))).status).toBe(200);
+    expect((await call(`/admin/users/${u.id}/deactivate`, { admin: true, body: {} })).status).toBe(201);
+    expect((await call("/auth/me", bearer(t2))).status).toBe(401);
+    expect((await login("rev@exemple.fr", "nouvelle-phrase-de-passe-2")).status).toBe(401);
+  });
+
+  it("refuse un mot de passe trop faible, un doublon, et la désactivation du dernier administrateur", async () => {
+    expect((await call("/admin/users", { admin: true, body: { email: "f@exemple.fr", name: "F", password: "court" } })).status).toBe(422);
+    const u = await mkUser("solo@exemple.fr", "ADMIN");
+    expect((await call("/admin/users", { admin: true, body: { email: "SOLO@exemple.fr", name: "S", password: PW } })).status).toBe(409);
+    expect((await call(`/admin/users/${u.id}/deactivate`, { admin: true, body: {} })).status).toBe(409);
+  });
+
+  it("refuse les jetons d'une autre nature et le token de service quand il est désactivé", async () => {
+    const p = await mkPartner();
+    expect((await call("/admin/rides", { token: p.apiKey })).status).toBe(401); // clé partenaire
+    const d = await mkDriver();
+    expect((await call("/admin/rides", { token: d.token })).status).toBe(401); // jeton chauffeur
+    const saved = process.env.ADMIN_TOKEN;
+    process.env.ADMIN_TOKEN = "";
+    try { expect((await call("/admin/rides", { admin: true })).status).toBe(401); } finally { process.env.ADMIN_TOKEN = saved; }
+  });
+
+  it("journalise connexions, échecs et gestion des comptes, avec l'acteur sur les actions", async () => {
+    await mkUser("audit@exemple.fr", "ADMIN");
+    await login("audit@exemple.fr", "mauvais-mot-de-passe-long");
+    const t = (await login("audit@exemple.fr")).json.token;
+    const p = await mkPartner(false);
+    const d = await mkDriver();
+    const { res } = await mkBooking(p);
+    await call(`/admin/rides/${res.json.rideId}/assign`, { ...bearer(t), body: { driverId: d.id } });
+    const actions = (await prisma.auditLog.findMany()).map((a) => a.action);
+    expect(actions).toEqual(expect.arrayContaining(["user.created", "login.failed", "login.ok"]));
+    const ev = await prisma.rideEvent.findFirst({ where: { rideId: res.json.rideId, type: "ride.assigned" } });
+    expect(ev?.actor).toBe("admin:audit@exemple.fr");
   });
 });

@@ -1,9 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { api, clearToken, dt, eur, getToken, setToken } from "../lib/api";
+import { api, AdminSession, clearToken, dt, eur, getToken, getUser, login, setToken, setUser } from "../lib/api";
 import { PerformanceView } from "./perf";
 
-type Tab = "rides" | "alerts" | "perf" | "drivers" | "companies" | "partners";
+type Tab = "rides" | "alerts" | "perf" | "drivers" | "companies" | "partners" | "team" | "account";
 const OPEN_FLIGHT = ["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
 const COLUMNS: { title: string; statuses: string[]; tone: string }[] = [
   { title: "À attribuer", statuses: ["DISPATCHING"], tone: "yel" },
@@ -32,21 +32,27 @@ function useLoad<T>(path: string, every = 5000) {
 }
 
 function Login({ onOk }: { onOk: () => void }) {
-  const [t, setT] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setToken(t);
-    try { await api("/admin/alerts"); onOk(); } catch (e: any) { clearToken(); setErr(e.status === 401 ? "Token invalide" : e.message); }
+    setBusy(true);
+    try { const r = await login(email, password); setToken(r.token); setUser(r.user); onOk(); }
+    catch (e: any) { setErr(e.status === 429 ? e.message : e.status === 401 ? "E-mail ou mot de passe incorrect" : e.message); }
+    finally { setBusy(false); }
   }
   return (
     <main style={{ maxWidth: 460, marginTop: 70 }}>
       <div className="brand" style={{ fontSize: 64, marginBottom: 24 }}>ÉTOILE<small>tour de contrôle</small></div>
       <form className="card" onSubmit={submit}>
-        <div className="cond muted">Token administrateur</div>
-        <input type="password" value={t} onChange={(e) => setT(e.target.value)} placeholder="ADMIN_TOKEN" style={{ width: "100%", margin: "8px 0" }} autoFocus />
+        <div className="cond muted">E-mail</div>
+        <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: "100%", margin: "6px 0 12px" }} autoFocus />
+        <div className="cond muted">Mot de passe</div>
+        <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: "100%", margin: "6px 0" }} />
         {err && <div className="err">{err}</div>}
-        <button className="btn primary" disabled={!t}>Entrer</button>
+        <button className="btn primary" disabled={!email || !password || busy}>{busy ? "Connexion…" : "Entrer"}</button>
       </form>
     </main>
   );
@@ -256,6 +262,79 @@ function Companies() {
   );
 }
 
+function Team() {
+  const users = useLoad<any[]>("/admin/users", 15000);
+  const [f, setF] = useState({ email: "", name: "", role: "DISPATCHER", password: "" });
+  const [err, setErr] = useState("");
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    try { await api("/admin/users", f); setErr(""); setF({ email: "", name: "", role: "DISPATCHER", password: "" }); users.reload(); }
+    catch (e: any) { setErr(e.body?.errors?.password?.[0] ?? e.message); }
+  }
+  async function act(path: string, body: unknown = {}) {
+    try { await api(path, body); setErr(""); } catch (e: any) { setErr(e.body?.errors?.password?.[0] ?? e.message); }
+    users.reload();
+  }
+  return (
+    <>
+      <h1 className="title">Équipe</h1>
+      <form className="card yel" onSubmit={add}>
+        <h3>Nouveau compte</h3>
+        <div className="row">
+          <input placeholder="Nom" value={f.name} onChange={set("name")} /><input type="email" placeholder="E-mail" value={f.email} onChange={set("email")} />
+          <select value={f.role} onChange={set("role")}><option value="DISPATCHER">Régulateur</option><option value="ADMIN">Administrateur</option></select>
+          <input type="password" autoComplete="new-password" placeholder="Mot de passe (12 car. min.)" value={f.password} onChange={set("password")} style={{ minWidth: 240 }} />
+          <button className="btn" disabled={!f.name || !f.email || !f.password}>Créer</button>
+        </div>
+        <p className="muted" style={{ margin: "8px 0 0" }}>Régulateur : courses, attribution, vol, alertes, lecture. Administrateur : tout, y compris partenaires, sociétés, validation des chauffeurs et comptes.</p>
+        {err && <div className="err">{err}</div>}
+      </form>
+      <div className="grid">
+        {users.data?.map((u) => (
+          <div className="card" key={u.id}>
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <b style={{ fontFamily: "var(--slab)", fontWeight: 400, fontSize: 18 }}>{u.name}</b>
+              <span className={`chip ${u.active ? "ok" : "bad"}`}>{u.active ? (u.role === "ADMIN" ? "Admin" : "Régulateur") : "Désactivé"}</span>
+            </div>
+            <div className="muted">{u.email}</div>
+            <div className="muted">{u.lastLoginAt ? `Dernière connexion : ${dt(u.lastLoginAt)}` : "Jamais connecté"}</div>
+            <div className="row" style={{ marginTop: 12 }}>
+              {u.active ? <button className="btn danger" onClick={() => act(`/admin/users/${u.id}/deactivate`)}>Désactiver</button> : <button className="btn primary" onClick={() => act(`/admin/users/${u.id}/activate`)}>Réactiver</button>}
+              <button className="btn" onClick={() => { const p = window.prompt(`Nouveau mot de passe pour ${u.email} (12 caractères minimum)`); if (p) act(`/admin/users/${u.id}/password`, { password: p }); }}>Réinitialiser</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function Account({ user }: { user: AdminSession | null }) {
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    try { await api("/auth/password", { current: cur, next }); setMsg({ ok: true, text: "Mot de passe changé : reconnectez-vous." }); setTimeout(() => { clearToken(); window.dispatchEvent(new Event("vtc-auth-expired")); }, 1200); }
+    catch (e: any) { if (e.status !== 401) setMsg({ ok: false, text: e.body?.errors?.password?.[0] ?? e.message }); }
+  }
+  return (
+    <>
+      <h1 className="title">Mon compte</h1>
+      <form className="card" onSubmit={submit} style={{ maxWidth: 480 }}>
+        <p><b>{user?.name}</b><br /><span className="muted">{user?.email} · {user?.role === "ADMIN" ? "Administrateur" : "Régulateur"}</span></p>
+        <div className="cond muted">Mot de passe actuel</div>
+        <input type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} style={{ width: "100%", margin: "6px 0 12px" }} />
+        <div className="cond muted">Nouveau mot de passe (12 caractères minimum)</div>
+        <input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} style={{ width: "100%", margin: "6px 0" }} />
+        {msg && <div className={msg.ok ? "" : "err"}>{msg.text}</div>}
+        <button className="btn primary" disabled={!cur || !next}>Changer</button>
+      </form>
+    </>
+  );
+}
+
 function Partners() {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -328,12 +407,24 @@ function AlertsTab() {
 export default function Home() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [user, setUserState] = useState<AdminSession | null>(null);
   const [tab, setTab] = useState<Tab>("rides");
   const alerts = useLoad<any[]>("/admin/alerts", 8000);
-  useEffect(() => { setAuthed(Boolean(getToken())); setReady(true); }, []);
+  const sync = () => { setAuthed(Boolean(getToken())); setUserState(getUser()); };
+  useEffect(() => {
+    sync(); setReady(true);
+    const expired = () => sync();
+    window.addEventListener("vtc-auth-expired", expired);
+    return () => window.removeEventListener("vtc-auth-expired", expired);
+  }, []);
   if (!ready) return null;
-  if (!authed) return <Login onOk={() => setAuthed(true)} />;
-  const tabs: [Tab, string][] = [["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"], ["companies", "Sociétés"], ["partners", "Partenaires"]];
+  if (!authed) return <Login onOk={sync} />;
+  const isAdmin = user?.role === "ADMIN";
+  const tabs: [Tab, string][] = [
+    ["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"],
+    ...(isAdmin ? ([["companies", "Sociétés"], ["partners", "Partenaires"], ["team", "Équipe"]] as [Tab, string][]) : []),
+    ["account", "Mon compte"],
+  ];
   const nAlerts = alerts.data?.length ?? 0;
   return (
     <>
@@ -346,15 +437,18 @@ export default function Home() {
             </button>
           ))}
         </nav>
-        <button className="btn" style={{ marginLeft: "auto" }} onClick={() => { clearToken(); setAuthed(false); }}>Quitter</button>
+        <span style={{ marginLeft: "auto", color: "var(--cream)" }} className="cond">{user?.name}</span>
+        <button className="btn" onClick={() => { clearToken(); sync(); }}>Quitter</button>
       </header>
       <main>
         {tab === "rides" && <Board />}
         {tab === "alerts" && <AlertsTab />}
         {tab === "perf" && <AdminPerformance />}
         {tab === "drivers" && <Drivers />}
-        {tab === "companies" && <Companies />}
-        {tab === "partners" && <Partners />}
+        {isAdmin && tab === "companies" && <Companies />}
+        {isAdmin && tab === "partners" && <Partners />}
+        {isAdmin && tab === "team" && <Team />}
+        {tab === "account" && <Account user={user} />}
       </main>
     </>
   );

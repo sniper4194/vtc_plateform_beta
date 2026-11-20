@@ -11,7 +11,8 @@
     "prisma:migrate": "prisma migrate dev",
     "simulate": "tsx scripts/simulate.ts",
     "seed": "tsx scripts/seed.ts",
-    "db:deploy": "prisma migrate deploy"
+    "db:deploy": "prisma migrate deploy",
+    "admin:create": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
