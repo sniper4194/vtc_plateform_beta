@@ -85,6 +85,8 @@ model Partner {
   createdAt        DateTime      @default(now())
   apiKeys          ApiKey[]
   bookings         Booking[]
+  quotes           Quote[]
+  deliveries       WebhookDelivery[]
 }
 
 model ApiKey {
@@ -125,6 +127,9 @@ model Driver {
   reliability   Float              @default(1)
   contractSignedAt DateTime?
   stripeAccountId String?
+  lastLat       Float?
+  lastLng       Float?
+  lastSeenAt    DateTime?
   documents     Document[]
   vehicles      Vehicle[]
   rides         Ride[]
@@ -290,4 +295,45 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([entity, entityId])
+}
+
+enum DeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+model Quote {
+  id              String          @id @default(uuid())
+  partnerId       String
+  partner         Partner         @relation(fields: [partnerId], references: [id])
+  request         Json
+  category        VehicleCategory
+  pickupAt        DateTime
+  distanceKm      Float
+  durationMin     Float
+  priceCents      Int
+  commissionCents Int
+  driverNetCents  Int
+  flatRateId      String?
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdAt       DateTime        @default(now())
+}
+
+/// Outbox : un événement est enregistré dans la même transaction que le changement d'état,
+/// puis livré (avec reprises) par un worker.
+model WebhookDelivery {
+  id            String         @id @default(uuid())
+  partnerId     String
+  partner       Partner        @relation(fields: [partnerId], references: [id])
+  eventType     String
+  payload       Json
+  status        DeliveryStatus @default(PENDING)
+  attempts      Int            @default(0)
+  nextAttemptAt DateTime       @default(now())
+  lastError     String?
+  createdAt     DateTime       @default(now())
+
+  @@index([status, nextAttemptAt])
 }

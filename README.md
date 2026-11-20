@@ -11,10 +11,22 @@ Plateforme B2B2C de transferts VTC à prix fixe (API partenaires type Booking.co
 pnpm install
 cp .env.example .env
 pnpm db:up                       # PostgreSQL/PostGIS + Redis
-pnpm -F @vtc/api exec prisma migrate deploy
-pnpm build && pnpm test
-pnpm -F @vtc/api dev             # API sur http://localhost:3000 (GET /health, POST /v1/quotes)
+pnpm -F @vtc/api db:deploy       # migrations
+pnpm -F @vtc/api seed            # règles de prix et forfaits
+pnpm build && pnpm test          # les tests d'intégration utilisent la base `vtc_test`
+pnpm -F @vtc/api dev             # API sur http://localhost:3000
 ```
+
+### Démo bout-en-bout (simulateur de partenaire)
+
+Avec l'API qui tourne (`ADMIN_TOKEN` défini) :
+
+```bash
+ADMIN_TOKEN=... API_URL=http://localhost:3000 pnpm -F @vtc/api simulate
+```
+
+Le simulateur crée un partenaire et deux chauffeurs, réserve un CDG → Paris à 55 €, fait accepter la course
+(acceptation concurrente, un seul gagnant), la déroule jusqu'à la fin et vérifie les 6 webhooks signés.
 
 ## Structure
 

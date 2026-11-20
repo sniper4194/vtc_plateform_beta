@@ -8,7 +8,10 @@
     "dev": "tsx watch src/main.ts",
     "test": "vitest run --passWithNoTests",
     "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "simulate": "tsx scripts/simulate.ts",
+    "seed": "tsx scripts/seed.ts",
+    "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
