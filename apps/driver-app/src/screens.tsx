@@ -118,12 +118,12 @@ function Row({ time, dist, category, from, to, price, flight, badge, expanded, o
     <View style={{ flexDirection: "row", gap: 12 }}>
       <View style={{ width: 76 }}>
         <Display size={26} color={ink} shadow={expanded ? c.yel : c.red}>{time}</Display>
-        {dist != null && <Cond size={12} color={expanded ? c.muted : c.yel}>à {dist} km</Cond>}
+        {dist != null && <Cond size={12} color={expanded ? c.muted : c.yelSoft}>à {dist} km</Cond>}
       </View>
       <View style={{ width: 6, borderRadius: 3, backgroundColor: CAT_COLOR[category] ?? c.yel, borderWidth: expanded ? 1.5 : 0, borderColor: c.ink }} />
       <View style={{ flex: 1, gap: 3 }}>
         <Slab size={14} color={ink} shadow={null} lines={expanded ? undefined : 2}>{from}</Slab>
-        <Cond size={11} color={expanded ? c.red : c.yel}>vers</Cond>
+        <Cond size={11} color={expanded ? c.red : c.yelSoft}>vers</Cond>
         <Slab size={14} color={ink} shadow={null} lines={expanded ? undefined : 2}>{to}</Slab>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
           <Display size={24} color={expanded ? c.ink : c.yel} shadow={expanded ? c.yel : c.red}>{price}</Display>
@@ -157,7 +157,7 @@ function DayHeader({ title, count, unit }: { title: string; count: number; unit:
   return (
     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 18, paddingBottom: 8, borderBottomWidth: 3, borderColor: c.cream }}>
       <Cond size={15} color={c.cream}>{title}</Cond>
-      <Cond size={14} color={c.yel}>{count} {unit}{count > 1 ? "s" : ""}</Cond>
+      <Cond size={14} color={c.yelSoft}>{count} {unit}{count > 1 ? "s" : ""}</Cond>
     </View>
   );
 }

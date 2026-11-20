@@ -1,5 +1,5 @@
 :root {
-  --blue: #2a2fd2; --dblue: #1a2299; --red: #ee2a14; --yel: #f7b30a; --org: #f59a0c;
+  --blue: #4a58e0; --dblue: #3441b8; --yel-soft: #ffe08a; --red: #ee2a14; --yel: #f7b30a; --org: #f59a0c;
   --cream: #f5eedd; --ink: #14172b; --muted: #5b5f7a; --ok: #0a8f5b;
   --display: "Rozha One", Georgia, serif; --slab: "Alfa Slab One", Georgia, serif;
   --cond: "Anton", Impact, sans-serif; --script: "Kaushan Script", cursive;
@@ -10,7 +10,7 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; opac
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .6 -.1'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>"); }
 
 .brand { font-family: var(--display); font-size: 40px; color: var(--cream); text-shadow: 3px 3px 0 var(--red); line-height: 1; }
-.brand small { display: block; font-family: var(--script); font-size: 20px; text-shadow: none; color: var(--yel); }
+.brand small { display: block; font-family: var(--script); font-size: 20px; text-shadow: none; color: var(--yel-soft); }
 header { display: flex; gap: 28px; align-items: center; padding: 18px 28px; flex-wrap: wrap; }
 nav { display: flex; gap: 10px; flex-wrap: wrap; }
 nav button { font-family: var(--slab); font-size: 15px; padding: 9px 18px; border-radius: 999px; border: 2.5px solid var(--ink); background: var(--cream);
