@@ -134,6 +134,8 @@ model Driver {
   suspendedBy   String? // "admin" | "company" : une société ne peut lever que sa propre suspension
   rescueOptIn   Boolean            @default(false) // accepte de figurer dans la liste des sauveteurs (s'il remplit les critères)
   rescueRevokedAt DateTime? // retrait du statut par l'administration
+  suspendedUntil DateTime? // suspension automatique à durée limitée (récidive) ; nul + suspendedBy=auto : à examiner par l'équipe
+  penalties     DriverPenalty[]
   rescueAsked   RescueRequest[]    @relation("RescueRequester")
   rescueTargeted RescueRequest[]   @relation("RescueTarget")
   rescueDone    RescueRequest[]    @relation("RescueRescuer")
@@ -445,4 +447,28 @@ model RescueRequest {
 
   @@index([status, expiresAt])
   @@index([requesterId, createdAt])
+}
+
+enum PenaltyKind {
+  GIVE_BACK
+  RESCUE
+}
+
+/// Pénalité financière d'un chauffeur qui rend une mission ou fait appel à un sauveteur (barème progressif selon le délai avant la prise en charge).
+model DriverPenalty {
+  id            String      @id @default(uuid())
+  driverId      String
+  driver        Driver      @relation(fields: [driverId], references: [id])
+  rideId        String
+  kind          PenaltyKind
+  amountCents   Int
+  minutesBefore Int
+  weight        Float       @default(1)
+  sanction      String?
+  waivedAt      DateTime?
+  waivedBy      String?
+  waiveReason   String?
+  createdAt     DateTime    @default(now())
+
+  @@index([driverId, createdAt])
 }

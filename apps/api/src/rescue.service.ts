@@ -3,6 +3,7 @@ import { effectivePickup } from "./metrics";
 import { acceptanceMessage } from "./messages";
 import { DispatchService } from "./dispatch.service";
 import { NotificationsService } from "./notifications";
+import { minutesBefore, PenaltiesService } from "./penalties.service";
 import { PrismaService } from "./prisma";
 import { eliteCheck, RESCUABLE, RESCUE, rescueAcceptedToRequester, rescueBonusCents, rescueExpiredToRequester, rescueRequestMessage } from "./rescue";
 import { haversineKm } from "./zones";
@@ -17,6 +18,7 @@ export class RescueService {
     @Inject(DispatchService) private dispatch: DispatchService,
     @Inject(WebhooksService) private webhooks: WebhooksService,
     @Inject(NotificationsService) private notif: NotificationsService,
+    @Inject(PenaltiesService) private penalties: PenaltiesService,
   ) {}
 
   private async completed(driverIds: string[]) {
@@ -144,6 +146,7 @@ export class RescueService {
   /** Reprise atomique : la mission change de chauffeur en une seule transaction, ou ne change pas. */
   async accept(driverId: string, id: string) {
     let rideId = "", requesterId = "";
+    let applied: Awaited<ReturnType<PenaltiesService["apply"]>> | null = null;
     await this.prisma.$transaction(async (tx) => {
       const r = await tx.rescueRequest.findUnique({ where: { id }, include: { ride: true } });
       if (!r) throw new HttpException("Appel introuvable", 404);
@@ -163,15 +166,17 @@ export class RescueService {
         data: { status: "ASSIGNED", driverId, vehicleId: vehicle.id, version: { increment: 1 }, driverNetCents: r.ride.driverNetCents + r.bonusCents, commissionCents: r.ride.commissionCents - r.bonusCents },
       });
       if (moved.count !== 1) throw new HttpException("La mission a changé entre-temps", 409);
+      // Le délai se mesure à la DEMANDE (moment où le chauffeur a su qu'il ne pourrait pas), pas à l'acceptation : attendre ne réduit pas la pénalité.
+      applied = await this.penalties.apply(tx, r.requesterId, r.ride, "RESCUE", minutesBefore(r.ride, r.createdAt));
       await this.dispatch.event(tx, r.rideId, "ride.rescued", `driver:${driverId}`, { requestId: id, from: r.requesterId, to: driverId, bonusCents: r.bonusCents });
       await this.webhooks.enqueue(tx, r.rideId, "driver.assigned");
       rideId = r.rideId; requesterId = r.requesterId;
     });
     const ride = await this.prisma.ride.findUniqueOrThrow({ where: { id: rideId }, include: { booking: true } });
-    const [me, rescuer] = [await this.prisma.driver.findUniqueOrThrow({ where: { id: requesterId } }), await this.prisma.driver.findUniqueOrThrow({ where: { id: driverId } })];
-    void me;
+    const rescuer = await this.prisma.driver.findUniqueOrThrow({ where: { id: driverId } });
     await this.notif.toDriver(driverId, { type: "RIDE_ACCEPTED", ...acceptanceMessage(ride, ride.booking.flightNumber, false), data: { rideId, ref: ride.ref } }, { email: true });
     await this.notif.toDriver(requesterId, { type: "RESCUE_ACCEPTED", ...rescueAcceptedToRequester(ride.ref, ride.pickupAt, initials(rescuer)), data: { rideId } });
+    if (applied) await this.penalties.tell(requesterId, ride.ref, "RESCUE", applied);
     return { status: "ASSIGNED", rideId };
   }
 

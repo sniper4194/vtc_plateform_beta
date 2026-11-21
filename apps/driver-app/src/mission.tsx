@@ -6,7 +6,7 @@ import { countdown, eurShort, isCancelled, MISSION_TITLE, NEXT_ACTION, secondsUn
 import { MissionMap, MapPoint } from "./MissionMap";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, HoldButton, Slab, Sticker } from "./ui";
-import { RescuePicker } from "./rescue";
+import { CostNote, RescuePicker } from "./rescue";
 import { useFetch } from "./useFetch";
 
 type Notify = (text: string, tone?: "ok" | "bad") => void;
@@ -74,7 +74,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
     catch (e: any) { notify(e.message); }
   }
   async function giveBack() {
-    if (!confirm) { setConfirm(true); notify("Cela pèse sur votre score de fiabilité. Touchez à nouveau pour confirmer."); return; }
+    if (!confirm) { setConfirm(true); notify("Une pénalité s'applique (voir le montant ci-dessus). Touchez à nouveau pour confirmer."); return; }
     await run("cancel"); onClose();
   }
 
@@ -160,6 +160,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
               {next && <HoldButton label={next.hold} onComplete={() => run(next.action)} />}
               <Pressable onPress={() => { setProblem(!problem); setConfirm(false); }}><Cond size={13} color={c.blue} style={{ textAlign: "center", textDecorationLine: "underline" }}>Un souci ?</Cond></Pressable>
               {problem && r.status === "ARRIVED" && <Btn label={noShowIn > 0 ? `Client absent (dans ${countdown(noShowIn)})` : "Client introuvable (no-show)"} color={c.red} text={c.cream} disabled={noShowIn > 0} onPress={() => run("no-show")} />}
+              {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <CostNote rideId={rideId} />}
               {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <Btn label="Appeler un sauveteur" color={c.yel} onPress={() => setRescue(true)} />}
               {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <Btn label={confirm ? "Confirmer : je rends la mission" : "Je ne peux plus la faire"} color={c.red} text={c.cream} onPress={giveBack} />}
             </>

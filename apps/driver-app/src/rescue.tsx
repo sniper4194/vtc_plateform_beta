@@ -70,6 +70,24 @@ export function RescueCard({ notify, onAccepted }: { notify: Notify; onAccepted:
   );
 }
 
+const SANCTION_LABEL: Record<string, string> = { SUSPEND_48H: "suspension de 48 h", SUSPEND_7D: "suspension de 7 jours", REVIEW: "examen de votre compte (fermeture possible)" };
+
+/** Coût d'une restitution ou d'un appel à un sauveteur, montré AVANT la décision. */
+export function CostNote({ rideId }: { rideId: string }) {
+  const q = useFetch<any>(`/driver/rescue/cost?rideId=${rideId}`, 30000);
+  const d = q.data;
+  if (!d) return null;
+  return (
+    <Card color={c.cream} style={{ paddingVertical: 12 }}>
+      <Cond size={12} color={c.muted}>Annuler maintenant ({d.tier})</Cond>
+      <Slab size={15} color={c.red} shadow={null}>Rendre la mission : pénalité {eurShort(d.giveBackCents)}</Slab>
+      <Slab size={15} color={c.blue} shadow={null}>Avec un sauveteur : pénalité {eurShort(d.rescueCents)}</Slab>
+      <Cond size={12} color={c.muted}>Plus c'est tard, plus c'est cher. Déduit de votre prochain relevé.</Cond>
+      {d.sanctionIfGiveBack !== "NONE" && <Cond size={12} color={c.red}>Attention : {SANCTION_LABEL[d.sanctionIfGiveBack]} si vous rendez la mission (récidive).</Cond>}
+    </Card>
+  );
+}
+
 /** Fenêtre « Demander un sauveteur » : liste des sauveteurs disponibles, motif, appel ciblé ou à tous. */
 export function RescuePicker({ rideId, onClose, notify }: { rideId: string; onClose: () => void; notify: Notify }) {
   const list = useFetch<any[]>(`/driver/rescue/rescuers?rideId=${rideId}`, 8000);
@@ -95,8 +113,9 @@ export function RescuePicker({ rideId, onClose, notify }: { rideId: string; onCl
         <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }}>
           <Pressable onPress={onClose} accessibilityLabel="Fermer"><Sticker size={44} color={c.cream}><Slab size={20} color={c.ink} shadow={null}>←</Slab></Sticker></Pressable>
           <Display size={34} shadow={c.red}>Appeler un sauveteur</Display>
-          <Cond size={13} color={c.onSky}>Un chauffeur d'élite reprend votre mission. Aucune pénalité de fiabilité pour vous.</Cond>
+          <Cond size={13} color={c.onSky}>Un chauffeur d'élite reprend votre mission : pénalité réduite, mission sauvée.</Cond>
 
+          <CostNote rideId={rideId} />
           {sent ? (
             <Card color={c.yel}>
               <Slab size={18} color={c.ink} shadow={null}>Appel envoyé à {sent.notified} sauveteur(s)</Slab>

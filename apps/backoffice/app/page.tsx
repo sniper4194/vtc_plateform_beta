@@ -189,6 +189,7 @@ function Drivers() {
               <span className="chips">
                 {d.rescueOptIn && <span className="chip blue">Sauveteur</span>}
                 {d.rescueRevokedAt && <span className="chip bad">Sauveteur retiré</span>}
+                {d.suspendedBy === "auto" && <span className="chip bad">{d.suspendedUntil ? `Suspendu jusqu'au ${dt(d.suspendedUntil)}` : "À examiner (récidive)"}</span>}
                 <span className={`chip ${d.status === "ACTIVE" ? "ok" : d.status === "SUSPENDED" ? "bad" : ""}`}>{d.status}</span>
               </span>
             </div>
@@ -409,6 +410,13 @@ const RESCUE_LABEL: Record<string, string> = { OPEN: "En attente", ACCEPTED: "Re
 function AlertsTab() {
   const alerts = useLoad<any[]>("/admin/alerts");
   const rescues = useLoad<any[]>("/admin/rescues", 8000);
+  const pens = useLoad<any[]>("/admin/penalties", 15000);
+  async function waive(id: string) {
+    const reason = window.prompt("Motif de la dérogation (accident, urgence médicale, justificatif reçu…)");
+    if (!reason) return;
+    try { await api(`/admin/penalties/${id}/waive`, { reason }); } catch (e: any) { alert(e.message); }
+    pens.reload();
+  }
   return (
     <>
       <h1 className="title">Alertes</h1>
@@ -436,6 +444,24 @@ function AlertsTab() {
             ))}</tbody>
           </table>
         ) : <p className="muted">Aucun appel à l'aide.</p>}
+      </div>
+      <div className="card" style={{ marginTop: 16 }}>
+        <h3>Pénalités chauffeurs (mission rendue ou sauveteur)</h3>
+        {pens.error && <div className="err">{pens.error}</div>}
+        {pens.data?.length ? (
+          <table>
+            <thead><tr><th>Date</th><th>Chauffeur</th><th>Mission</th><th>Motif</th><th>Délai</th><th>Montant</th><th>Sanction</th><th></th></tr></thead>
+            <tbody>{pens.data.map((p) => (
+              <tr key={p.id}>
+                <td>{dt(p.createdAt)}</td><td>{p.driver}</td><td>R-{p.ref}</td><td>{p.kind === "RESCUE" ? "Sauveteur" : "Rendue"}</td>
+                <td>{p.minutesBefore >= 120 ? `${Math.round(p.minutesBefore / 60)} h` : `${p.minutesBefore} min`}</td>
+                <td>{p.waived ? <span className="muted">annulée ({p.waiveReason})</span> : (p.amountCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</td>
+                <td>{p.sanction ? <span className="chip bad">{p.sanction}</span> : "—"}</td>
+                <td>{!p.waived && <button className="btn" onClick={() => waive(p.id)}>Annuler</button>}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        ) : <p className="muted">Aucune pénalité.</p>}
       </div>
     </>
   );

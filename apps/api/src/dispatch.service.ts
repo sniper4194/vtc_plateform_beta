@@ -4,6 +4,7 @@ import { canTransition } from "@vtc/shared";
 import { driverOfferCents } from "./ladder";
 import { acceptanceMessage } from "./messages";
 import { NotificationsService } from "./notifications";
+import { minutesBefore, PenaltiesService } from "./penalties.service";
 import { PrismaService } from "./prisma";
 import { effectivePickup, NO_SHOW_WAIT_MIN } from "./metrics";
 import { haversineKm } from "./zones";
@@ -39,6 +40,7 @@ export class DispatchService {
     @Inject(PrismaService) private prisma: PrismaService,
     @Inject(WebhooksService) private webhooks: WebhooksService,
     @Inject(NotificationsService) private notif: NotificationsService,
+    @Inject(PenaltiesService) private penalties: PenaltiesService,
   ) {}
 
   // ---------- helpers ----------
@@ -118,6 +120,7 @@ export class DispatchService {
 
   /** À exécuter périodiquement : expire les offres, relance ou signale l'épuisement. */
   async sweep(now = new Date()) {
+    await this.penalties.sweep(now);
     await this.prisma.dispatchOffer.updateMany({ where: { status: "PENDING", expiresAt: { lte: now } }, data: { status: "EXPIRED" } });
     const stalled = await this.prisma.ride.findMany({
       where: { status: "DISPATCHING", offers: { none: { status: "PENDING" } } },
@@ -203,10 +206,15 @@ export class DispatchService {
 
   // ---------- cycle de vie côté chauffeur ----------
   async driverCancel(driverId: string, rideId: string) {
+    let applied: Awaited<ReturnType<PenaltiesService["apply"]>> | null = null;
+    let ref = 0;
     await this.prisma.$transaction(async (tx) => {
       const ride = await tx.ride.findUnique({ where: { id: rideId } });
       if (!ride || ride.driverId !== driverId) throw new HttpException("Course introuvable", 404);
       if (ride.status !== "ASSIGNED" && ride.status !== "EN_ROUTE") throw new HttpException("Annulation impossible à ce stade", 409);
+      ref = ride.ref;
+      // La pénalité se calcule sur le délai restant au moment de la restitution (avant que la mission ne reparte au dispatch).
+      applied = await this.penalties.apply(tx, driverId, ride, "GIVE_BACK", minutesBefore(ride));
       const res = await tx.ride.updateMany({
         where: { id: rideId, status: ride.status, driverId },
         data: { status: "DISPATCHING", driverId: null, vehicleId: null, version: { increment: 1 } },
@@ -217,6 +225,7 @@ export class DispatchService {
       await this.event(tx, rideId, "driver.cancelled", `driver:${driverId}`);
       await this.event(tx, rideId, "dispatch.reset", "system");
     });
+    if (applied) await this.penalties.tell(driverId, ref, "GIVE_BACK", applied);
     await this.round(rideId);
   }
 

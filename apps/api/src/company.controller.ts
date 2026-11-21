@@ -146,10 +146,23 @@ export class CompanyController {
       kind: "ANNULATION" as const, rideId: r.id, pickupAt: r.pickupAt, at: r.cancelledAt!, reference: `R-${r.ref}`, driver: `${r.driver!.firstName} ${r.driver!.lastName}`, driverId: r.driver!.id,
       route: `${r.pickupAddress} → ${r.dropoffAddress}`, grossCents: r.cancellationFeeCents, commissionCents: r.cancellationFeeCents - r.driverCompensationCents, netCents: r.driverCompensationCents,
     }));
+    const pens = await this.prisma.driverPenalty.findMany({
+      where: { waivedAt: null, createdAt: { gte: from, lt: to }, driver: { companyId } },
+      include: { driver: { select: { id: true, firstName: true, lastName: true } } }, orderBy: { createdAt: "asc" },
+    });
+    const penaltyRides = await this.prisma.ride.findMany({ where: { id: { in: pens.map((p) => p.rideId) } }, select: { id: true, ref: true, pickupAt: true, pickupAddress: true, dropoffAddress: true } });
+    const rideOf = new Map(penaltyRides.map((r) => [r.id, r]));
+    const penRows = pens.map((p) => {
+      const r = rideOf.get(p.rideId)!;
+      return {
+        kind: "PENALITE" as const, rideId: p.rideId, pickupAt: r.pickupAt, at: p.createdAt, reference: `R-${r.ref}`, driver: `${p.driver.firstName} ${p.driver.lastName}`, driverId: p.driver.id,
+        route: `${p.kind === "RESCUE" ? "Pénalité (sauveteur)" : "Pénalité (mission rendue)"} · ${r.pickupAddress} → ${r.dropoffAddress}`, grossCents: 0, commissionCents: 0, netCents: -p.amountCents,
+      };
+    });
     const rows = [...rides.map((r) => ({
       kind: "COURSE" as const, rideId: r.id, pickupAt: r.pickupAt, at: r.pickupAt, reference: r.booking.externalReference ?? `R-${r.ref}`, driver: `${r.driver!.firstName} ${r.driver!.lastName}`, driverId: r.driver!.id,
       route: `${r.pickupAddress} → ${r.dropoffAddress}`, grossCents: r.priceCents, commissionCents: r.commissionCents, netCents: r.driverNetCents,
-    })), ...compRows].sort((a, b) => a.at.getTime() - b.at.getTime());
+    })), ...compRows, ...penRows].sort((a, b) => a.at.getTime() - b.at.getTime());
     const sum = (k: "grossCents" | "commissionCents" | "netCents") => rows.reduce((s, r) => s + r[k], 0);
     const byDriver = new Map<string, { driverId: string; driver: string; rides: number; netCents: number }>();
     for (const r of rows) {
@@ -157,7 +170,7 @@ export class CompanyController {
       if (r.kind === "COURSE") e.rides++; // une indemnité d'annulation n'est pas une mission réalisée
       e.netCents += r.netCents; byDriver.set(r.driverId, e);
     }
-    return { period: { from: from.toISOString(), to: to.toISOString() }, rows, totals: { rides: rides.length, cancellations: compRows.length, grossCents: sum("grossCents"), commissionCents: sum("commissionCents"), netCents: sum("netCents") }, byDriver: [...byDriver.values()] };
+    return { period: { from: from.toISOString(), to: to.toISOString() }, rows, totals: { rides: rides.length, cancellations: compRows.length, penalties: penRows.length, grossCents: sum("grossCents"), commissionCents: sum("commissionCents"), netCents: sum("netCents") }, byDriver: [...byDriver.values()] };
   }
 
   @Get("payments")

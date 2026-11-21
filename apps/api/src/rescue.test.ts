@@ -8,6 +8,7 @@ import { AppModule } from "./app.module";
 import { BookingsService, cancellationFeeCents } from "./bookings.service";
 import { DISPATCH, DispatchService } from "./dispatch.service";
 import { signWebhook } from "./security";
+import { PenaltiesService } from "./penalties.service";
 import { RescueService } from "./rescue.service";
 import { WebhooksService } from "./webhooks.service";
 import { FlightsService } from "./flights.service";
@@ -125,7 +126,7 @@ beforeEach(async () => {
   received = [];
   hookStatus = 200;
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "RescueRequest","Notification","OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
+    'TRUNCATE "DriverPenalty","RescueRequest","Notification","OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
   );
 });
 
@@ -307,5 +308,102 @@ describe("sauveteurs : appel à l'aide", () => {
     expect(rescueBonusCents(5000)).toBe(1000);
     expect(rescueBonusCents(400)).toBe(400);
     expect(rescueBonusCents(-5)).toBe(0);
+  });
+});
+
+describe("pénalités : restitution, sauveteur, récidive", () => {
+  beforeEach(() => { process.env.RESCUE_MIN_RIDES = "0"; process.env.RESCUE_BONUS_CENTS = "1000"; });
+
+  it("le coût est annoncé avant la décision, la restitution est pénalisée et figure au relevé de la société", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { ride } = await assigned(d, p);
+    const q = await call(`/driver/rescue/cost?rideId=${ride.id}`, { token: d.token });
+    expect(q.json.giveBackCents).toBe(1000); // réservation à 3 jours : palier « plus de 48 h » = forfait de 10 €
+    expect(q.json.rescueCents).toBe(1000);
+    // moins de 6 h avant : 150 % + frais
+    await prisma.ride.update({ where: { id: ride.id }, data: { pickupAt: new Date(Date.now() + 3 * 3600_000) } });
+    const late = await call(`/driver/rescue/cost?rideId=${ride.id}`, { token: d.token });
+    expect(late.json.giveBackCents).toBe(Math.round(ride.driverNetCents * 1.5) + 600);
+    expect(late.json.rescueCents).toBeLessThan(late.json.giveBackCents);
+
+    expect((await call(`/driver/rides/${ride.id}/cancel`, { token: d.token, body: {} })).status).toBe(201);
+    const pen = await prisma.driverPenalty.findFirstOrThrow({ where: { driverId: d.id } });
+    expect(pen.kind).toBe("GIVE_BACK");
+    expect(pen.amountCents).toBe(late.json.giveBackCents);
+    expect((await prisma.notification.findMany({ where: { driverId: d.id } })).map((n) => n.type)).toContain("PENALTY");
+  });
+
+  it("un appel de sauveteur coûte une pénalité réduite, calculée sur le délai à la demande", async () => {
+    const p = await mkPartner();
+    const requester = await mkDriver();
+    const r = await mkRescuer();
+    const { ride } = await assigned(requester, p);
+    await prisma.ride.update({ where: { id: ride.id }, data: { pickupAt: new Date(Date.now() + 3 * 3600_000) } });
+    const req = await call("/driver/rescue/request", { token: requester.token, body: { rideId: ride.id, reason: "Panne" } });
+    expect((await call(`/driver/rescue/${req.json.id}/accept`, { token: r.token, body: {} })).status).toBe(201);
+    const pen = await prisma.driverPenalty.findFirstOrThrow({ where: { driverId: requester.id } });
+    expect(pen.kind).toBe("RESCUE");
+    expect(pen.amountCents).toBeGreaterThanOrEqual(1000);
+    expect(pen.amountCents).toBeLessThan(Math.round(ride.driverNetCents * 1.5) + 600);
+    expect(pen.weight).toBe(0.5);
+  });
+
+  it("la récidive suspend le compte (48 h), la suspension se lève seule, l'équipe peut accorder une dérogation", async () => {
+    const d = await mkDriver();
+    const ride = await prisma.ride.findFirst();
+    void ride;
+    const p = await mkPartner();
+    const pen = app.get(PenaltiesService);
+    // trois restitutions en fenêtre → score 3 → suspension 48 h
+    for (let i = 0; i < 3; i++) {
+      const { ride: rr } = await assigned(d, p).catch(async () => { throw new Error("setup"); });
+      await call(`/driver/rides/${rr.id}/cancel`, { token: d.token, body: {} });
+      await prisma.dispatchOffer.deleteMany({}); // le chauffeur est exclu de la mission rendue ; une nouvelle réservation suit
+    }
+    const after = await prisma.driver.findUniqueOrThrow({ where: { id: d.id } });
+    expect(after.status).toBe("SUSPENDED");
+    expect(after.suspendedBy).toBe("auto");
+    expect(after.suspendedUntil!.getTime()).toBeGreaterThan(Date.now() + 47 * 3600_000);
+    expect((await call("/driver/availability", { token: d.token, body: { availability: "AVAILABLE" } })).status).toBe(403);
+    expect(await prisma.driverPenalty.count({ where: { driverId: d.id } })).toBe(3);
+
+    await pen.sweep(new Date(Date.now() + 49 * 3600_000));
+    expect((await prisma.driver.findUniqueOrThrow({ where: { id: d.id } })).status).toBe("ACTIVE");
+
+    // dérogation : la pénalité n'est plus due et ne compte plus
+    const one = await prisma.driverPenalty.findFirstOrThrow({ where: { driverId: d.id } });
+    expect((await call(`/admin/penalties/${one.id}/waive`, { admin: true, body: { reason: "Accident, constat fourni" } })).status).toBe(201);
+    expect(await pen.score(prisma as any, d.id)).toBe(2);
+    expect((await call("/admin/penalties", { admin: true })).json.some((x: any) => x.waived)).toBe(true);
+  });
+
+  it("à 5 points de récidive : suspension sans échéance, examen par l'équipe", async () => {
+    const d = await mkDriver();
+    const ride = { id: "00000000-0000-0000-0000-000000000000", driverNetCents: 4000 };
+    const pen = app.get(PenaltiesService);
+    let last;
+    for (let i = 0; i < 5; i++) last = await pen.apply(prisma as any, d.id, ride, "GIVE_BACK", 60);
+    expect(last!.sanction).toBe("REVIEW");
+    const after = await prisma.driver.findUniqueOrThrow({ where: { id: d.id } });
+    expect(after.suspendedUntil).toBeNull();
+    expect(after.suspendedBy).toBe("auto");
+    await pen.sweep(new Date(Date.now() + 365 * 86400_000));
+    expect((await prisma.driver.findUniqueOrThrow({ where: { id: d.id } })).status).toBe("SUSPENDED"); // jamais levée automatiquement
+  });
+
+  it("la pénalité d'un chauffeur de société est déduite sur le relevé de la société", async () => {
+    const p = await mkPartner();
+    const co = await call("/admin/companies", { admin: true, body: { name: "Flotte Test" } });
+    const d = await mkDriver();
+    await prisma.driver.update({ where: { id: d.id }, data: { companyId: co.json.companyId } });
+    const { ride } = await assigned(d, p);
+    await call(`/driver/rides/${ride.id}/cancel`, { token: d.token, body: {} });
+    const range = `from=${encodeURIComponent(new Date(Date.now() - 86400_000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 6 * 86400_000).toISOString())}`;
+    const st = await call(`/company/payments?${range}`, { token: co.json.accessKey });
+    const row = st.json.rows.find((r: any) => r.kind === "PENALITE");
+    expect(row.netCents).toBe(-1000);
+    expect(st.json.totals.penalties).toBe(1);
+    expect(st.json.totals.netCents).toBe(-1000);
   });
 });

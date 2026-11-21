@@ -180,7 +180,7 @@ function Payments() {
           <div className="card" style={{ overflowX: "auto" }}>
             <h3>Détail</h3>
             <table><thead><tr><th>Date</th><th>Réf.</th><th>Chauffeur</th><th>Brut</th><th>Commission</th><th>Net</th></tr></thead>
-              <tbody>{d.rows.map((r: any) => <tr key={r.rideId}><td>{dt(r.pickupAt)}</td><td>{r.kind === "ANNULATION" && <span className="chip bad">Annulation</span>} {r.reference ?? "—"}</td><td>{r.driver}</td><td>{eur(r.grossCents)}</td><td>{eur(r.commissionCents)}</td><td>{eur(r.netCents)}</td></tr>)}</tbody></table>
+              <tbody>{d.rows.map((r: any) => <tr key={`${r.kind}-${r.rideId}-${r.at}`}><td>{dt(r.pickupAt)}</td><td>{r.kind === "ANNULATION" && <span className="chip bad">Annulation</span>}{r.kind === "PENALITE" && <span className="chip bad">Pénalité</span>} {r.reference ?? "—"}</td><td>{r.driver}</td><td>{eur(r.grossCents)}</td><td>{eur(r.commissionCents)}</td><td>{eur(r.netCents)}</td></tr>)}</tbody></table>
           </div>
         </>
       )}

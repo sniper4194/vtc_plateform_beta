@@ -113,14 +113,33 @@ Exemple (réel, testé) : client 55 € → plafond 44 € → proposé 37,40 �
 
 ## Les sauveteurs (entraide encadrée entre chauffeurs)
 
-Un chauffeur à qui il arrive un problème (panne, malaise, retard impossible à rattraper) peut, **avant d'avoir le client à bord ou sur place**, appeler un **sauveteur** : un chauffeur d'élite qui reprend la mission à sa place, **sans pénalité de fiabilité** pour lui, et sans que le client ni le partenaire n'aient de mission annulée (le partenaire reçoit un nouvel événement `driver.assigned`).
+Un chauffeur à qui il arrive un problème (panne, malaise, retard impossible à rattraper) peut, **avant d'avoir le client à bord ou sur place**, appeler un **sauveteur** : un chauffeur d'élite qui reprend la mission à sa place : **le demandeur paie une pénalité réduite** (voir plus bas) mais la mission est sauvée, et sans que le client ni le partenaire n'aient de mission annulée (le partenaire reçoit un nouvel événement `driver.assigned`).
 
 - **Accès à la liste** : compte actif, note ≥ 4,8, fiabilité ≥ 90 %, ≥ 30 missions terminées (réglables : `RESCUE_*`), **et adhésion volontaire** ; l'équipe peut retirer ou rétablir le statut. Les critères sont recalculés à chaque appel : une note qui baisse fait sortir de la liste.
 - **Appel** : ciblé (un sauveteur choisi dans la liste, triée par proximité du départ) ou **diffusé** à tous les sauveteurs adaptés (catégorie de véhicule, planning libre). La liste n'affiche ni téléphone ni nom complet ; le passager n'est connu du sauveteur qu'après acceptation.
 - **Reprise atomique** : le premier qui accepte prend la mission en une transaction (un seul gagnant, même en acceptations simultanées). Il reçoit la confirmation habituelle (application + e-mail), le demandeur est prévenu.
 - **Prime** de 10 € (`RESCUE_BONUS_CENTS`) pour le sauveteur, **prélevée sur la commission** (jamais sur le prix client, jamais au-delà de la commission).
 - **Expiration** : une demande expire au bout de 30 min au plus (moitié du temps restant avant la prise en charge). Si personne ne répond, la mission reste au demandeur, qui est prévenu, et l'équipe voit l'alerte « sans repreneur » (onglet Alertes).
-- **Garde-fous** : une seule demande ouverte par mission, 3 appels maximum par mois et par chauffeur (au-delà : support), historique complet dans les événements de la mission (`rescue.requested`, `ride.rescued`, `rescue.expired`).
+- **Garde-fous** : une seule demande ouverte par mission, 3 appels maximum par mois et par chauffeur (au-delà : support), pénalité et récidive (section suivante), historique complet dans les événements de la mission (`rescue.requested`, `ride.rescued`, `rescue.expired`).
 
 Endpoints chauffeur : `GET /driver/rescue/status|rescuers?rideId=|incoming|mine`, `POST /driver/rescue/opt-in|request|:id/accept|decline|cancel`. Administration : `GET /admin/rescues`, `POST /admin/drivers/:id/rescue-revoke|rescue-restore`.
 **Non résolu / à valider** : la responsabilité (assurance, registre VTC, contrat) lors d'un transfert de mission entre deux indépendants doit être validée par un juriste ; la prime et les seuils sont des valeurs de départ, à ajuster avec les premiers chauffeurs.
+
+## Pénalités et récidive (mission rendue ou sauveteur)
+
+Principe : **anticiper doit coûter moins cher que s'y prendre tard, et ne rien faire ne doit jamais être gratuit.** Le montant est affiché au chauffeur **avant** qu'il décide (carte « Annuler maintenant » dans « Un souci ? »).
+
+| Délai avant la prise en charge (heure effective, vol retardé inclus) | Mission rendue | Appel d'un sauveteur repris |
+|---|---|---|
+| plus de 48 h | 10 € | 10 € (plancher) |
+| 24 à 48 h | 20 € | 10 € (plancher) |
+| 6 à 24 h | 100 % de la rémunération + 6 € de frais de dossier | moitié de la pénalité de restitution (10 € mini) |
+| moins de 6 h | 150 % de la rémunération + 6 € de frais de dossier | idem |
+
+- Pour l'appel d'un sauveteur, le délai se mesure **au moment de la demande** (attendre ne réduit pas la pénalité), et la pénalité n'est due que si un sauveteur reprend effectivement la mission.
+- **Récidive** (fenêtre glissante de 90 jours ; restitution = 1 point, appel de sauveteur = 0,5) : 3 points → suspension **48 h** ; 4 → **7 jours** ; 5 → suspension sans échéance et **examen par l'équipe** (la fermeture définitive est une décision humaine, jamais automatique). Les suspensions à durée limitée se lèvent seules.
+- La pénalité est déduite sur le **relevé de la société** (ligne « Pénalité », montant négatif) et notifiée au chauffeur (application + e-mail) avec la sanction éventuelle.
+- **Dérogation** : l'équipe peut annuler une pénalité sur justificatif (accident, urgence médicale), avec motif tracé ; elle ne compte alors plus dans la récidive.
+- Réglages : `PENALTY_FILE_FEE_CENTS`, `PENALTY_RESCUE_RATIO`, `PENALTY_RESCUE_MIN_CENTS`, `PENALTY_WINDOW_DAYS`. Les paliers sont dans `apps/api/src/penalties.ts`.
+
+**À valider avant le pilote** : (1) ce barème est une proposition inspirée de pratiques de marché citées par un chauffeur, **non vérifiées** ; (2) une pénalité contractuelle de plus de 100 % du prix est une « clause pénale » que le juge peut réduire : le contrat chauffeur doit la prévoir, la justifier et la faire accepter ; (3) suspensions et fermetures de comptes d'indépendants : cadre de transparence et de recours imposé aux plateformes, à faire relire ; (4) le prélèvement effectif dépend des paiements (Stripe), pas encore branchés : aujourd'hui la pénalité est enregistrée et affichée au relevé. Les missions déjà attribuées à un chauffeur suspendu automatiquement ne sont pas encore réattribuées.

@@ -16,6 +16,7 @@ import { HealthController, PartnerController } from "./partner.controller";
 import { PrismaService } from "./prisma";
 import { QuotesService } from "./quotes.service";
 import { AdminRescueController, RescueController } from "./rescue.controller";
+import { PenaltiesService } from "./penalties.service";
 import { RescueService } from "./rescue.service";
 import { RoutingService } from "./routing";
 import { AdminGuard, CompanyGuard, DriverGuard, PartnerGuard } from "./security";
@@ -57,6 +58,6 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 
 @Module({
   controllers: [HealthController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, CompanyController, AuthController],
-  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
+  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
 })
 export class AppModule {}

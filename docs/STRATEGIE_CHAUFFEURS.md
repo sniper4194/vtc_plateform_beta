@@ -10,14 +10,14 @@
 
 ## 2. Positionnement (une phrase)
 
-> **« La seule plateforme où le prix est affiché dès le départ, où l'on ne vous laisse jamais seul face à un problème, et où votre fiabilité se transforme en avantage. »**
+> **« La seule plateforme où le prix est affiché dès le départ, où l'on ne vous laisse jamais seul face à un problème, et où votre fiabilité se transforme en avantage. Prévenir tôt coûte peu ; les récidivistes sont sanctionnés, ce qui protège les chauffeurs sérieux. »**
 
 Trois promesses, chacune déjà portée par le produit :
 
 | Promesse | Ce que le produit fait déjà | Preuve à montrer |
 |---|---|---|
 | **Transparence totale** | Prix client, plafond et prix accepté détaillés dans la confirmation (application + e-mail) ; le prix proposé monte, ne baisse jamais ; calculé côté serveur | Capture de la confirmation ; démonstration de l'échelle de prix |
-| **Jamais seul : les sauveteurs** | Appel à un chauffeur d'élite en cas de souci, sans pénalité de fiabilité ; prime pour le repreneur | Démonstration de bout en bout (parcours testé) |
+| **Jamais seul : les sauveteurs** | Appel à un chauffeur d'élite en cas de souci, avec une pénalité réduite (mission sauvée) ; prime pour le repreneur ; coût annoncé avant la décision | Démonstration de bout en bout (parcours testé) |
 | **Votre sérieux est récompensé** | Note, fiabilité, statut sauveteur, tableau de performance par chauffeur et par société | Tableau de performance, critères visibles dans l'app |
 
 Complété par des protections de terrain : suivi de vol (l'attente et le « client absent » se calculent sur l'heure réelle d'atterrissage), indemnité d'annulation versée au chauffeur, relevé de paiements lisible par société.
@@ -25,13 +25,13 @@ Complété par des protections de terrain : suivi de vol (l'attente et le « cli
 ## 3. Pourquoi les sauveteurs sont un bon levier (et leurs limites)
 
 **Ce que ça résout pour chacun**
-- *Chauffeur en difficulté* : aujourd'hui rendre une mission fait baisser son score et laisse le client dans l'incertitude. Ici il a une sortie propre.
+- *Chauffeur en difficulté* : une sortie encadrée qui coûte moins qu'une restitution sèche, mais pas rien : la responsabilité d'anticiper reste la sienne.
 - *Chauffeur élite* : une source de revenu en plus (prime), un statut visible, des missions déjà qualifiées.
 - *Partenaire (Booking, agences)* : une garantie de service que les autres n'offrent pas. C'est l'argument commercial le plus fort : « un transfert qui n'est jamais abandonné ».
 - *Plateforme* : moins d'annulations tardives, donc meilleur taux de service, la métrique qui compte pour les grands comptes.
 
 **Risques à traiter, pas à ignorer**
-- *Abus* : un chauffeur « délègue » les courses peu rentables. Garde-fous en place : seulement avant prise en charge, 3 appels par mois, un motif obligatoire, historique tracé. À surveiller : taux d'appels par chauffeur.
+- *Abus* : un chauffeur « délègue » les courses peu rentables. Garde-fous en place : seulement avant prise en charge, **pénalité progressive selon le délai (jamais gratuite)**, récidive sanctionnée (suspension 48 h, 7 jours, examen), 3 appels par mois, motif obligatoire, historique tracé. À surveiller : taux d'appels par chauffeur.
 - *Responsabilité* : assurance, registre VTC et contrat lors d'un transfert entre deux indépendants. **À faire valider par un juriste avant le pilote.**
 - *Liste vide* : au lancement, il y aura peu de chauffeurs à ≥ 30 missions. Les seuils sont réglables ; commencer plus bas (par ex. 10 missions) puis monter.
 - *Économie* : la prime (10 € par défaut) vient de la marge. À ~20 % de commission sur une course de 55 €, la marge est ~11 € : la prime en consomme la quasi-totalité. À ne payer que sur mission reprise, et à réévaluer avec les vrais volumes.
@@ -75,6 +75,7 @@ Ne pas promettre de minimum de courses garanti sans demande contractée.
 |---|---|
 | « Vous n'avez pas encore de courses » | Vrai. Montrer les contrats ou volumes engagés dès qu'ils existent ; avant, proposer le statut fondateur et la transparence. |
 | « Le prix qui monte me fait attendre » | Le prix monte jusqu'à un plafond connu et affiché ; aucun prix caché. On surveille le délai d'acceptation et on ajuste l'échelle. |
+| « Les pénalités sont trop dures » | Elles sont annoncées avant la décision, progressives, et une dérogation existe sur justificatif (accident, urgence médicale). Les partenaires paient la fiabilité : c'est ce qui finance de bonnes courses. |
 | « Les sauveteurs, c'est du travail en plus pour les autres » | Adhésion volontaire, prime, aucune obligation d'accepter. |
 | « Vous prenez quoi comme commission ? » | Répondre précisément (confirmation détaillée) ; ne pas esquiver. |
 | « Qui est responsable en cas de souci ? » | À préparer avec le juriste avant de pouvoir répondre ; ne pas improviser. |

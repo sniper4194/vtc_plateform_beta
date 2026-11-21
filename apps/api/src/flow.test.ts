@@ -124,7 +124,7 @@ beforeEach(async () => {
   received = [];
   hookStatus = 200;
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "RescueRequest","Notification","OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
+    'TRUNCATE "DriverPenalty","RescueRequest","Notification","OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
   );
 });
 
@@ -668,7 +668,7 @@ describe("espace société", () => {
     expect((await call(`/admin/performance?${range()}&companyId=${co.id}`, { admin: true })).json.rides.completed).toBe(1);
 
     const pay = (await call(`/company/payments?${range()}`, { token: co.key })).json;
-    expect(pay.totals).toEqual({ rides: 1, cancellations: 0, grossCents: 5500, commissionCents: 1100, netCents: 4400 });
+    expect(pay.totals).toEqual({ rides: 1, cancellations: 0, penalties: 0, grossCents: 5500, commissionCents: 1100, netCents: 4400 });
     expect(pay.byDriver).toHaveLength(1);
 
     const csv = await fetch(`${base}/company/payments.csv?${range()}`, { headers: { authorization: `Bearer ${co.key}` } });
@@ -1111,7 +1111,7 @@ describe("relevé de paiement : indemnités d'annulation", () => {
     // période par défaut (15 derniers jours) : l'indemnité y figure dès l'annulation, même si la prise en charge est dans le futur
     expect((await call("/company/payments", { token: co.accessKey })).json.totals.cancellations).toBe(1);
     const pay = (await call(`/company/payments?${range}`, { token: co.accessKey })).json;
-    expect(pay.totals).toEqual({ rides: 0, cancellations: 1, grossCents: 2750, commissionCents: 550, netCents: 2200 });
+    expect(pay.totals).toEqual({ rides: 0, cancellations: 1, penalties: 0, grossCents: 2750, commissionCents: 550, netCents: 2200 });
     expect(pay.rows[0]).toMatchObject({ kind: "ANNULATION", reference: `R-${res.json.ref}`, netCents: 2200 });
     expect(pay.byDriver[0]).toMatchObject({ rides: 0, netCents: 2200 }); // payé, mais pas compté comme mission réalisée
     const csv = await (await fetch(`${base}/company/payments.csv?${range}`, { headers: { authorization: `Bearer ${co.accessKey}` } })).text();

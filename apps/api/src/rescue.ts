@@ -47,7 +47,7 @@ export function rescueRequestMessage(ride: RideForMessage, flightNumber: string 
 export function rescueAcceptedToRequester(ref: number, pickupAt: Date, rescuerName: string) {
   return {
     title: `Mission R-${ref} reprise`,
-    body: `${rescuerName} reprend la mission R-${ref} (${fmtDateTime(pickupAt)}). Vous n'avez plus rien à faire : la mission a quitté votre planning. Aucune pénalité de fiabilité n'est appliquée.`,
+    body: `${rescuerName} reprend la mission R-${ref} (${fmtDateTime(pickupAt)}). La mission a quitté votre planning. Une pénalité réduite s'applique (voir le message suivant) : la mission est sauvée, mais prévenir tôt reste moins cher.`,
   };
 }
 
