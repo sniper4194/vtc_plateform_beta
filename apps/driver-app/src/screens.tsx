@@ -1,3 +1,4 @@
+import { RescueCard, RescuePicker } from "./rescue";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Text, View } from "react-native";
 import { api, ApiError } from "./api";
@@ -81,6 +82,8 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
         <Cond size={14}>Gains de la quinzaine · net</Cond>
         <Display size={58} color={c.ink} shadow={c.red}>{home.data ? eurShort(home.data.fortnightEarningsCents) : "—"}</Display>
       </Card>
+
+      <RescueCard notify={notify} onAccepted={openMission} />
 
       <View style={{ flexDirection: "row", justifyContent: "space-around", alignItems: "center" }}>
         <Pressable onPress={goRadar}>
@@ -284,6 +287,7 @@ function MissionDetail({ r, run, notify, openMission }: { r: any; run: (id: stri
   const next = NEXT_ACTION(r.status);
   const [problem, setProblem] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [rescue, setRescue] = useState(false);
   const target = r.status === "IN_PROGRESS" ? r.dropoff : r.pickup;
   return (
     <View style={{ gap: 10 }}>
@@ -301,6 +305,8 @@ function MissionDetail({ r, run, notify, openMission }: { r: any; run: (id: stri
       {next && <HoldButton label={next.hold} onComplete={() => run(r.rideId, next.action)} />}
       <Pressable onPress={() => { setProblem(!problem); setConfirm(false); }}><Cond size={13} color={c.blue} style={{ textAlign: "center", textDecorationLine: "underline" }}>Un souci ?</Cond></Pressable>
       {problem && r.status === "ARRIVED" && <Btn label="Client introuvable (no-show)" color={c.red} text={c.cream} onPress={() => run(r.rideId, "no-show")} />}
+      {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <Btn label="Appeler un sauveteur" color={c.yel} onPress={() => setRescue(true)} />}
+      {rescue && <RescuePicker rideId={r.rideId} notify={notify} onClose={() => setRescue(false)} />}
       {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && (
         <Btn
           label={confirm ? "Confirmer : je rends la mission" : "Je ne peux plus la faire"}

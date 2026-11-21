@@ -110,3 +110,17 @@ Exemple (réel, testé) : client 55 € → plafond 44 € → proposé 37,40 �
 - Réglages : `PRICE_LADDER`, `LADDER_START_RATIO` (jamais sous 30 %), `LADDER_FROM_MIN`, `LADDER_TO_MIN`, `LADDER_STEP_CENTS`.
 
 **Points de vigilance** : (1) un chauffeur peut attendre que le prix monte, donc une mission peu attractive risque d'être prise tard ou pas du tout : surveiller le délai moyen d'acceptation et les alertes « sans chauffeur » ; un partenaire comme Booking juge d'abord la fiabilité. (2) La transparence de la rémunération des chauffeurs indépendants est encadrée (directive européenne sur le travail via plateformes) : faire valider la formulation et les informations affichées par un juriste.
+
+## Les sauveteurs (entraide encadrée entre chauffeurs)
+
+Un chauffeur à qui il arrive un problème (panne, malaise, retard impossible à rattraper) peut, **avant d'avoir le client à bord ou sur place**, appeler un **sauveteur** : un chauffeur d'élite qui reprend la mission à sa place, **sans pénalité de fiabilité** pour lui, et sans que le client ni le partenaire n'aient de mission annulée (le partenaire reçoit un nouvel événement `driver.assigned`).
+
+- **Accès à la liste** : compte actif, note ≥ 4,8, fiabilité ≥ 90 %, ≥ 30 missions terminées (réglables : `RESCUE_*`), **et adhésion volontaire** ; l'équipe peut retirer ou rétablir le statut. Les critères sont recalculés à chaque appel : une note qui baisse fait sortir de la liste.
+- **Appel** : ciblé (un sauveteur choisi dans la liste, triée par proximité du départ) ou **diffusé** à tous les sauveteurs adaptés (catégorie de véhicule, planning libre). La liste n'affiche ni téléphone ni nom complet ; le passager n'est connu du sauveteur qu'après acceptation.
+- **Reprise atomique** : le premier qui accepte prend la mission en une transaction (un seul gagnant, même en acceptations simultanées). Il reçoit la confirmation habituelle (application + e-mail), le demandeur est prévenu.
+- **Prime** de 10 € (`RESCUE_BONUS_CENTS`) pour le sauveteur, **prélevée sur la commission** (jamais sur le prix client, jamais au-delà de la commission).
+- **Expiration** : une demande expire au bout de 30 min au plus (moitié du temps restant avant la prise en charge). Si personne ne répond, la mission reste au demandeur, qui est prévenu, et l'équipe voit l'alerte « sans repreneur » (onglet Alertes).
+- **Garde-fous** : une seule demande ouverte par mission, 3 appels maximum par mois et par chauffeur (au-delà : support), historique complet dans les événements de la mission (`rescue.requested`, `ride.rescued`, `rescue.expired`).
+
+Endpoints chauffeur : `GET /driver/rescue/status|rescuers?rideId=|incoming|mine`, `POST /driver/rescue/opt-in|request|:id/accept|decline|cancel`. Administration : `GET /admin/rescues`, `POST /admin/drivers/:id/rescue-revoke|rescue-restore`.
+**Non résolu / à valider** : la responsabilité (assurance, registre VTC, contrat) lors d'un transfert de mission entre deux indépendants doit être validée par un juriste ; la prime et les seuils sont des valeurs de départ, à ajuster avec les premiers chauffeurs.

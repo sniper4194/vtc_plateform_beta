@@ -6,6 +6,7 @@ import { countdown, eurShort, isCancelled, MISSION_TITLE, NEXT_ACTION, secondsUn
 import { MissionMap, MapPoint } from "./MissionMap";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, HoldButton, Slab, Sticker } from "./ui";
+import { RescuePicker } from "./rescue";
 import { useFetch } from "./useFetch";
 
 type Notify = (text: string, tone?: "ok" | "bad") => void;
@@ -38,6 +39,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
   const [nav, setNav] = useState(false);
   const [problem, setProblem] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [rescue, setRescue] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 1000); return () => clearInterval(t); }, []);
   useEffect(() => {
@@ -158,11 +160,13 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
               {next && <HoldButton label={next.hold} onComplete={() => run(next.action)} />}
               <Pressable onPress={() => { setProblem(!problem); setConfirm(false); }}><Cond size={13} color={c.blue} style={{ textAlign: "center", textDecorationLine: "underline" }}>Un souci ?</Cond></Pressable>
               {problem && r.status === "ARRIVED" && <Btn label={noShowIn > 0 ? `Client absent (dans ${countdown(noShowIn)})` : "Client introuvable (no-show)"} color={c.red} text={c.cream} disabled={noShowIn > 0} onPress={() => run("no-show")} />}
+              {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <Btn label="Appeler un sauveteur" color={c.yel} onPress={() => setRescue(true)} />}
               {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <Btn label={confirm ? "Confirmer : je rends la mission" : "Je ne peux plus la faire"} color={c.red} text={c.cream} onPress={giveBack} />}
             </>
           )}
         </ScrollView>
       </View>
+      {rescue && <RescuePicker rideId={rideId} notify={notify} onClose={() => { setRescue(false); ride.reload(); }} />}
       {sign && <SignModal text={r.signText} onClose={() => setSign(false)} />}
     </View>
   );

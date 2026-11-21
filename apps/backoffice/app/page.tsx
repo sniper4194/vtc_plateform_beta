@@ -186,7 +186,11 @@ function Drivers() {
           <div className="card" key={d.id}>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <b style={{ fontFamily: "var(--slab)", fontWeight: 400, fontSize: 18 }}>{d.firstName} {d.lastName}</b>
-              <span className={`chip ${d.status === "ACTIVE" ? "ok" : d.status === "SUSPENDED" ? "bad" : ""}`}>{d.status}</span>
+              <span className="chips">
+                {d.rescueOptIn && <span className="chip blue">Sauveteur</span>}
+                {d.rescueRevokedAt && <span className="chip bad">Sauveteur retiré</span>}
+                <span className={`chip ${d.status === "ACTIVE" ? "ok" : d.status === "SUSPENDED" ? "bad" : ""}`}>{d.status}</span>
+              </span>
             </div>
             <div className="muted">{d.phone}</div>
             <div className="chips">{d.vehicles.map((v: any) => <span className="chip blue" key={v.id}>{v.make} {v.model} · {v.plate}</span>)}</div>
@@ -205,6 +209,9 @@ function Drivers() {
             </div>
             {d.status !== "ACTIVE" && <button className="btn primary" onClick={() => act(`/admin/drivers/${d.id}/approve`)}>Valider le chauffeur</button>}
             {d.status === "ACTIVE" && <button className="btn danger" onClick={() => act(`/admin/drivers/${d.id}/suspend`)}>Suspendre</button>}
+            {d.status === "ACTIVE" && (d.rescueRevokedAt
+              ? <button className="btn" style={{ marginLeft: 8 }} onClick={() => act(`/admin/drivers/${d.id}/rescue-restore`)}>Rétablir le statut sauveteur</button>
+              : d.rescueOptIn && <button className="btn" style={{ marginLeft: 8 }} onClick={() => act(`/admin/drivers/${d.id}/rescue-revoke`)}>Retirer le statut sauveteur</button>)}
           </div>
         ))}
       </div>
@@ -397,8 +404,11 @@ function Partners() {
   );
 }
 
+const RESCUE_LABEL: Record<string, string> = { OPEN: "En attente", ACCEPTED: "Reprise", DECLINED: "Refusé", EXPIRED: "Expiré", CANCELLED: "Annulé" };
+
 function AlertsTab() {
   const alerts = useLoad<any[]>("/admin/alerts");
+  const rescues = useLoad<any[]>("/admin/rescues", 8000);
   return (
     <>
       <h1 className="title">Alertes</h1>
@@ -412,6 +422,21 @@ function AlertsTab() {
           </table>
         ) : <p className="muted">Aucune alerte. Vous pouvez attribuer à la main depuis le tableau.</p>}
       </div>
+      <div className="card" style={{ marginTop: 16 }}>
+        <h3>Appels à l'aide des chauffeurs (sauveteurs)</h3>
+        {rescues.error && <div className="err">{rescues.error}</div>}
+        {rescues.data?.length ? (
+          <table>
+            <thead><tr><th>Mission</th><th>Prise en charge</th><th>Demandeur</th><th>Motif</th><th>Sauveteur</th><th>État</th></tr></thead>
+            <tbody>{rescues.data.map((r) => (
+              <tr key={r.id}>
+                <td>R-{r.ref}</td><td>{dt(r.pickupAt)}</td><td>{r.requester}</td><td>{r.reason}</td><td>{r.rescuer ?? (r.direct ? "ciblé" : "tous")}</td>
+                <td><span className={`chip ${r.status === "ACCEPTED" ? "ok" : r.needsAttention ? "bad" : ""}`}>{r.needsAttention ? "À traiter : sans repreneur" : RESCUE_LABEL[r.status]}</span></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        ) : <p className="muted">Aucun appel à l'aide.</p>}
+      </div>
     </>
   );
 }
@@ -422,6 +447,7 @@ export default function Home() {
   const [user, setUserState] = useState<AdminSession | null>(null);
   const [tab, setTab] = useState<Tab>("rides");
   const alerts = useLoad<any[]>("/admin/alerts", 8000);
+  const rescues = useLoad<any[]>("/admin/rescues?open=1", 8000);
   const sync = () => { setAuthed(Boolean(getToken())); setUserState(getUser()); };
   useEffect(() => {
     sync(); setReady(true);
@@ -436,7 +462,7 @@ export default function Home() {
     ["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"],
     ...(isAdmin ? ([["companies", "Sociétés"], ["partners", "Partenaires"], ["team", "Équipe"]] as [Tab, string][]) : []),
   ];
-  const nAlerts = alerts.data?.length ?? 0;
+  const nAlerts = (alerts.data?.length ?? 0) + (rescues.data?.length ?? 0);
   return (
     <>
       <header>
