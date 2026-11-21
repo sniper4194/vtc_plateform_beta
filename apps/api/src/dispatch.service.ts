@@ -51,7 +51,7 @@ export class DispatchService {
     return { start, end: start + (r.durationMin + DISPATCH.bufferMin) * 60_000 };
   }
 
-  private async hasOverlap(db: Tx | PrismaService, driverId: string, ride: Ride) {
+  async hasOverlap(db: Tx | PrismaService, driverId: string, ride: Ride) {
     const w = this.window(ride);
     const others = await db.ride.findMany({
       where: {

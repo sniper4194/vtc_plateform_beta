@@ -132,6 +132,11 @@ model Driver {
   contractSignedAt DateTime?
   stripeAccountId String?
   suspendedBy   String? // "admin" | "company" : une société ne peut lever que sa propre suspension
+  rescueOptIn   Boolean            @default(false) // accepte de figurer dans la liste des sauveteurs (s'il remplit les critères)
+  rescueRevokedAt DateTime? // retrait du statut par l'administration
+  rescueAsked   RescueRequest[]    @relation("RescueRequester")
+  rescueTargeted RescueRequest[]   @relation("RescueTarget")
+  rescueDone    RescueRequest[]    @relation("RescueRescuer")
   notifications Notification[]
   lastLat       Float?
   lastLng       Float?
@@ -240,6 +245,7 @@ model Ride {
   version        Int             @default(0) // verrou optimiste
   events         RideEvent[]
   offers         DispatchOffer[]
+  rescues        RescueRequest[]
   ratings        Rating[]
   createdAt      DateTime        @default(now())
 
@@ -409,4 +415,34 @@ model Notification {
   createdAt DateTime  @default(now())
 
   @@index([driverId, createdAt])
+}
+
+enum RescueStatus {
+  OPEN
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+/// Appel à l'aide : un chauffeur en difficulté demande à un sauveteur (ciblé) ou à tous (targetId nul) de reprendre sa mission.
+model RescueRequest {
+  id          String       @id @default(uuid())
+  rideId      String
+  ride        Ride         @relation(fields: [rideId], references: [id])
+  requesterId String
+  requester   Driver       @relation("RescueRequester", fields: [requesterId], references: [id])
+  targetId    String?
+  target      Driver?      @relation("RescueTarget", fields: [targetId], references: [id])
+  rescuerId   String?
+  rescuer     Driver?      @relation("RescueRescuer", fields: [rescuerId], references: [id])
+  reason      String
+  bonusCents  Int          @default(0)
+  status      RescueStatus @default(OPEN)
+  expiresAt   DateTime
+  createdAt   DateTime     @default(now())
+  resolvedAt  DateTime?
+
+  @@index([status, expiresAt])
+  @@index([requesterId, createdAt])
 }
