@@ -88,7 +88,10 @@ Pour le simulateur et les démos locales, lancer l'API avec `DRIVER_DEV_OTP=0000
 Fond **bleu ciel** `#8fd0f5` avec texte **bleu nuit** `#0b2a4a` posé dessus (contraste 8,7) ; **bleu soutenu** `#1a66c2` pour les boutons et pastilles (texte crème dessus : 4,9) ; jaune `#f7b30a` et rouge `#ee2a14` en accents ; crème `#f5eedd` pour les cartes.
 Le rouge et le jaune ne servent jamais de couleur de texte directement sur le fond ciel (contraste insuffisant). Définition : `apps/driver-app/src/theme.ts` et `apps/backoffice/app/globals.css`.
 
-## Annulation par le partenaire : information du chauffeur
+## E-mails et messages au chauffeur : acceptation et annulation
+
+Deux messages, dans l'app (Messages) et par e-mail : **confirmation** quand le chauffeur accepte une mission (ou que le dispatch la lui attribue) — référence, prise en charge, trajet, vol, service, prix client / commission / rémunération nette — et **annulation**. Aucune donnée du passager n'est envoyée par e-mail (elles restent dans l'app).
+`DRIVER_SEES_CLIENT_PRICE=0` masque le prix client et la commission (seule la rémunération nette reste visible).
 
 Quand un partenaire annule une mission déjà attribuée, le chauffeur reçoit un message dans l'app (Messages, avec pastille) et un e-mail : référence `R-xxxxxx`, prise en charge, trajet, vol (atterrissage et délai de prise en charge), service, rémunération prévue, et indemnité éventuelle.
 **Règle provisoire** (à valider commercialement) : frais d'annulation du partenaire selon l'anticipation (> 24 h : 0 % ; 2–24 h : 50 % ; < 2 h : 100 %), dont le chauffeur reçoit la part nette de commission. L'indemnité figure sur le relevé de la société à la date d'annulation.

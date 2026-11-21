@@ -1,6 +1,7 @@
 import { HttpException, Inject, Injectable } from "@nestjs/common";
 import { Prisma, Ride, RideStatus } from "@prisma/client";
 import { canTransition } from "@vtc/shared";
+import { acceptanceMessage } from "./messages";
 import { NotificationsService } from "./notifications";
 import { PrismaService } from "./prisma";
 import { effectivePickup, NO_SHOW_WAIT_MIN } from "./metrics";
@@ -150,13 +151,24 @@ export class DispatchService {
   }
 
   async accept(driverId: string, offerId: string) {
+    let rideId = "";
     await this.prisma.$transaction(async (tx) => {
       const offer = await tx.dispatchOffer.findUnique({ where: { id: offerId }, include: { ride: true, driver: true } });
       if (!offer || offer.driverId !== driverId) throw new HttpException("Offre introuvable", 404);
       if (offer.status !== "PENDING" || offer.expiresAt <= new Date()) throw new HttpException("Offre expirée", 409);
       if (offer.driver.status !== "ACTIVE") throw new HttpException("Compte non actif", 403);
       await this.claim(tx, offer.ride, driverId, `driver:${driverId}`);
+      rideId = offer.rideId;
     });
+    await this.confirmToDriver(driverId, rideId, false);
+  }
+
+  /** Confirmation d'acceptation / d'attribution : message dans l'application + e-mail (jamais bloquant). */
+  private async confirmToDriver(driverId: string, rideId: string, byDispatch: boolean) {
+    const ride = await this.prisma.ride.findUnique({ where: { id: rideId }, include: { booking: true } });
+    if (!ride) return;
+    const msg = acceptanceMessage(ride, ride.booking.flightNumber, byDispatch);
+    await this.notif.toDriver(driverId, { type: byDispatch ? "ASSIGNED_BY_DISPATCH" : "RIDE_ACCEPTED", ...msg, data: { rideId, ref: ride.ref } }, { email: true });
   }
 
   async decline(driverId: string, offerId: string) {
@@ -174,7 +186,7 @@ export class DispatchService {
       if (!driver || driver.status !== "ACTIVE") throw new HttpException("Chauffeur non actif", 409);
       await this.claim(tx, ride, driverId, admin);
     });
-    await this.notif.toDriver(driverId, { type: "ASSIGNED_BY_DISPATCH", title: "Mission attribuée par le dispatch", body: "Une mission vient de vous être attribuée : retrouvez-la dans votre agenda.", data: { rideId } });
+    await this.confirmToDriver(driverId, rideId, true);
   }
 
   // ---------- cycle de vie côté chauffeur ----------

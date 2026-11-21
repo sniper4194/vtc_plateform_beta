@@ -963,6 +963,7 @@ describe("annulation par le partenaire : information du chauffeur", () => {
     const d = await mkDriver();
     const { res } = await mkBooking(p, { pickupAt: new Date(Date.now() + hours * 3600_000).toISOString(), ...over });
     await assignTo(res.json.rideId, d.id);
+    mails.length = 0; // l'attribution envoie sa propre confirmation ; on ne regarde ici que l'annulation
     return { p, d, res };
   }
   const cancel = (p: { apiKey: string }, id: string) => call(`/v1/bookings/${id}`, { token: p.apiKey, method: "DELETE" });
@@ -1116,5 +1117,92 @@ describe("relevé de paiement : indemnités d'annulation", () => {
     const csv = await (await fetch(`${base}/company/payments.csv?${range}`, { headers: { authorization: `Bearer ${co.accessKey}` } })).text();
     expect(csv).toContain("ANNULATION");
     expect(csv).toContain("22");
+  });
+});
+
+
+/* ============================ Confirmation d'acceptation ============================ */
+
+describe("confirmation d'acceptation d'une mission", () => {
+  let mails: { to: string; subject: string; text: string }[] = [];
+  let emailSvc: EmailService;
+  beforeEach(() => {
+    mails = [];
+    emailSvc = app.get(EmailService);
+    emailSvc.provider = { send: async (m) => { mails.push(m); } };
+  });
+  afterAll(() => { emailSvc.provider = null; });
+  const inbox = async (d: { token: string }) => (await call("/driver/notifications", { token: d.token })).json.items;
+
+  it("le chauffeur qui accepte reçoit un message et un e-mail détaillés, prix compris", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p, {}, "acc", { flightBufferMin: 15 });
+    const offer = (await call("/driver/offers", { token: d.token })).json[0];
+    expect((await call(`/driver/offers/${offer.offerId}/accept`, { token: d.token, body: {} })).status).toBe(201);
+
+    const n = (await inbox(d)).find((x: any) => x.type === "RIDE_ACCEPTED");
+    expect(n.title).toBe(`Mission R-${res.json.ref} confirmée`);
+    expect(n.body).toContain(`Vous avez accepté la mission R-${res.json.ref}`);
+    for (const part of ["Prise en charge :", "Départ : Aéroport CDG T2", "Arrivée :", "Vol : AF1234", "prise en charge 15 min après", "Service : Berline · course au forfait", "Prix client (TTC) : 55,00", "Commission de la plateforme : 11,00", "Votre rémunération (net) : 44,00", "application chauffeur"]) {
+      expect(n.body).toContain(part);
+    }
+    expect(n.body).not.toContain("Silva"); // pas de données du passager dans un e-mail
+    const driver = await prisma.driver.findUniqueOrThrow({ where: { id: d.id } });
+    expect(mails).toHaveLength(1);
+    expect(mails[0]).toMatchObject({ to: driver.email, subject: n.title });
+    expect(mails[0].text).toContain(n.body);
+  });
+
+  it("un seul message pour le chauffeur gagnant, aucun pour celui qui perd la course", async () => {
+    const p = await mkPartner();
+    const d1 = await mkDriver(), d2 = await mkDriver();
+    await mkBooking(p);
+    const o1 = (await call("/driver/offers", { token: d1.token })).json[0], o2 = (await call("/driver/offers", { token: d2.token })).json[0];
+    const rs = await Promise.all([
+      call(`/driver/offers/${o1.offerId}/accept`, { token: d1.token, body: {} }),
+      call(`/driver/offers/${o2.offerId}/accept`, { token: d2.token, body: {} }),
+    ]);
+    expect(rs.map((r) => r.status).sort()).toEqual([201, 409]);
+    const total = [...(await inbox(d1)), ...(await inbox(d2))].filter((x: any) => x.type === "RIDE_ACCEPTED");
+    expect(total).toHaveLength(1);
+    expect(mails.filter((m) => /confirmée/.test(m.subject))).toHaveLength(1);
+  });
+
+  it("une attribution par le dispatch envoie la même confirmation, formulée autrement", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p);
+    await assignTo(res.json.rideId, d.id);
+    const n = (await inbox(d)).find((x: any) => x.type === "ASSIGNED_BY_DISPATCH");
+    expect(n.title).toBe(`Mission R-${res.json.ref} attribuée`);
+    expect(n.body).toContain(`Le dispatch vous a attribué la mission R-${res.json.ref}`);
+    expect(n.body).toContain("Votre rémunération (net) : 44,00");
+    expect(mails.map((m) => m.subject)).toContain(n.title);
+  });
+
+  it("peut masquer le prix client et la commission (DRIVER_SEES_CLIENT_PRICE=0)", async () => {
+    process.env.DRIVER_SEES_CLIENT_PRICE = "0";
+    try {
+      const p = await mkPartner();
+      const d = await mkDriver();
+      await mkBooking(p);
+      const offer = (await call("/driver/offers", { token: d.token })).json[0];
+      await call(`/driver/offers/${offer.offerId}/accept`, { token: d.token, body: {} });
+      const body = (await inbox(d)).find((x: any) => x.type === "RIDE_ACCEPTED").body;
+      expect(body).toContain("Votre rémunération (net) : 44,00");
+      expect(body).not.toContain("Prix client");
+      expect(body).not.toContain("Commission");
+    } finally { delete process.env.DRIVER_SEES_CLIENT_PRICE; }
+  });
+
+  it("un e-mail en panne n'empêche pas l'acceptation", async () => {
+    emailSvc.provider = { send: async () => { throw new Error("SMTP indisponible"); } };
+    const p = await mkPartner();
+    const d = await mkDriver();
+    await mkBooking(p);
+    const offer = (await call("/driver/offers", { token: d.token })).json[0];
+    expect((await call(`/driver/offers/${offer.offerId}/accept`, { token: d.token, body: {} })).status).toBe(201);
+    expect((await inbox(d)).map((x: any) => x.type)).toContain("RIDE_ACCEPTED");
   });
 });

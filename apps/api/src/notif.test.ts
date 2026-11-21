@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { cancellationMessage, driverCompensationCents } from "./bookings.service";
+import { acceptanceMessage, priceLines } from "./messages";
 import { emailProviderFromEnv, ResendEmailProvider } from "./email";
 
 const ride = {
   ref: 100234, pickupAt: new Date("2026-11-20T21:37:00Z"), pickupAddress: "Aéroport Charles de Gaulle (CDG)", dropoffAddress: "Hôtel Paris 13, Ivry-sur-Seine",
-  category: "BERLINE", flatRateId: "cdg-paris" as string | null, driverNetCents: 4400, flightBufferMin: 15,
+  category: "BERLINE", flatRateId: "cdg-paris" as string | null, priceCents: 6124, commissionCents: 1948, driverNetCents: 4176, flightBufferMin: 15,
 };
 
 describe("indemnité d'annulation du chauffeur", () => {
@@ -41,6 +42,32 @@ describe("message d'annulation", () => {
     expect(m.body).not.toContain("Vol :");
     expect(m.body).toContain("Aucune indemnité d'annulation n'est due.");
     expect(m.body).not.toContain("forfait");
+  });
+});
+
+describe("message de confirmation", () => {
+  it("reprend les rubriques d'une confirmation de course, avec le détail du prix", () => {
+    const m = acceptanceMessage(ride, "DL224");
+    expect(m.title).toBe("Mission R-100234 confirmée");
+    expect(m.body).toContain("Vous avez accepté la mission R-100234 :");
+    expect(m.body).toContain("DL224");
+    expect(m.body).toMatch(/Prix client \(TTC\) : 61,24\s€/);
+    expect(m.body).toMatch(/Commission de la plateforme : 19,48\s€/);
+    expect(m.body).toMatch(/Votre rémunération \(net\) : 41,76\s€/);
+    expect(m.body).toContain("application chauffeur");
+  });
+  it("attribution par le dispatch : formulation différente", () => {
+    const m = acceptanceMessage(ride, null, true);
+    expect(m.title).toBe("Mission R-100234 attribuée");
+    expect(m.body).toContain("Le dispatch vous a attribué la mission R-100234 :");
+    expect(m.body).not.toContain("Vol :");
+  });
+  it("prix client masquable", () => {
+    expect(priceLines(ride, false)).toHaveLength(1);
+    expect(priceLines(ride, false)[0]).toMatch(/41,76/);
+    expect(priceLines(ride, true)).toHaveLength(3);
+    // la rémunération = prix client − commission, au centime près
+    expect(ride.priceCents - ride.commissionCents).toBe(ride.driverNetCents);
   });
 });
 
