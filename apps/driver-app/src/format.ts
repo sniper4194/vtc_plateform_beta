@@ -72,6 +72,14 @@ export const MISSION_TITLE: Record<string, string> = {
   ARRIVED: "Le client est attendu",
   IN_PROGRESS: "Course en cours",
   COMPLETED: "Mission terminée",
+  CANCELLED_BY_PARTNER: "Mission annulée",
+  CANCELLED_BY_CLIENT: "Mission annulée",
 };
+
+export const STATUS_LABEL: Record<string, string> = {
+  COMPLETED: "Terminée", NO_SHOW: "Client absent", DISPUTED: "Litige", REFUNDED: "Remboursée",
+  CANCELLED_BY_PARTNER: "Annulée", CANCELLED_BY_CLIENT: "Annulée",
+};
+export const isCancelled = (status: string) => status.startsWith("CANCELLED");
 
 export const delayLabel = (min: number) => (min > 0 ? `+${min} min` : "à l'heure");

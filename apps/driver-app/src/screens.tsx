@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Text, View } from "react-native";
 import { api, ApiError } from "./api";
-import { countdown, eurShort, fuseFraction, groupByDay, NEXT_ACTION, stepIndex, STEPS, timeOf } from "./format";
+import { countdown, eurShort, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker } from "./ui";
 import { useFetch } from "./useFetch";
@@ -35,7 +35,7 @@ function Header({ title, right }: { title: string; right?: React.ReactNode }) {
 }
 
 /* ------------------------------ CAP (accueil) ------------------------------ */
-export function Cap({ goRadar, onQuit, notify, openMission }: { goRadar: () => void; onQuit: () => void; notify: Notify; openMission: (id: string) => void }) {
+export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { goRadar: () => void; onQuit: () => void; notify: Notify; openMission: (id: string) => void; openMessages: () => void }) {
   const me = useFetch<any>("/driver/me", 15000);
   const home = useFetch<any>("/driver/home");
   const [busy, setBusy] = useState(false);
@@ -51,9 +51,16 @@ export function Cap({ goRadar, onQuit, notify, openMission }: { goRadar: () => v
   const v = me.data?.vehicles?.[0];
   return (
     <ScrollView contentContainerStyle={{ padding: 20, gap: 22 }} refreshControl={<RefreshControl refreshing={false} onRefresh={() => { me.reload(); home.reload(); }} tintColor={c.onSky} />}>
-      <View>
-        <Script size={34}>Salut {me.data?.firstName},</Script>
-        <Display size={40} shadow={c.red}>cap sur la journée</Display>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <View style={{ flex: 1 }}>
+          <Script size={34}>Salut {me.data?.firstName},</Script>
+          <Display size={40} shadow={c.red}>cap sur la journée</Display>
+        </View>
+        <Pressable onPress={openMessages} accessibilityLabel={`Messages${home.data?.unreadNotifications ? `, ${home.data.unreadNotifications} non lus` : ""}`}>
+          <Sticker size={56} color={home.data?.unreadNotifications ? c.red : c.cream} rot={8}>
+            <Slab size={22} color={home.data?.unreadNotifications ? c.cream : c.ink} shadow={null}>{home.data?.unreadNotifications ? home.data.unreadNotifications : "✉"}</Slab>
+          </Sticker>
+        </Pressable>
       </View>
 
       {home.data?.liveRideId && (
@@ -330,8 +337,8 @@ export function Agenda({ notify, openMission }: { notify: Notify; openMission: (
           return (
             <Row
               time={timeOf(r.pickupAt)} category={r.category} from={r.pickup.address} to={r.dropoff.address}
-              price={eurShort(r.netCents)} flight={Boolean(r.flightNumber)}
-              badge={<Chip label={upcoming ? (STEPS[stepIndex(r.status)]?.short ?? r.status) : r.status} color={upcoming ? c.yel : c.cream} />}
+              price={isCancelled(r.status) ? (r.compensationCents ? `+${eurShort(r.compensationCents)}` : "—") : eurShort(r.netCents)} flight={Boolean(r.flight)}
+              badge={<Chip label={upcoming ? (STEPS[stepIndex(r.status)]?.short ?? r.status) : (STATUS_LABEL[r.status] ?? r.status)} color={upcoming ? c.yel : isCancelled(r.status) ? c.red : c.cream} text={!upcoming && isCancelled(r.status) ? c.cream : c.ink} />}
               expanded={expanded} onPress={upcoming ? () => setOpen(expanded ? "" : r.rideId) : undefined}
             >
               <MissionDetail r={r} run={run} notify={notify} openMission={openMission} />
@@ -339,6 +346,43 @@ export function Agenda({ notify, openMission }: { notify: Notify; openMission: (
           );
         }}
       />
+    </View>
+  );
+}
+
+/* ------------------------------ MESSAGES ------------------------------ */
+export function Messages({ onClose, notify, openMission }: { onClose: () => void; notify: Notify; openMission: (id: string) => void }) {
+  const box = useFetch<{ unread: number; items: any[] }>("/driver/notifications", 8000);
+  async function read(ids?: string[]) {
+    try { await api("/driver/notifications/read", ids ? { ids } : {}); } catch (e: any) { notify(e.message); }
+    box.reload();
+  }
+  const items = box.data?.items ?? [];
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 18, gap: 14 }}>
+        <Pressable onPress={onClose} accessibilityLabel="Retour"><Sticker size={46} color={c.cream}><Slab size={20} color={c.ink} shadow={null}>←</Slab></Sticker></Pressable>
+        <Display size={40} shadow={c.red}>Messages</Display>
+      </View>
+      <View style={{ paddingHorizontal: 20, paddingVertical: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <Cond size={13} color={c.onSky}>{box.data?.unread ? `${box.data.unread} non lu(s)` : "Tout est lu"}</Cond>
+        {box.data?.unread ? <Btn label="Tout marquer comme lu" onPress={() => read()} /> : null}
+      </View>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 4, gap: 18 }} refreshControl={<RefreshControl refreshing={false} onRefresh={box.reload} tintColor={c.onSky} />}>
+        {items.map((m) => (
+          <Card key={m.id} color={m.readAt ? c.cream : c.yel} onPress={() => !m.readAt && read([m.id])}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+              <View style={{ flex: 1 }}><Slab size={16} color={c.ink} shadow={null}>{m.title}</Slab></View>
+              {!m.readAt && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: c.red, borderWidth: 2, borderColor: c.ink, marginTop: 4 }} />}
+            </View>
+            <Cond size={11} color={c.muted}>{new Date(m.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</Cond>
+            <Text style={{ color: c.ink, marginTop: 6, lineHeight: 20 }}>{m.body}</Text>
+            {m.data?.rideId ? <View style={{ marginTop: 10, alignItems: "flex-start" }}><Btn label="Voir la mission" onPress={() => { read([m.id]); onClose(); openMission(m.data.rideId); }} /></View> : null}
+            
+          </Card>
+        ))}
+        {!items.length && <View style={{ alignItems: "center", marginTop: 40 }}><Script size={30}>{box.error || "Aucun message"}</Script></View>}
+      </ScrollView>
     </View>
   );
 }

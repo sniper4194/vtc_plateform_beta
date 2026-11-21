@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdown, delayLabel, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel } from "./format";
+import { countdown, delayLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel } from "./format";
 
 describe("format", () => {
   it("compte à rebours mm:ss", () => {
@@ -34,6 +34,11 @@ describe("format", () => {
     expect(secs.map((s) => s.data.length)).toEqual([2, 1]);
     expect(secs[0].title.startsWith("Demain")).toBe(true);
     expect(timeOf(secs[0].data[1].at)).toBe("13:00");
+  });
+  it("statuts : libellés et annulations", () => {
+    expect(isCancelled("CANCELLED_BY_PARTNER")).toBe(true);
+    expect(isCancelled("COMPLETED")).toBe(false);
+    expect(STATUS_LABEL.CANCELLED_BY_CLIENT).toBe("Annulée");
   });
   it("attente et compte à rebours", () => {
     const now = new Date("2026-11-21T10:00:00Z");

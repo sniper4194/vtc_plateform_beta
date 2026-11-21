@@ -9,6 +9,8 @@ export function bookingView(r: RideFull) {
   return {
     id: r.booking.id,
     rideId: r.id,
+    ref: r.ref,
+    reference: `R-${r.ref}`,
     status: r.status,
     externalReference: r.booking.externalReference,
     category: r.category,
@@ -22,6 +24,8 @@ export function bookingView(r: RideFull) {
           status: r.flightStatus ?? "SCHEDULED",
           delayMin: r.flightDelayMin,
           estimatedArrivalAt: r.flightEstimatedAt?.toISOString() ?? null,
+          bufferMin: r.flightBufferMin,
+          scheduledArrivalAt: new Date(r.pickupAt.getTime() - r.flightBufferMin * 60_000).toISOString(),
         }
       : null,
     pickup: { address: r.pickupAddress, lat: r.pickupLat, lng: r.pickupLng },
@@ -56,8 +60,9 @@ export function driverRideView(r: RideFull & { booking: Booking & { partner?: { 
   const eff = effectivePickup(r.pickupAt, r.flightDelayMin);
   const name = `${r.booking.passengerFirstName} ${r.booking.passengerLastName}`;
   return {
-    rideId: r.id, status: r.status, category: r.category,
+    rideId: r.id, ref: r.ref, reference: `R-${r.ref}`, status: r.status, category: r.category,
     pickupAt: r.pickupAt, effectivePickupAt: eff,
+    compensationCents: r.driverCompensationCents,
     rideType: r.flatRateId ? "FORFAIT" : "COMPTEUR",
     partner: r.booking.partner?.name ?? null,
     pickup: { address: r.pickupAddress, lat: r.pickupLat, lng: r.pickupLng },
@@ -66,7 +71,10 @@ export function driverRideView(r: RideFull & { booking: Booking & { partner?: { 
     signText: r.booking.signText ?? name,
     notes: r.booking.notes,
     flight: r.booking.flightNumber
-      ? { number: r.booking.flightNumber, status: r.flightStatus ?? "SCHEDULED", delayMin: r.flightDelayMin, estimatedArrivalAt: r.flightEstimatedAt }
+      ? {
+          number: r.booking.flightNumber, status: r.flightStatus ?? "SCHEDULED", delayMin: r.flightDelayMin, estimatedArrivalAt: r.flightEstimatedAt,
+          bufferMin: r.flightBufferMin, scheduledArrivalAt: new Date(r.pickupAt.getTime() - r.flightBufferMin * 60_000),
+        }
       : null,
     passengers: r.passengers, luggage: r.luggage, netCents: r.driverNetCents,
     vehicle: r.vehicle ? { plate: r.vehicle.plate, model: `${r.vehicle.make} ${r.vehicle.model}` } : null,

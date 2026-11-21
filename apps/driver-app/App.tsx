@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, TextInput, View } from "react-native";
 import { api, loadToken, saveToken } from "./src/api";
 import { MissionScreen } from "./src/mission";
-import { Agenda, Cap, Radar } from "./src/screens";
+import { Agenda, Cap, Messages, Radar } from "./src/screens";
 import { BRAND, c, font } from "./src/theme";
 import { Btn, Card, Cond, Display, Script, Slab, Sticker, useToast } from "./src/ui";
 
@@ -96,6 +96,7 @@ export default function App() {
   const [authed, setAuthed] = useState(false);
   const [tab, setTab] = useState<Tab>("cap");
   const [missionId, setMissionId] = useState<string | null>(null);
+  const [showMessages, setShowMessages] = useState(false);
   const toast = useToast();
 
   useEffect(() => { loadToken().then((t) => { setAuthed(Boolean(t)); setReady(true); }); }, []);
@@ -119,6 +120,15 @@ export default function App() {
 
   if (!ready || !fontsLoaded) return <View style={{ flex: 1, backgroundColor: c.sky, justifyContent: "center" }}><ActivityIndicator color={c.onSky} /></View>;
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
+  if (showMessages) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.sky }}>
+        <StatusBar style="dark" />
+        <Messages onClose={() => setShowMessages(false)} notify={toast.show} openMission={setMissionId} />
+        {toast.node}
+      </SafeAreaView>
+    );
+  }
   if (missionId) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: c.sky }}>
@@ -133,7 +143,7 @@ export default function App() {
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
         {tab === "radar" && <Radar notify={toast.show} />}
-        {tab === "cap" && <Cap goRadar={() => setTab("radar")} onQuit={async () => { await saveToken(null); setAuthed(false); }} notify={toast.show} openMission={setMissionId} />}
+        {tab === "cap" && <Cap goRadar={() => setTab("radar")} onQuit={async () => { await saveToken(null); setAuthed(false); }} notify={toast.show} openMission={setMissionId} openMessages={() => setShowMessages(true)} />}
         {tab === "agenda" && <Agenda notify={toast.show} openMission={setMissionId} />}
         {toast.node}
       </View>

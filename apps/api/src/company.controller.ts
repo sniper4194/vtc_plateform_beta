@@ -137,17 +137,27 @@ export class CompanyController {
       include: { driver: { select: { id: true, firstName: true, lastName: true } }, booking: { select: { externalReference: true } } },
       orderBy: { pickupAt: "asc" },
     });
-    const rows = rides.map((r) => ({
-      rideId: r.id, pickupAt: r.pickupAt, reference: r.booking.externalReference, driver: `${r.driver!.firstName} ${r.driver!.lastName}`, driverId: r.driver!.id,
-      route: `${r.pickupAddress} → ${r.dropoffAddress}`, grossCents: r.priceCents, commissionCents: r.commissionCents, netCents: r.driverNetCents,
+    const cancelled = await this.prisma.ride.findMany({
+      where: { status: { in: ["CANCELLED_BY_PARTNER", "CANCELLED_BY_CLIENT"] }, driverCompensationCents: { gt: 0 }, cancelledAt: { gte: from, lt: to }, driver: { companyId } },
+      include: { driver: { select: { id: true, firstName: true, lastName: true } }, booking: { select: { externalReference: true } } },
+      orderBy: { cancelledAt: "asc" },
+    });
+    const compRows = cancelled.map((r) => ({
+      kind: "ANNULATION" as const, rideId: r.id, pickupAt: r.pickupAt, at: r.cancelledAt!, reference: `R-${r.ref}`, driver: `${r.driver!.firstName} ${r.driver!.lastName}`, driverId: r.driver!.id,
+      route: `${r.pickupAddress} → ${r.dropoffAddress}`, grossCents: r.cancellationFeeCents, commissionCents: r.cancellationFeeCents - r.driverCompensationCents, netCents: r.driverCompensationCents,
     }));
+    const rows = [...rides.map((r) => ({
+      kind: "COURSE" as const, rideId: r.id, pickupAt: r.pickupAt, at: r.pickupAt, reference: r.booking.externalReference ?? `R-${r.ref}`, driver: `${r.driver!.firstName} ${r.driver!.lastName}`, driverId: r.driver!.id,
+      route: `${r.pickupAddress} → ${r.dropoffAddress}`, grossCents: r.priceCents, commissionCents: r.commissionCents, netCents: r.driverNetCents,
+    })), ...compRows].sort((a, b) => a.at.getTime() - b.at.getTime());
     const sum = (k: "grossCents" | "commissionCents" | "netCents") => rows.reduce((s, r) => s + r[k], 0);
     const byDriver = new Map<string, { driverId: string; driver: string; rides: number; netCents: number }>();
     for (const r of rows) {
       const e = byDriver.get(r.driverId) ?? { driverId: r.driverId, driver: r.driver, rides: 0, netCents: 0 };
-      e.rides++; e.netCents += r.netCents; byDriver.set(r.driverId, e);
+      if (r.kind === "COURSE") e.rides++; // une indemnité d'annulation n'est pas une mission réalisée
+      e.netCents += r.netCents; byDriver.set(r.driverId, e);
     }
-    return { period: { from: from.toISOString(), to: to.toISOString() }, rows, totals: { rides: rows.length, grossCents: sum("grossCents"), commissionCents: sum("commissionCents"), netCents: sum("netCents") }, byDriver: [...byDriver.values()] };
+    return { period: { from: from.toISOString(), to: to.toISOString() }, rows, totals: { rides: rides.length, cancellations: compRows.length, grossCents: sum("grossCents"), commissionCents: sum("commissionCents"), netCents: sum("netCents") }, byDriver: [...byDriver.values()] };
   }
 
   @Get("payments")
@@ -160,8 +170,8 @@ export class CompanyController {
   async paymentsCsv(@Req() req: any, @Query() q: Record<string, string>, @Res() res: any) {
     const { from, to } = period(q.from, q.to, 15);
     const s = await this.statement(req.company.id, from, to);
-    const head = ["date", "reference", "chauffeur", "trajet", "brut_eur", "commission_eur", "net_eur"];
-    const lines = [head.join(";"), ...s.rows.map((r) => [r.pickupAt.toISOString(), r.reference, r.driver, r.route, r.grossCents / 100, r.commissionCents / 100, r.netCents / 100].map(csvCell).join(";"))];
+    const head = ["date", "type", "reference", "chauffeur", "trajet", "brut_eur", "commission_eur", "net_eur"];
+    const lines = [head.join(";"), ...s.rows.map((r) => [r.at.toISOString(), r.kind, r.reference, r.driver, r.route, r.grossCents / 100, r.commissionCents / 100, r.netCents / 100].map(csvCell).join(";"))];
     res.setHeader("content-type", "text/csv; charset=utf-8");
     res.setHeader("content-disposition", 'attachment; filename="releve-paiements.csv"');
     res.send("﻿" + lines.join("\n"));

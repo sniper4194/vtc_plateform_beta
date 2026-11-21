@@ -8,6 +8,7 @@ import { FlightsService } from "./flights.service";
 import { PerformanceService } from "./performance.service";
 import { DispatchService } from "./dispatch.service";
 import { DriverController } from "./driver.controller";
+import { EmailService } from "./email";
 import { NotificationsService } from "./notifications";
 import { OtpService } from "./otp.service";
 import { SmsService } from "./sms";
@@ -52,6 +53,6 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 
 @Module({
   controllers: [HealthController, PartnerController, DriverController, AdminController, CompanyController, AuthController],
-  providers: [PrismaService, QuotesService, BookingsService, DispatchService, WebhooksService, NotificationsService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
+  providers: [PrismaService, QuotesService, BookingsService, DispatchService, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
 })
 export class AppModule {}

@@ -174,7 +174,7 @@ export class DispatchService {
       if (!driver || driver.status !== "ACTIVE") throw new HttpException("Chauffeur non actif", 409);
       await this.claim(tx, ride, driverId, admin);
     });
-    this.notif.notifyDriver(driverId, "Une course vous a été attribuée par le dispatch");
+    await this.notif.toDriver(driverId, { type: "ASSIGNED_BY_DISPATCH", title: "Mission attribuée par le dispatch", body: "Une mission vient de vous être attribuée : retrouvez-la dans votre agenda.", data: { rideId } });
   }
 
   // ---------- cycle de vie côté chauffeur ----------

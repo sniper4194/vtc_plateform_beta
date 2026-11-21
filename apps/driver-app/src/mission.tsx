@@ -2,7 +2,7 @@ import * as Location from "expo-location";
 import { useEffect, useState } from "react";
 import { Linking, Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { api } from "./api";
-import { countdown, delayLabel, eurShort, MISSION_TITLE, NEXT_ACTION, secondsUntil, timeOf, waitedMin } from "./format";
+import { countdown, eurShort, isCancelled, MISSION_TITLE, NEXT_ACTION, secondsUntil, timeOf, waitedMin } from "./format";
 import { MissionMap, MapPoint } from "./MissionMap";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, HoldButton, Slab, Sticker } from "./ui";
@@ -62,6 +62,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
   const place = r[target];
   const next = NEXT_ACTION(r.status);
   const done = r.status === "COMPLETED";
+  const cancelled = isCancelled(r.status);
   const delayed = (r.flight?.delayMin ?? 0) > 0;
   const waited = waitedMin(r.arrivedAt);
   const noShowIn = r.status === "ARRIVED" ? secondsUntil(r.noShowAllowedAt) : 0;
@@ -88,14 +89,18 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
       <View style={{ maxHeight: "68%", backgroundColor: c.cream, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 3, borderColor: c.ink }}>
         <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
           <Display size={32} color={c.ink} shadow={c.yel}>{MISSION_TITLE[r.status] ?? r.status}</Display>
+          <Cond size={12} color={c.muted}>{r.reference}</Cond>
           <Slab size={14} color={c.muted} shadow={null}>{place.address}</Slab>
 
-          {r.flight && (
+          {r.flight && !cancelled && (
             <View style={{ backgroundColor: delayed ? c.yel : c.cream, borderWidth: 2.5, borderColor: c.ink, borderRadius: 12, padding: 10 }}>
               <Cond size={12} color={c.ink}>Vol {r.flight.number} · {r.flight.status === "DELAYED" ? "retardé" : r.flight.status === "LANDED" ? "posé" : r.flight.status === "CANCELLED" ? "annulé" : "à l'heure"}</Cond>
               <Slab size={16} color={c.ink} shadow={null}>
-                {delayed ? `Arrivée prévue ${timeOf(r.pickupAt)}  →  ${timeOf(r.effectivePickupAt)}  (${delayLabel(r.flight.delayMin)})` : `Arrivée prévue ${timeOf(r.pickupAt)}`}
+                {delayed
+                  ? `Atterrissage ${timeOf(r.flight.scheduledArrivalAt)}  →  ${timeOf(new Date(new Date(r.flight.scheduledArrivalAt).getTime() + r.flight.delayMin * 60_000).toISOString())}  (+${r.flight.delayMin} min)`
+                  : `Atterrissage prévu ${timeOf(r.flight.scheduledArrivalAt)}`}
               </Slab>
+              <Cond size={12} color={c.ink}>Prise en charge {timeOf(r.effectivePickupAt)}{r.flight.bufferMin > 0 ? ` · ${r.flight.bufferMin} min après l'atterrissage` : ""}</Cond>
             </View>
           )}
 
@@ -125,17 +130,23 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
             {r.notes ? <Cond size={13} color={c.red}>Consigne : {r.notes}</Cond> : null}
           </View>
 
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          {!cancelled && <View style={{ flexDirection: "row", gap: 10 }}>
             <View style={{ flex: 1 }}><Btn label="Appeler" color={c.yel} onPress={() => Linking.openURL(`tel:${r.passenger.phone}`)} /></View>
             <View style={{ flex: 1 }}><Btn label="Guidage" onPress={() => setNav(!nav)} /></View>
-          </View>
+          </View>}
           {nav && (
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
               {navLinks(place).map((n) => <Btn key={n.label} label={n.label} onPress={() => Linking.openURL(n.url)} />)}
             </View>
           )}
 
-          {done ? (
+          {cancelled ? (
+            <Card color={c.red}>
+              <Slab size={16} color={c.cream} shadow={null}>Vous n'êtes plus tenu de réaliser cette mission.</Slab>
+              <Cond size={13} color={c.cream}>{r.compensationCents > 0 ? `Indemnité d'annulation : ${eurShort(r.compensationCents)}, versée avec votre prochain relevé.` : "Aucune indemnité d'annulation n'est due."}</Cond>
+              <View style={{ marginTop: 10 }}><Btn label="Retour" onPress={onClose} color={c.cream} /></View>
+            </Card>
+          ) : done ? (
             <Card color={c.yel}>
               <Cond size={13}>Mission terminée</Cond>
               <Display size={44} color={c.ink} shadow={c.red}>{eurShort(r.netCents)}</Display>

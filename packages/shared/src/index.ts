@@ -56,6 +56,8 @@ export const BookingRequestSchema = z.object({
   signText: z.string().max(100).optional(),
   /** Consignes de rendez-vous (terminal, porte, étage…). */
   notes: z.string().max(500).optional(),
+  /** Délai (min) entre l'atterrissage prévu et la prise en charge ; le retard de vol se mesure sur l'atterrissage. */
+  flightBufferMin: z.number().int().min(0).max(180).optional(),
   passenger: z.object({
     firstName: z.string().min(1),
     lastName: z.string().min(1),

@@ -3,6 +3,7 @@ import { Partner } from "@prisma/client";
 import { BookingRequest, canTransition } from "@vtc/shared";
 import { DispatchService } from "./dispatch.service";
 import { euros } from "./http";
+import { fmtDateTime, fmtTime, NotificationsService } from "./notifications";
 import { PrismaService } from "./prisma";
 import { bookingView, RideFull } from "./views";
 import { WebhooksService } from "./webhooks.service";
@@ -17,12 +18,49 @@ export function cancellationFeeCents(priceCents: number, pickupAt: Date, now = n
 
 const include = { booking: true, driver: true, vehicle: true } as const;
 
+/** Part des frais d'annulation reversée au chauffeur : les frais moins la commission de la plateforme (même taux que la course). */
+export function driverCompensationCents(feeCents: number, ride: { priceCents: number; commissionCents: number }): number {
+  if (feeCents <= 0 || ride.priceCents <= 0) return 0;
+  return feeCents - Math.round((feeCents * ride.commissionCents) / ride.priceCents);
+}
+
+const SERVICE_LABEL: Record<string, string> = { BERLINE: "Berline", BUSINESS: "Berline Business", VAN: "Van", GREEN: "Électrique" };
+const money = (cents: number) => (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+
+/** Message adressé au chauffeur quand le partenaire annule une mission qui lui était attribuée. */
+export function cancellationMessage(
+  ride: { ref: number; pickupAt: Date; pickupAddress: string; dropoffAddress: string; category: string; flatRateId: string | null; driverNetCents: number; flightBufferMin: number },
+  flightNumber: string | null,
+  compensationCents: number,
+) {
+  const lines = [
+    `Votre mission R-${ride.ref} a été annulée par le partenaire.`,
+    "",
+    `Prise en charge : ${fmtDateTime(ride.pickupAt)}`,
+    `Départ : ${ride.pickupAddress}`,
+    `Arrivée : ${ride.dropoffAddress}`,
+  ];
+  if (flightNumber) {
+    const landing = new Date(ride.pickupAt.getTime() - ride.flightBufferMin * 60_000);
+    lines.push(`Vol : ${flightNumber} (atterrissage prévu à ${fmtTime(landing)}, prise en charge ${ride.flightBufferMin} min après)`);
+  }
+  lines.push(
+    `Service : ${SERVICE_LABEL[ride.category] ?? ride.category}${ride.flatRateId ? " · course au forfait" : ""}`,
+    `Rémunération prévue : ${money(ride.driverNetCents)} net`,
+    "",
+    "Vous n'êtes plus tenu de réaliser cette mission.",
+    compensationCents > 0 ? `Indemnité d'annulation : ${money(compensationCents)}, versée avec votre prochain relevé.` : "Aucune indemnité d'annulation n'est due.",
+  );
+  return { title: `Mission R-${ride.ref} annulée`, body: lines.join("\n") };
+}
+
 @Injectable()
 export class BookingsService {
   constructor(
     @Inject(PrismaService) private prisma: PrismaService,
     @Inject(DispatchService) private dispatch: DispatchService,
     @Inject(WebhooksService) private webhooks: WebhooksService,
+    @Inject(NotificationsService) private notif: NotificationsService,
   ) {}
 
   private async findForPartner(partner: Partner, bookingId: string): Promise<RideFull> {
@@ -67,7 +105,7 @@ export class BookingsService {
             pickupAt: quote.pickupAt, distanceKm: quote.distanceKm, durationMin: quote.durationMin,
             passengers: r.passengers, luggage: r.luggage ?? 0,
             priceCents: quote.priceCents, commissionCents: quote.commissionCents,
-            driverNetCents: quote.driverNetCents, flatRateId: quote.flatRateId,
+            driverNetCents: quote.driverNetCents, flatRateId: quote.flatRateId, flightBufferMin: r.flightNumber ? req.flightBufferMin ?? 0 : 0,
           },
         });
         await tx.rideEvent.create({ data: { rideId: ride.id, type: "booking.confirmed", actor: `partner:${partner.id}`, payload: { sandbox } } });
@@ -99,16 +137,22 @@ export class BookingsService {
     const ride = await this.findForPartner(partner, bookingId);
     if (!canTransition(ride.status, "CANCELLED_BY_PARTNER")) throw new HttpException(`Annulation impossible (statut ${ride.status})`, 409);
     const fee = cancellationFeeCents(ride.priceCents, ride.pickupAt);
+    // Le chauffeur n'est indemnisé que s'il était affecté à la mission au moment de l'annulation.
+    const compensation = ride.driverId ? driverCompensationCents(fee, ride) : 0;
     await this.prisma.$transaction(async (tx) => {
       const res = await tx.ride.updateMany({
         where: { id: ride.id, status: ride.status },
-        data: { status: "CANCELLED_BY_PARTNER", version: { increment: 1 } },
+        data: { status: "CANCELLED_BY_PARTNER", version: { increment: 1 }, cancelledAt: new Date(), cancellationFeeCents: fee, driverCompensationCents: compensation },
       });
       if (res.count !== 1) throw new HttpException("Conflit, réessayez", 409);
       await tx.dispatchOffer.updateMany({ where: { rideId: ride.id, status: "PENDING" }, data: { status: "CANCELLED" } });
       await tx.rideEvent.create({ data: { rideId: ride.id, type: "booking.cancelled", actor: `partner:${partner.id}`, payload: { feeCents: fee } } });
       await this.webhooks.enqueue(tx, ride.id, "booking.cancelled");
     });
+    if (ride.driverId) {
+      const msg = cancellationMessage(ride, ride.booking.flightNumber, compensation);
+      await this.notif.toDriver(ride.driverId, { type: "RIDE_CANCELLED", ...msg, data: { rideId: ride.id, ref: ride.ref, compensationCents: compensation } }, { email: true });
+    }
     return { status: "CANCELLED_BY_PARTNER", cancellationFee: euros(fee) };
   }
 }

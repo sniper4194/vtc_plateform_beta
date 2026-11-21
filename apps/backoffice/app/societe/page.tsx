@@ -167,7 +167,7 @@ function Payments() {
         <>
           <div className="kpis">
             <div className="sticker s1" style={{ width: 170, height: 170 }}><span className="cond">Net à percevoir</span><b style={{ fontSize: 34 }}>{eur(d.totals.netCents).replace(",00", "")}</b><span className="cond">15 derniers jours</span></div>
-            <div className="sticker s3"><span className="cond">Missions</span><b>{d.totals.rides}</b></div>
+            <div className="sticker s3"><span className="cond">Missions</span><b>{d.totals.rides}</b>{d.totals.cancellations > 0 && <span className="cond muted">+{d.totals.cancellations} annulation(s)</span>}</div>
             <div className="sticker s2"><span className="cond">Commission</span><b style={{ fontSize: 30 }}>{eur(d.totals.commissionCents).replace(",00", "")}</b></div>
             <button className="btn primary" onClick={() => downloadCompanyFile("/company/payments.csv", "releve-paiements.csv").catch((e) => setErr(e.message))}>Télécharger le CSV</button>
           </div>
@@ -180,7 +180,7 @@ function Payments() {
           <div className="card" style={{ overflowX: "auto" }}>
             <h3>Détail</h3>
             <table><thead><tr><th>Date</th><th>Réf.</th><th>Chauffeur</th><th>Brut</th><th>Commission</th><th>Net</th></tr></thead>
-              <tbody>{d.rows.map((r: any) => <tr key={r.rideId}><td>{dt(r.pickupAt)}</td><td>{r.reference ?? "—"}</td><td>{r.driver}</td><td>{eur(r.grossCents)}</td><td>{eur(r.commissionCents)}</td><td>{eur(r.netCents)}</td></tr>)}</tbody></table>
+              <tbody>{d.rows.map((r: any) => <tr key={r.rideId}><td>{dt(r.pickupAt)}</td><td>{r.kind === "ANNULATION" && <span className="chip bad">Annulation</span>} {r.reference ?? "—"}</td><td>{r.driver}</td><td>{eur(r.grossCents)}</td><td>{eur(r.commissionCents)}</td><td>{eur(r.netCents)}</td></tr>)}</tbody></table>
           </div>
         </>
       )}

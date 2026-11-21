@@ -6,6 +6,7 @@ import { driverRideView } from "./views";
 import { haversineKm } from "./zones";
 import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, DriverOtpRequestSchema, LocationUpdateSchema } from "./schemas";
 import { OtpService } from "./otp.service";
+import { z } from "zod";
 import { config, DriverGuard, signToken } from "./security";
 
 const ACTION_SET = new Set<DriverAction>(["en-route", "arrived", "start", "complete", "no-show"]);
@@ -60,6 +61,7 @@ export class DriverController {
     ]);
     return {
       upcomingRides: upcoming,
+      unreadNotifications: await this.prisma.notification.count({ where: { driverId: id, readAt: null } }),
       liveRideId: (await this.prisma.ride.findFirst({ where: { driverId: id, status: { in: ["EN_ROUTE", "ARRIVED", "IN_PROGRESS"] } }, select: { id: true } }))?.id ?? null,
       pendingOffers: offers.length,
       potentialCents: offers.reduce((s, o) => s + o.ride.driverNetCents, 0),
@@ -142,13 +144,33 @@ export class DriverController {
     const rides = await this.prisma.ride.findMany({
       where: {
         driverId: req.driverId,
-        status: upcoming ? { in: ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"] } : { in: ["COMPLETED", "NO_SHOW", "DISPUTED", "REFUNDED"] },
+        status: upcoming ? { in: ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"] } : { in: ["COMPLETED", "NO_SHOW", "DISPUTED", "REFUNDED", "CANCELLED_BY_PARTNER", "CANCELLED_BY_CLIENT"] },
       },
       include: { booking: { include: { partner: true } }, vehicle: true, driver: true, events: { where: { type: "ride.arrived" }, orderBy: { createdAt: "desc" }, take: 1 } },
       orderBy: { pickupAt: upcoming ? "asc" : "desc" },
       take: 100,
     });
     return rides.map((r) => driverRideView(r, r.events[0]?.createdAt ?? null));
+  }
+
+  /** Messages du chauffeur (annulations, retards de vol, attributions), du plus récent au plus ancien. */
+  @Get("notifications")
+  @UseGuards(DriverGuard)
+  async notifications(@Req() req: any) {
+    const [items, unread] = await Promise.all([
+      this.prisma.notification.findMany({ where: { driverId: req.driverId }, orderBy: { createdAt: "desc" }, take: 50 }),
+      this.prisma.notification.count({ where: { driverId: req.driverId, readAt: null } }),
+    ]);
+    return { unread, items };
+  }
+
+  /** Marque des messages comme lus (sans `ids` : tous). Ne touche jamais aux messages d'un autre chauffeur. */
+  @Post("notifications/read")
+  @UseGuards(DriverGuard)
+  async markRead(@Req() req: any, @Body() body: unknown) {
+    const { ids } = parse(z.object({ ids: z.array(z.string().uuid()).max(100).optional() }), body ?? {});
+    const r = await this.prisma.notification.updateMany({ where: { driverId: req.driverId, readAt: null, ...(ids ? { id: { in: ids } } : {}) }, data: { readAt: new Date() } });
+    return { marked: r.count };
   }
 
   @Get("rides/:id")

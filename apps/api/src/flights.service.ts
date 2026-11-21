@@ -25,8 +25,8 @@ export class FlightsService {
   ) {}
 
   /**
-   * Met à jour l'heure d'arrivée estimée d'un vol. Le retard est mesuré par rapport à `pickupAt`
-   * (heure d'arrivée prévue). Notifie le partenaire (webhook flight.delayed) et le chauffeur si le retard change.
+   * Met à jour l'heure d'arrivée estimée d'un vol. Le retard est mesuré par rapport à l'atterrissage prévu,
+   * soit `pickupAt` moins le délai d'atterrissage → prise en charge (`flightBufferMin`). Notifie le partenaire (webhook flight.delayed) et le chauffeur si le retard change.
    */
   async update(rideId: string, input: { estimatedArrivalAt?: Date | null; status?: FlightStatus }, actor: string) {
     const ride = await this.prisma.ride.findUnique({ where: { id: rideId }, include: { booking: true } });
@@ -36,7 +36,8 @@ export class FlightsService {
 
     const hasEst = "estimatedArrivalAt" in input;
     const est = hasEst ? input.estimatedArrivalAt ?? null : ride.flightEstimatedAt;
-    const delay = hasEst ? (est ? Math.max(0, Math.round((est.getTime() - ride.pickupAt.getTime()) / 60_000)) : 0) : ride.flightDelayMin;
+    const scheduledLanding = ride.pickupAt.getTime() - ride.flightBufferMin * 60_000;
+    const delay = hasEst ? (est ? Math.max(0, Math.round((est.getTime() - scheduledLanding) / 60_000)) : 0) : ride.flightDelayMin;
     const status: FlightStatus = input.status ?? (delay >= DELAYED_FROM_MIN ? "DELAYED" : "SCHEDULED");
     const delayChanged = delay !== ride.flightDelayMin;
     if (!delayChanged && status === ride.flightStatus && est?.getTime() === ride.flightEstimatedAt?.getTime()) return { changed: false, delayMin: delay };
@@ -48,7 +49,12 @@ export class FlightsService {
     });
     if (delayChanged && ride.driverId) {
       const hm = new Date(ride.pickupAt.getTime() + delay * 60_000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
-      this.notif.notifyDriver(ride.driverId, delay > 0 ? `Vol ${ride.booking.flightNumber} : +${delay} min, prise en charge à ${hm}` : `Vol ${ride.booking.flightNumber} : de nouveau à l'heure`);
+      await this.notif.toDriver(ride.driverId, {
+        type: "FLIGHT_UPDATE",
+        title: delay > 0 ? `Vol ${ride.booking.flightNumber} retardé (+${delay} min)` : `Vol ${ride.booking.flightNumber} : de nouveau à l'heure`,
+        body: delay > 0 ? `Nouvelle prise en charge prévue à ${hm}.` : `La prise en charge est de nouveau prévue à ${hm}.`,
+        data: { rideId, delayMin: delay },
+      });
     }
     return { changed: true, delayMin: delay, status };
   }

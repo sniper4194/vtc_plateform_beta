@@ -12,6 +12,7 @@ import { WebhooksService } from "./webhooks.service";
 import { FlightsService } from "./flights.service";
 import { RoutingService } from "./routing";
 import { SmsService } from "./sms";
+import { EmailService } from "./email";
 import { OTP, OtpService } from "./otp.service";
 
 const prisma = new PrismaClient();
@@ -79,7 +80,7 @@ async function mkDriver(opts: { category?: string; lat?: number; lng?: number; d
   return { id, token, phone: r.json.phone as string };
 }
 
-async function mkBooking(p: { apiKey: string }, over: Record<string, unknown> = {}, key = `k-${Math.random()}`) {
+async function mkBooking(p: { apiKey: string }, over: Record<string, unknown> = {}, key = `k-${Math.random()}`, extra: Record<string, unknown> = {}) {
   const q = await call("/v1/quotes", {
     token: p.apiKey,
     body: { pickup: CDG, dropoff: PARIS, pickupAt: inDays(3), category: "BERLINE", passengers: 2, luggage: 1, flightNumber: "AF1234", ...over },
@@ -87,7 +88,7 @@ async function mkBooking(p: { apiKey: string }, over: Record<string, unknown> = 
   expect(q.status).toBe(201);
   const b = await call("/v1/bookings", {
     token: p.apiKey, headers: { "idempotency-key": key },
-    body: { quoteId: q.json.quoteId, externalReference: "BK-1", passenger: { firstName: "Ana", lastName: "Silva", phone: "+351900000000", language: "pt" } },
+    body: { quoteId: q.json.quoteId, externalReference: "BK-1", passenger: { firstName: "Ana", lastName: "Silva", phone: "+351900000000", language: "pt" }, ...extra },
   });
   return { quote: q.json, res: b };
 }
@@ -123,7 +124,7 @@ beforeEach(async () => {
   received = [];
   hookStatus = 200;
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
+    'TRUNCATE "Notification","OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
   );
 });
 
@@ -667,7 +668,7 @@ describe("espace société", () => {
     expect((await call(`/admin/performance?${range()}&companyId=${co.id}`, { admin: true })).json.rides.completed).toBe(1);
 
     const pay = (await call(`/company/payments?${range()}`, { token: co.key })).json;
-    expect(pay.totals).toEqual({ rides: 1, grossCents: 5500, commissionCents: 1100, netCents: 4400 });
+    expect(pay.totals).toEqual({ rides: 1, cancellations: 0, grossCents: 5500, commissionCents: 1100, netCents: 4400 });
     expect(pay.byDriver).toHaveLength(1);
 
     const csv = await fetch(`${base}/company/payments.csv?${range()}`, { headers: { authorization: `Bearer ${co.key}` } });
@@ -941,5 +942,179 @@ describe("codes SMS des chauffeurs", () => {
     const env = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     try { expect((await loginWith(d.phone, "424242")).status).toBe(401); } finally { process.env.NODE_ENV = env; }
+  });
+});
+
+
+/* ============================ Annulation : information du chauffeur ============================ */
+
+describe("annulation par le partenaire : information du chauffeur", () => {
+  let mails: { to: string; subject: string; text: string }[] = [];
+  let emailSvc: EmailService;
+  beforeEach(() => {
+    mails = [];
+    emailSvc = app.get(EmailService);
+    emailSvc.provider = { send: async (m) => { mails.push(m); } };
+  });
+  afterAll(() => { emailSvc.provider = null; });
+
+  async function assigned(hours: number, over: Record<string, unknown> = {}) {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p, { pickupAt: new Date(Date.now() + hours * 3600_000).toISOString(), ...over });
+    await assignTo(res.json.rideId, d.id);
+    return { p, d, res };
+  }
+  const cancel = (p: { apiKey: string }, id: string) => call(`/v1/bookings/${id}`, { token: p.apiKey, method: "DELETE" });
+  const inbox = async (d: { token: string }) => (await call("/driver/notifications", { token: d.token })).json;
+
+  it("prévient le chauffeur (application + e-mail) et l'indemnise si l'annulation est tardive", async () => {
+    const { p, d, res } = await assigned(5);
+    const c = await cancel(p, res.json.id);
+    expect(c.status).toBe(200);
+    expect(c.json.cancellationFee).toBe(27.5);
+
+    const box = await inbox(d);
+    expect(box.unread).toBe(2); // l'attribution manuelle, puis l'annulation
+    const n = box.items.find((x: any) => x.type === "RIDE_CANCELLED");
+    expect(n.title).toBe(`Mission R-${res.json.ref} annulée`);
+    expect(n.body).toMatch(/Indemnité d'annulation : 22,00\s€/);
+    expect(n.body).toContain("Aéroport CDG T2");
+    expect(n.body).toContain("AF1234");
+    expect(n.data).toMatchObject({ ref: res.json.ref, compensationCents: 2200 });
+
+    const driver = await prisma.driver.findUniqueOrThrow({ where: { id: d.id } });
+    expect(mails).toHaveLength(1);
+    expect(mails[0]).toMatchObject({ to: driver.email, subject: n.title });
+    expect(mails[0].text).toContain(n.body);
+
+    const ride = await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } });
+    expect(ride).toMatchObject({ status: "CANCELLED_BY_PARTNER", cancellationFeeCents: 2750, driverCompensationCents: 2200 });
+  });
+
+  it("la mission annulée quitte l'agenda, apparaît dans les archives avec l'indemnité, et reste consultable", async () => {
+    const { p, d, res } = await assigned(5);
+    await cancel(p, res.json.id);
+    expect((await call("/driver/rides?scope=upcoming", { token: d.token })).json).toHaveLength(0);
+    const hist = (await call("/driver/rides?scope=history", { token: d.token })).json;
+    expect(hist).toHaveLength(1);
+    expect(hist[0]).toMatchObject({ status: "CANCELLED_BY_PARTNER", compensationCents: 2200, reference: `R-${res.json.ref}` });
+    expect((await call(`/driver/rides/${res.json.rideId}`, { token: d.token })).json.status).toBe("CANCELLED_BY_PARTNER");
+    expect((await act(d, res.json.rideId, "en-route")).status).toBe(409); // plus aucune action possible
+  });
+
+  it("aucune indemnité si l'annulation est anticipée (plus de 24 h)", async () => {
+    const { p, d, res } = await assigned(48);
+    expect((await cancel(p, res.json.id)).json.cancellationFee).toBe(0);
+    const n = (await inbox(d)).items[0];
+    expect(n.body).toContain("Aucune indemnité d'annulation n'est due.");
+    expect(n.data.compensationCents).toBe(0);
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } })).driverCompensationCents).toBe(0);
+  });
+
+  it("ne prévient personne quand aucun chauffeur n'était affecté", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p, { pickupAt: new Date(Date.now() + 5 * 3600_000).toISOString() });
+    await cancel(p, res.json.id);
+    expect((await inbox(d)).items).toHaveLength(0);
+    expect(mails).toHaveLength(0);
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } })).driverCompensationCents).toBe(0);
+  });
+
+  it("un échec d'envoi d'e-mail n'empêche ni l'annulation ni le message dans l'application", async () => {
+    emailSvc.provider = { send: async () => { throw new Error("SMTP indisponible"); } };
+    const { p, d, res } = await assigned(5);
+    expect((await cancel(p, res.json.id)).status).toBe(200);
+    expect((await inbox(d)).items.map((x: any) => x.type)).toContain("RIDE_CANCELLED");
+  });
+
+  it("chaque chauffeur ne voit et ne marque que ses propres messages", async () => {
+    const { p, d, res } = await assigned(5);
+    await cancel(p, res.json.id);
+    const other = await mkDriver();
+    expect((await inbox(other)).items).toHaveLength(0);
+    expect((await call("/driver/notifications/read", { token: other.token, body: {} })).json.marked).toBe(0);
+    expect((await inbox(d)).unread).toBe(2); // intact (attribution + annulation)
+    expect((await call("/driver/home", { token: d.token })).json.unreadNotifications).toBe(2);
+    const id = (await inbox(d)).items[0].id; // le plus récent : l'annulation
+    expect((await call("/driver/notifications/read", { token: d.token, body: { ids: [id] } })).json.marked).toBe(1);
+    expect((await inbox(d)).unread).toBe(1);
+    expect((await call("/driver/notifications/read", { token: d.token, body: {} })).json.marked).toBe(1); // sans ids : tout le reste
+    expect((await inbox(d)).unread).toBe(0);
+    expect((await call("/driver/notifications/read", { token: d.token, body: { ids: ["pas-un-uuid"] } })).status).toBe(422);
+  });
+
+  it("l'attribution manuelle et un retard de vol laissent aussi un message", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p);
+    await assignTo(res.json.rideId, d.id);
+    const est = new Date(new Date(res.json.pickupAt).getTime() + 62 * 60_000).toISOString();
+    await call(`/admin/rides/${res.json.rideId}/flight`, { admin: true, body: { estimatedArrivalAt: est } });
+    const types = (await inbox(d)).items.map((x: any) => x.type);
+    expect(types).toEqual(expect.arrayContaining(["ASSIGNED_BY_DISPATCH", "FLIGHT_UPDATE"]));
+    expect((await inbox(d)).items.find((x: any) => x.type === "FLIGHT_UPDATE").title).toContain("+62 min");
+  });
+});
+
+describe("référence courte et délai d'atterrissage", () => {
+  it("chaque mission a une référence R-xxxxxx croissante, visible partout", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const a = (await mkBooking(p)).res.json, b = (await mkBooking(p)).res.json;
+    expect(a.ref).toBeGreaterThanOrEqual(100001);
+    expect(b.ref).toBe(a.ref + 1);
+    expect(a.reference).toBe(`R-${a.ref}`);
+    await assignTo(a.rideId, d.id);
+    expect((await call(`/driver/rides/${a.rideId}`, { token: d.token })).json.reference).toBe(`R-${a.ref}`);
+    expect((await call(`/v1/bookings/${a.id}`, { token: p.apiKey })).json.reference).toBe(`R-${a.ref}`);
+  });
+
+  it("le retard de vol se mesure sur l'atterrissage, pas sur la prise en charge", async () => {
+    const p = await mkPartner();
+    const { res } = await mkBooking(p, {}, "buf", { flightBufferMin: 15 });
+    const pickup = new Date(res.json.pickupAt).getTime();
+    expect(res.json.flight).toMatchObject({ bufferMin: 15, scheduledArrivalAt: new Date(pickup - 15 * 60_000).toISOString() });
+    // atterrit à 62 min après l'heure prévue d'atterrissage
+    const est = new Date(pickup - 15 * 60_000 + 62 * 60_000).toISOString();
+    const r = await call(`/admin/rides/${res.json.rideId}/flight`, { admin: true, body: { estimatedArrivalAt: est } });
+    expect(r.json.delayMin).toBe(62);
+    const view = (await call(`/v1/bookings/${res.json.id}`, { token: p.apiKey })).json;
+    expect(new Date(view.effectivePickupAt).getTime()).toBe(pickup + 62 * 60_000);
+  });
+
+  it("sans numéro de vol, le délai est ignoré ; valeurs aberrantes refusées", async () => {
+    const p = await mkPartner();
+    const { res } = await mkBooking(p, { flightNumber: undefined }, "nobuf", { flightBufferMin: 30 });
+    expect(res.status).toBe(201);
+    expect((await prisma.ride.findFirstOrThrow({ where: { id: res.json.rideId } })).flightBufferMin).toBe(0);
+    const { res: bad } = await mkBooking(p, {}, "bad", { flightBufferMin: 999 });
+    expect(bad.status).toBe(422);
+  });
+});
+
+describe("relevé de paiement : indemnités d'annulation", () => {
+  it("liste l'indemnité séparément, dans le total et dans le CSV", async () => {
+    const co = (await call("/admin/companies", { admin: true, body: { name: "Indemn" } })).json;
+    const created = await call("/company/drivers", { token: co.accessKey, body: { firstName: "Ind", lastName: "Emn", phone: "+33698765432", email: "ind@test.fr", vehicle: { plate: "IN-123-DM", make: "Skoda", model: "Superb", category: "BERLINE" } } });
+    const id: string = created.json.id;
+    await prisma.document.createMany({ data: ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"].map((type) => ({ driverId: id, type: type as any, storageKey: "k", status: "APPROVED" as const })) });
+    await call(`/admin/drivers/${id}/approve`, { admin: true, body: {} });
+    const p = await mkPartner();
+    const { res } = await mkBooking(p, { pickupAt: new Date(Date.now() + 5 * 3600_000).toISOString() });
+    await assignTo(res.json.rideId, id);
+    await call(`/v1/bookings/${res.json.id}`, { token: p.apiKey, method: "DELETE" });
+
+    const range = `from=${encodeURIComponent(new Date(Date.now() - 86400_000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 2 * 86400_000).toISOString())}`;
+    // période par défaut (15 derniers jours) : l'indemnité y figure dès l'annulation, même si la prise en charge est dans le futur
+    expect((await call("/company/payments", { token: co.accessKey })).json.totals.cancellations).toBe(1);
+    const pay = (await call(`/company/payments?${range}`, { token: co.accessKey })).json;
+    expect(pay.totals).toEqual({ rides: 0, cancellations: 1, grossCents: 2750, commissionCents: 550, netCents: 2200 });
+    expect(pay.rows[0]).toMatchObject({ kind: "ANNULATION", reference: `R-${res.json.ref}`, netCents: 2200 });
+    expect(pay.byDriver[0]).toMatchObject({ rides: 0, netCents: 2200 }); // payé, mais pas compté comme mission réalisée
+    const csv = await (await fetch(`${base}/company/payments.csv?${range}`, { headers: { authorization: `Bearer ${co.accessKey}` } })).text();
+    expect(csv).toContain("ANNULATION");
+    expect(csv).toContain("22");
   });
 });

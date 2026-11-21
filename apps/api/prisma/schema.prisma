@@ -132,6 +132,7 @@ model Driver {
   contractSignedAt DateTime?
   stripeAccountId String?
   suspendedBy   String? // "admin" | "company" : une société ne peut lever que sa propre suspension
+  notifications Notification[]
   lastLat       Float?
   lastLng       Float?
   lastSeenAt    DateTime?
@@ -218,6 +219,14 @@ model Ride {
   driverNetCents Int
   flatRateId     String?
   /// Suivi de vol : retard (min) à ajouter à pickupAt, heure d'arrivée estimée, statut
+  /// Référence courte lisible (support, chauffeurs, partenaires) : R-100234
+  ref            Int             @unique @default(autoincrement())
+  /// Délai entre l'atterrissage prévu et la prise en charge (le retard de vol se mesure sur l'atterrissage)
+  flightBufferMin Int            @default(0)
+  /// Annulation par le partenaire : frais facturés et part reversée au chauffeur affecté
+  cancelledAt             DateTime?
+  cancellationFeeCents    Int    @default(0)
+  driverCompensationCents Int    @default(0)
   flightDelayMin   Int       @default(0)
   flightEstimatedAt DateTime?
   flightStatus     String?
@@ -382,4 +391,19 @@ model OtpCode {
   createdAt  DateTime  @default(now())
 
   @@index([phone, createdAt])
+}
+
+/// Messages adressés à un chauffeur (annulation, retard de vol, attribution…). Source de vérité : l'e-mail/SMS n'est qu'un relais.
+model Notification {
+  id        String    @id @default(uuid())
+  driverId  String
+  driver    Driver    @relation(fields: [driverId], references: [id])
+  type      String
+  title     String
+  body      String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([driverId, createdAt])
 }
