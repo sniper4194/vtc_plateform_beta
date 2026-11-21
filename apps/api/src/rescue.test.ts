@@ -324,7 +324,7 @@ describe("pénalités : restitution, sauveteur, récidive", () => {
     // moins de 6 h avant : 150 % + frais
     await prisma.ride.update({ where: { id: ride.id }, data: { pickupAt: new Date(Date.now() + 3 * 3600_000) } });
     const late = await call(`/driver/rescue/cost?rideId=${ride.id}`, { token: d.token });
-    expect(late.json.giveBackCents).toBe(Math.round(ride.driverNetCents * 1.5) + 600);
+    expect(late.json.giveBackCents).toBe(Math.round(ride.driverNetCents * 1.5));
     expect(late.json.rescueCents).toBeLessThan(late.json.giveBackCents);
 
     expect((await call(`/driver/rides/${ride.id}/cancel`, { token: d.token, body: {} })).status).toBe(201);
@@ -345,7 +345,7 @@ describe("pénalités : restitution, sauveteur, récidive", () => {
     const pen = await prisma.driverPenalty.findFirstOrThrow({ where: { driverId: requester.id } });
     expect(pen.kind).toBe("RESCUE");
     expect(pen.amountCents).toBeGreaterThanOrEqual(1000);
-    expect(pen.amountCents).toBeLessThan(Math.round(ride.driverNetCents * 1.5) + 600);
+    expect(pen.amountCents).toBeLessThan(Math.round(ride.driverNetCents * 1.5));
     expect(pen.weight).toBe(0.5);
   });
 

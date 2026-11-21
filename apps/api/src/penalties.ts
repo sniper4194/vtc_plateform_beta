@@ -6,7 +6,6 @@
 const num = (k: string, d: number) => (process.env[k] !== undefined && process.env[k] !== "" ? Number(process.env[k]) : d);
 
 export const PENALTY = {
-  get fileFeeCents() { return num("PENALTY_FILE_FEE_CENTS", 600); }, // frais de dossier ajoutés dans les 24 h
   get rescueRatio() { return num("PENALTY_RESCUE_RATIO", 0.5); }, // part de la pénalité due si un sauveteur reprend la mission
   get rescueMinCents() { return num("PENALTY_RESCUE_MIN_CENTS", 1000); },
   get windowDays() { return num("PENALTY_WINDOW_DAYS", 90); }, // fenêtre de comptage des récidives
@@ -23,8 +22,7 @@ export const TIERS: { fromMin: number; fixedCents: number; ratio: number; label:
 /** Montant dû si le chauffeur rend la mission `minutesBefore` minutes avant la prise en charge effective. */
 export function giveBackPenaltyCents(netCents: number, minutesBefore: number): number {
   const t = TIERS.find((x) => minutesBefore >= x.fromMin)!;
-  const base = t.fixedCents + Math.round(netCents * t.ratio);
-  return base + (minutesBefore < 24 * 60 ? PENALTY.fileFeeCents : 0);
+  return t.fixedCents + Math.round(netCents * t.ratio);
 }
 
 /** Un sauveteur a repris la mission : pénalité réduite (plancher pour que l'appel ne soit jamais gratuit). */

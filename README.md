@@ -133,13 +133,13 @@ Principe : **anticiper doit coûter moins cher que s'y prendre tard, et ne rien 
 |---|---|---|
 | plus de 48 h | 10 € | 10 € (plancher) |
 | 24 à 48 h | 20 € | 10 € (plancher) |
-| 6 à 24 h | 100 % de la rémunération + 6 € de frais de dossier | moitié de la pénalité de restitution (10 € mini) |
-| moins de 6 h | 150 % de la rémunération + 6 € de frais de dossier | idem |
+| 6 à 24 h | 100 % de la rémunération | moitié de la pénalité de restitution (10 € mini) |
+| moins de 6 h | 150 % de la rémunération | idem |
 
 - Pour l'appel d'un sauveteur, le délai se mesure **au moment de la demande** (attendre ne réduit pas la pénalité), et la pénalité n'est due que si un sauveteur reprend effectivement la mission.
 - **Récidive** (fenêtre glissante de 90 jours ; restitution = 1 point, appel de sauveteur = 0,5) : 3 points → suspension **48 h** ; 4 → **7 jours** ; 5 → suspension sans échéance et **examen par l'équipe** (la fermeture définitive est une décision humaine, jamais automatique). Les suspensions à durée limitée se lèvent seules.
 - La pénalité est déduite sur le **relevé de la société** (ligne « Pénalité », montant négatif) et notifiée au chauffeur (application + e-mail) avec la sanction éventuelle.
 - **Dérogation** : l'équipe peut annuler une pénalité sur justificatif (accident, urgence médicale), avec motif tracé ; elle ne compte alors plus dans la récidive.
-- Réglages : `PENALTY_FILE_FEE_CENTS`, `PENALTY_RESCUE_RATIO`, `PENALTY_RESCUE_MIN_CENTS`, `PENALTY_WINDOW_DAYS`. Les paliers sont dans `apps/api/src/penalties.ts`.
+- Réglages : `PENALTY_RESCUE_RATIO`, `PENALTY_RESCUE_MIN_CENTS`, `PENALTY_WINDOW_DAYS`. Les paliers sont dans `apps/api/src/penalties.ts`.
 
 **À valider avant le pilote** : (1) ce barème est une proposition inspirée de pratiques de marché citées par un chauffeur, **non vérifiées** ; (2) une pénalité contractuelle de plus de 100 % du prix est une « clause pénale » que le juge peut réduire : le contrat chauffeur doit la prévoir, la justifier et la faire accepter ; (3) suspensions et fermetures de comptes d'indépendants : cadre de transparence et de recours imposé aux plateformes, à faire relire ; (4) le prélèvement effectif dépend des paiements (Stripe), pas encore branchés : aujourd'hui la pénalité est enregistrée et affichée au relevé. Les missions déjà attribuées à un chauffeur suspendu automatiquement ne sont pas encore réattribuées.

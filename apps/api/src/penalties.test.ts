@@ -8,8 +8,8 @@ describe("barème de pénalités", () => {
     const at = (h: number) => giveBackPenaltyCents(net, h * H);
     expect(at(72)).toBe(1000); // > 48 h : forfait
     expect(at(30)).toBe(2000); // 24–48 h : forfait supérieur
-    expect(at(12)).toBe(4400 + 600); // 6–24 h : 100 % + frais de dossier
-    expect(at(2)).toBe(Math.round(4400 * 1.5) + 600); // < 6 h : 150 % + frais
+    expect(at(12)).toBe(4400); // 6–24 h : 100 % de la rémunération
+    expect(at(2)).toBe(Math.round(4400 * 1.5)); // < 6 h : 150 %
     expect(at(-10)).toBe(at(2)); // trop tard : palier maximal
     expect(at(72)).toBeLessThan(at(30));
     expect(at(30)).toBeLessThan(at(12));
@@ -22,7 +22,7 @@ describe("barème de pénalités", () => {
       expect(res).toBeGreaterThanOrEqual(1000);
     }
     expect(rescuePenaltyCents(4400, 72 * H)).toBe(1000); // plancher
-    expect(rescuePenaltyCents(4400, 12 * H)).toBe(2500); // moitié de 50 €
+    expect(rescuePenaltyCents(4400, 12 * H)).toBe(2200); // moitié de 44 €
   });
   it("les sanctions montent avec la récidive : 48 h, 7 jours, examen", () => {
     expect(sanctionFor(0)).toBe("NONE");
