@@ -4,7 +4,7 @@ import { fmtDateTime, fmtTime } from "./notifications";
 
 export interface RideForMessage {
   ref: number; pickupAt: Date; pickupAddress: string; dropoffAddress: string; category: string; flatRateId: string | null;
-  priceCents: number; commissionCents: number; driverNetCents: number; flightBufferMin: number;
+  priceCents: number; commissionCents: number; driverNetCents: number; driverCapCents: number; flightBufferMin: number;
 }
 
 const SERVICE_LABEL: Record<string, string> = { BERLINE: "Berline", BUSINESS: "Berline Business", VAN: "Van", GREEN: "Électrique" };
@@ -23,10 +23,20 @@ export function rideDetailLines(ride: RideForMessage, flightNumber: string | nul
   return lines;
 }
 
+/**
+ * Rubriques de prix. Avec l'échelle de prix, le plafond (prix partenaire prévisionnel) peut dépasser le prix accepté :
+ * on montre alors les trois montants, comme une confirmation de course classique. Sinon, le prix client, la commission et le net.
+ */
 export function priceLines(ride: RideForMessage, showClientPrice = driverSeesClientPrice()): string[] {
-  return showClientPrice
-    ? [`Prix client (TTC) : ${money(ride.priceCents)}`, `Commission de la plateforme : ${money(ride.commissionCents)}`, `Votre rémunération (net) : ${money(ride.driverNetCents)}`]
-    : [`Votre rémunération (net) : ${money(ride.driverNetCents)}`];
+  if (!showClientPrice) return [`Votre rémunération (net) : ${money(ride.driverNetCents)}`];
+  if (ride.driverCapCents > ride.driverNetCents) {
+    return [
+      `Prix client (TTC) : ${money(ride.priceCents)}`,
+      `Prix partenaire prévisionnel (plafond) : ${money(ride.driverCapCents)}`,
+      `Prix partenaire accepté (votre rémunération) : ${money(ride.driverNetCents)}`,
+    ];
+  }
+  return [`Prix client (TTC) : ${money(ride.priceCents)}`, `Commission de la plateforme : ${money(ride.commissionCents)}`, `Votre rémunération (net) : ${money(ride.driverNetCents)}`];
 }
 
 /** Confirmation envoyée quand le chauffeur accepte une mission, ou quand le dispatch la lui attribue. */

@@ -224,6 +224,9 @@ model Ride {
   /// Délai entre l'atterrissage prévu et la prise en charge (le retard de vol se mesure sur l'atterrissage)
   flightBufferMin Int            @default(0)
   /// Annulation par le partenaire : frais facturés et part reversée au chauffeur affecté
+  /// Plafond de la rémunération chauffeur (prix client − commission de base) : « prix partenaire prévisionnel ».
+  /// Le prix proposé monte jusqu'à ce plafond à l'approche de la mission ; `driverNetCents` devient le prix accepté.
+  driverCapCents          Int    @default(0)
   cancelledAt             DateTime?
   cancellationFeeCents    Int    @default(0)
   driverCompensationCents Int    @default(0)

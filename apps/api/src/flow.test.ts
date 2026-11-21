@@ -3,7 +3,7 @@ import { NestFactory } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
 import { createServer, Server } from "node:http";
 import { AddressInfo } from "node:net";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppModule } from "./app.module";
 import { BookingsService, cancellationFeeCents } from "./bookings.service";
 import { DISPATCH, DispatchService } from "./dispatch.service";
@@ -1204,5 +1204,161 @@ describe("confirmation d'acceptation d'une mission", () => {
     const offer = (await call("/driver/offers", { token: d.token })).json[0];
     expect((await call(`/driver/offers/${offer.offerId}/accept`, { token: d.token, body: {} })).status).toBe(201);
     expect((await inbox(d)).map((x: any) => x.type)).toContain("RIDE_ACCEPTED");
+  });
+});
+
+
+/* ============================ Échelle de prix : le prix chauffeur monte à l'approche de la mission ============================ */
+
+describe("échelle de prix chauffeur", () => {
+  beforeEach(() => { process.env.PRICE_LADDER = "1"; });
+  afterEach(() => { process.env.PRICE_LADDER = "0"; });
+  const offerOf = async (d: { token: string }) => (await call("/driver/offers", { token: d.token })).json[0];
+  const moveTo = (rideId: string, minutesFromNow: number) => prisma.ride.update({ where: { id: rideId }, data: { pickupAt: new Date(Date.now() + minutesFromNow * 60_000) } });
+
+  it("propose 85 % du plafond loin de la mission, et le prix accepté est celui de l'instant", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p); // plafond : 55 € − 20 % = 44 €
+    const offer = await offerOf(d);
+    expect(offer.netCents).toBe(3740);
+    expect(offer.priceRising).toBe(true);
+    expect((await call(`/driver/offers/${offer.offerId}/accept`, { token: d.token, body: { priceCents: 99999 } })).status).toBe(201); // le client ne fixe pas le prix
+
+    const ride = await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } });
+    expect(ride).toMatchObject({ driverCapCents: 4400, driverNetCents: 3740, commissionCents: 5500 - 3740, priceCents: 5500 });
+    const ev = await prisma.rideEvent.findFirstOrThrow({ where: { rideId: ride.id, type: "ride.assigned" } });
+    expect(ev.payload).toMatchObject({ capCents: 4400, acceptedCents: 3740 });
+    const view = (await call(`/driver/rides/${ride.id}`, { token: d.token })).json;
+    expect(view.netCents).toBe(3740);
+  });
+
+  it("le prix monte quand la mission approche, jusqu'au plafond", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p);
+    const prices: number[] = [];
+    for (const minutes of [3 * 24 * 60, 12 * 60, 90, 30]) {
+      await moveTo(res.json.rideId, minutes);
+      prices.push((await offerOf(d)).netCents);
+    }
+    expect(prices[0]).toBe(3740);
+    for (let i = 1; i < prices.length; i++) expect(prices[i]).toBeGreaterThanOrEqual(prices[i - 1]);
+    expect(prices[2]).toBe(4380); // 90 min avant : 99,7 % du plafond, arrondi au pas de 0,10 €
+    expect(prices[3]).toBe(4400); // moins d'1 h avant : plafond
+    await moveTo(res.json.rideId, 30);
+    expect((await offerOf(d)).priceRising).toBe(false);
+  });
+
+  it("un chauffeur qui accepte tard est payé plus cher qu'un chauffeur qui accepte tôt", async () => {
+    const p = await mkPartner();
+    const early = await mkDriver(), late = await mkDriver();
+    const a = await mkBooking(p, {}, "early"), b = await mkBooking(p, {}, "late");
+    await call(`/driver/offers/${(await offerOf(early)).offerId}/accept`, { token: early.token, body: {} }).catch(() => null);
+    // `early` prend l'une des deux courses au prix de départ
+    const rideEarly = (await prisma.ride.findMany({ where: { driverId: early.id } }))[0];
+    expect(rideEarly.driverNetCents).toBe(3740);
+    // l'autre course approche : `late` l'accepte plus cher
+    const other = rideEarly.id === a.res.json.rideId ? b.res.json.rideId : a.res.json.rideId;
+    await moveTo(other, 45);
+    const offer = (await call("/driver/offers", { token: late.token })).json.find((o: any) => o.netCents === 4400);
+    expect(offer).toBeTruthy();
+    expect((await call(`/driver/offers/${offer.offerId}/accept`, { token: late.token, body: {} })).status).toBe(201);
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: other } })).driverNetCents).toBe(4400);
+  });
+
+  it("la confirmation montre client, plafond et prix accepté ; la marge n'apparaît pas", async () => {
+    const mails: { text: string }[] = [];
+    const email = app.get(EmailService);
+    email.provider = { send: async (m) => { mails.push(m); } };
+    try {
+      const p = await mkPartner();
+      const d = await mkDriver();
+      await mkBooking(p);
+      await call(`/driver/offers/${(await offerOf(d)).offerId}/accept`, { token: d.token, body: {} });
+      const body = (await call("/driver/notifications", { token: d.token })).json.items.find((x: any) => x.type === "RIDE_ACCEPTED").body;
+      expect(body).toMatch(/Prix client \(TTC\) : 55,00\s€/);
+      expect(body).toMatch(/Prix partenaire prévisionnel \(plafond\) : 44,00\s€/);
+      expect(body).toMatch(/Prix partenaire accepté \(votre rémunération\) : 37,40\s€/);
+      expect(body).not.toMatch(/marge/i);
+    } finally { email.provider = null; }
+  });
+
+  it("le dispatch peut imposer un prix jusqu'au plafond, jamais au-delà", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p);
+    const over = await call(`/admin/rides/${res.json.rideId}/assign`, { admin: true, body: { driverId: d.id, priceCents: 4401 } });
+    expect(over.status).toBe(422);
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } })).status).toBe("DISPATCHING"); // rien n'a changé
+    expect((await call(`/admin/rides/${res.json.rideId}/assign`, { admin: true, body: { driverId: d.id, priceCents: 4000 } })).status).toBe(201);
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } }))).toMatchObject({ driverNetCents: 4000, commissionCents: 1500 });
+  });
+
+  it("sans prix imposé, l'attribution manuelle applique le prix du moment", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p);
+    await moveTo(res.json.rideId, 20); // urgence : plafond
+    await assignTo(res.json.rideId, d.id);
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } })).driverNetCents).toBe(4400);
+  });
+
+  it("l'indemnité d'annulation suit le prix réellement accepté", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p, { pickupAt: new Date(Date.now() + 5 * 3600_000).toISOString() });
+    const offer = await offerOf(d);
+    await call(`/driver/offers/${offer.offerId}/accept`, { token: d.token, body: {} });
+    const accepted = (await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } })).driverNetCents;
+    expect(accepted).toBe(4280); // 5 h avant : 97,4 % du plafond
+    await call(`/v1/bookings/${res.json.id}`, { token: p.apiKey, method: "DELETE" });
+    const r = await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } });
+    // frais 50 % de 55 € = 27,50 € ; la plateforme garde (55 − 42,80)/55 = 22,2 % → le chauffeur reçoit 21,40 €
+    expect(r).toMatchObject({ cancellationFeeCents: 2750, driverCompensationCents: 2140 });
+  });
+
+  it("une mission antérieure à l'échelle (sans plafond enregistré) garde son prix net comme plafond", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { res } = await mkBooking(p);
+    await prisma.ride.update({ where: { id: res.json.rideId }, data: { driverCapCents: 0 } });
+    expect((await offerOf(d)).netCents).toBe(3740);
+    await call(`/driver/offers/${(await offerOf(d)).offerId}/accept`, { token: d.token, body: {} });
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } })).driverCapCents).toBe(4400);
+  });
+
+  it("désactivée (PRICE_LADDER=0) : toujours le plafond", async () => {
+    process.env.PRICE_LADDER = "0";
+    const p = await mkPartner();
+    const d = await mkDriver();
+    await mkBooking(p);
+    const offer = await offerOf(d);
+    expect(offer.netCents).toBe(4400);
+    expect(offer.priceRising).toBe(false);
+  });
+
+  it("la marge de la plateforme est visible côté administration, jamais côté société", async () => {
+    const co = (await call("/admin/companies", { admin: true, body: { name: "Marge" } })).json;
+    const created = await call("/company/drivers", { token: co.accessKey, body: { firstName: "Mar", lastName: "Ge", phone: "+33677700001", email: "marge@test.fr", vehicle: { plate: "MA-123-RG", make: "Skoda", model: "Superb", category: "BERLINE" } } });
+    const id: string = created.json.id;
+    await prisma.document.createMany({ data: ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"].map((type) => ({ driverId: id, type: type as any, storageKey: "k", status: "APPROVED" as const })) });
+    await call(`/admin/drivers/${id}/approve`, { admin: true, body: {} });
+    const token: string = (await call("/driver/login", { body: { phone: created.json.phone, code: "000000" } })).json.token;
+    await call("/driver/availability", { token, body: { availability: "AVAILABLE" } });
+    const p = await mkPartner();
+    const { res } = await mkBooking(p);
+    await call(`/driver/offers/${(await offerOf({ token })).offerId}/accept`, { token, body: {} });
+    for (const a of ["en-route", "arrived", "start", "complete"]) await call(`/driver/rides/${res.json.rideId}/${a}`, { token, body: {} });
+
+    const range = `from=${encodeURIComponent(new Date(Date.now() - 86400_000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 6 * 86400_000).toISOString())}`;
+    const admin = (await call(`/admin/performance?${range}`, { admin: true })).json;
+    expect(admin.totalValueCents).toBe(3740);
+    expect(admin.platform).toMatchObject({ marginCents: 5500 - 3740, ladderSavingsCents: 4400 - 3740, acceptedVsCapPct: 85 });
+    const company = (await call(`/company/performance?${range}`, { token: co.accessKey })).json;
+    expect(company.totalValueCents).toBe(3740);
+    expect(company).not.toHaveProperty("platform");
+    const pay = (await call(`/company/payments?${range}`, { token: co.accessKey })).json;
+    expect(pay.totals).toMatchObject({ netCents: 3740, grossCents: 5500 });
   });
 });

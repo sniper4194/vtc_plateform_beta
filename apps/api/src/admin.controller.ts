@@ -134,8 +134,8 @@ export class AdminController {
 
   @Post("rides/:id/assign")
   async assign(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
-    const { driverId } = parse(AssignSchema, body);
-    await this.dispatch.adminAssign(id, driverId, req.admin.actor);
+    const { driverId, priceCents } = parse(AssignSchema, body);
+    await this.dispatch.adminAssign(id, driverId, req.admin.actor, priceCents);
     return { status: "ASSIGNED" };
   }
 
@@ -164,7 +164,7 @@ export class AdminController {
   @Get("performance")
   performance(@Query() q: Record<string, string>) {
     const { from, to } = period(q.from, q.to);
-    return this.perf.compute({ companyId: q.companyId || undefined, driverId: q.driverId || undefined, vehicleId: q.vehicleId || undefined, from, to });
+    return this.perf.compute({ companyId: q.companyId || undefined, driverId: q.driverId || undefined, vehicleId: q.vehicleId || undefined, from, to }, { includePlatform: true });
   }
 
   /** Mise à jour manuelle du vol (opérateur) : même chemin que le futur fournisseur de données de vol. */

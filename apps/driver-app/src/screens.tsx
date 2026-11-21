@@ -116,8 +116,8 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
 const CAT_COLOR: Record<string, string> = { BERLINE: c.yel, BUSINESS: c.onSky, VAN: c.red, GREEN: "#3ddc84" };
 
 /** Une ligne de liste : heure + distance | barre de catégorie | trajet + prix. Se déplie en carte. */
-function Row({ time, dist, category, from, to, price, flight, badge, expanded, onPress, children }: {
-  time: string; dist?: number | null; category: string; from: string; to: string; price: string; flight?: boolean;
+function Row({ time, dist, category, from, to, price, rising, flight, badge, expanded, onPress, children }: {
+  time: string; dist?: number | null; category: string; from: string; to: string; price: string; rising?: boolean; flight?: boolean;
   badge?: React.ReactNode; expanded: boolean; onPress?: () => void; children?: React.ReactNode;
 }) {
   const ink = expanded ? c.ink : c.onSky;
@@ -133,7 +133,10 @@ function Row({ time, dist, category, from, to, price, flight, badge, expanded, o
         <Cond size={11} color={expanded ? c.red : c.dblue}>vers</Cond>
         <Slab size={14} color={ink} shadow={null} lines={expanded ? undefined : 2}>{to}</Slab>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
-          <Display size={24} color={expanded ? c.ink : c.onSky} shadow={expanded ? c.yel : c.yel}>{price}</Display>
+          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 6 }}>
+            <Display size={24} color={expanded ? c.ink : c.onSky} shadow={expanded ? c.yel : c.yel}>{price}</Display>
+            {rising ? <Slab size={18} color={expanded ? c.red : c.dblue} shadow={null} style={{ lineHeight: 26 }}>↗</Slab> : null}
+          </View>
           <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
             {badge}
             <Cond size={12} color={expanded ? c.muted : c.onSky}>{category}</Cond>
@@ -230,16 +233,18 @@ export function Radar({ notify }: { notify: Notify }) {
           return (
             <Row
               time={timeOf(o.pickupAt)} dist={o.pickupDistanceKm} category={o.category}
-              from={o.pickup} to={o.dropoff} price={eurShort(o.netCents)} flight={Boolean(o.flightNumber)}
+              from={o.pickup} to={o.dropoff} price={eurShort(o.netCents)} rising={o.priceRising} flight={Boolean(o.flightNumber)}
               badge={!expanded ? <Chip label={countdown(left)} color={left < 60 ? c.red : c.cream} text={left < 60 ? c.cream : c.ink} /> : null}
               expanded={expanded} onPress={() => setOpen(expanded ? null : o.offerId)}
             >
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                 <Chip label={`≈ ${eurShort(o.netPerHourCents)}/h`} color={c.yel} />
+                {o.priceRising ? <Chip label="Prix en hausse ↗" color={c.cream} /> : null}
                 <Chip label={`${o.durationMin} min · ${o.distanceKm} km`} />
                 {o.partner ? <Chip label={o.partner} color={c.blue} text={c.cream} /> : null}
                 {o.flightNumber ? <Chip label={`Vol ${o.flightNumber}`} color={c.red} text={c.cream} /> : null}
               </View>
+              {o.priceRising ? <Cond size={12} color={c.muted} style={{ marginBottom: 8 }}>Le prix augmente à l'approche de la mission. Il est fixé au moment où vous acceptez.</Cond> : null}
               <Fuse fraction={fuseFraction(left, total)} label={left > 0 ? `Sursis ${countdown(left)} · ensuite la mission part ailleurs` : "Sursis écoulé"} />
               <View style={{ flexDirection: "row", gap: 10, marginTop: 12, alignItems: "flex-start" }}>
                 <View style={{ flex: 1 }}><Btn label="Passer" onPress={() => act(o.offerId, "decline")} /></View>

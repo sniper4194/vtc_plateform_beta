@@ -90,9 +90,13 @@ function Board() {
   const drivers = useLoad<any[]>("/admin/drivers?status=ACTIVE", 15000);
   const alerts = useLoad<any[]>("/admin/alerts");
   const [pick, setPick] = useState<Record<string, string>>({});
+  const [priceOf, setPriceOf] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
   async function assign(rideId: string) {
-    try { await api(`/admin/rides/${rideId}/assign`, { driverId: pick[rideId] }); setErr(""); rides.reload(); alerts.reload(); }
+    try {
+      const euros = (priceOf[rideId] ?? "").replace(",", ".").trim();
+      await api(`/admin/rides/${rideId}/assign`, { driverId: pick[rideId], ...(euros ? { priceCents: Math.round(Number(euros) * 100) } : {}) });
+      setErr(""); rides.reload(); alerts.reload(); }
     catch (e: any) { setErr(e.message); }
   }
   const list = rides.data ?? [];
@@ -126,6 +130,13 @@ function Board() {
                       <span className="chip">{r.booking.partner?.name ?? "—"}</span>
                       <span className="chip">Client {eur(r.priceCents).replace(",00", "")}</span>
                     </div>
+                    {r.driverCapCents > 0 && (
+                      <div className="chips">
+                        <span className="chip">Plafond {eur(r.driverCapCents).replace(",00", "")}</span>
+                        {r.driver && <span className="chip">Accepté {eur(r.driverNetCents).replace(",00", "")}</span>}
+                        {r.driver && <span className="chip ok">Marge {eur(r.priceCents - r.driverNetCents).replace(",00", "")}</span>}
+                      </div>
+                    )}
                     {r.booking.flightNumber && (
                       <div className="flightrow">
                         <span className={`chip ${r.flightDelayMin > 0 ? "ok" : ""}`}>✈ {r.booking.flightNumber}{r.flightDelayMin > 0 ? ` +${r.flightDelayMin} min` : ""}</span>
@@ -142,6 +153,7 @@ function Board() {
                             <option value="">Attribuer à…</option>
                             {drivers.data?.map((d) => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
                           </select>
+                          <input type="text" inputMode="decimal" placeholder="Prix € (auto)" value={priceOf[r.id] ?? ""} onChange={(e) => setPriceOf({ ...priceOf, [r.id]: e.target.value })} style={{ width: 110 }} aria-label="Prix imposé en euros (laisser vide pour le prix du moment)" />
                           <button className="btn primary" disabled={!pick[r.id]} onClick={() => assign(r.id)}>OK</button>
                         </div>
                       </>

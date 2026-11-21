@@ -20,7 +20,7 @@ export class PerformanceService {
     return { driverIds: drivers.map((d) => d.id) };
   }
 
-  async compute(f: PerfFilter) {
+  async compute(f: PerfFilter, opts: { includePlatform?: boolean } = {}) {
     const { driverIds } = await this.scope(f);
     const driverWhere: Prisma.RideWhereInput = driverIds ? { driverId: { in: driverIds } } : { driverId: { not: null } };
     const base: Prisma.RideWhereInput = { ...driverWhere, ...(f.vehicleId ? { vehicleId: f.vehicleId } : {}) };
@@ -45,6 +45,7 @@ export class PerformanceService {
 
     const series = new Map(daysBetween(f.from, f.to).map((d) => [d, { date: d, completed: 0, perfect: 0, average: 0, poor: 0, valueCents: 0 }]));
     let perfect = 0, average = 0, poor = 0, completed = 0, noShow = 0, value = 0, arrivedCount = 0, onTime = 0;
+    let margin = 0, capTotal = 0, savings = 0;
     for (const r of rides) {
       const arrivedAt = r.events[0]?.createdAt ?? null;
       const p = punctuality(arrivedAt, effectivePickup(r.pickupAt, r.flightDelayMin));
@@ -52,7 +53,12 @@ export class PerformanceService {
       if (arrivedAt) { arrivedCount++; if (p === "PERFECT") onTime++; }
       if (p === "PERFECT") perfect++; else if (p === "AVERAGE") average++; else poor++;
       if (r.status === "NO_SHOW") noShow++;
-      if (r.status === "COMPLETED") { completed++; value += r.driverNetCents; }
+      if (r.status === "COMPLETED") {
+        completed++; value += r.driverNetCents;
+        margin += r.priceCents - r.driverNetCents;
+        const cap = r.driverCapCents > 0 ? r.driverCapCents : r.driverNetCents;
+        capTotal += cap; savings += cap - r.driverNetCents;
+      }
       if (day) {
         if (r.status === "COMPLETED") { day.completed++; day.valueCents += r.driverNetCents; }
         if (p === "PERFECT") day.perfect++; else if (p === "AVERAGE") day.average++; else day.poor++;
@@ -74,6 +80,8 @@ export class PerformanceService {
       },
       rating: { count: ratings.length, average: ratings.length ? Math.round((ratings.reduce((s, r) => s + r.score, 0) / ratings.length) * 10) / 10 : null },
       series: [...series.values()],
+      // Chiffres propres à la plateforme : jamais exposés à une société partenaire.
+      ...(opts.includePlatform ? { platform: { marginCents: margin, ladderSavingsCents: savings, acceptedVsCapPct: pct(value, capTotal), marginPct: pct(margin, margin + value) } } : {}),
     };
   }
 }

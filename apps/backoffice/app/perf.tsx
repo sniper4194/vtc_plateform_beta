@@ -57,6 +57,12 @@ export function PerformanceView({ load, drivers, vehicles, scopeKey = "" }: {
             <div className="sticker s2"><span className="cond">À l'heure</span><b style={{ fontSize: 34 }}>{fmtPct(data.rates.onTimeAtPickupPct)}</b><span className="cond">à la prise en charge</span></div>
             <div className="sticker s4"><span className="cond">Acceptation</span><b style={{ fontSize: 34 }}>{fmtPct(data.rates.acceptancePct)}</b><span className="cond">des offres</span></div>
             <div className="sticker s1" style={{ transform: "rotate(4deg)" }}><span className="cond">Note</span><b style={{ fontSize: 34 }}>{data.rating.average ?? "—"}</b><span className="cond">{data.rating.count} avis</span></div>
+            {data.platform && (
+              <>
+                <div className="sticker s2" style={{ width: 160, height: 160 }}><span className="cond">Marge plateforme</span><b style={{ fontSize: 32 }}>{eur(data.platform.marginCents).replace(",00", "")}</b><span className="cond">{fmtPct(data.platform.marginPct)} du prix client</span></div>
+                <div className="sticker s4"><span className="cond">Gain échelle</span><b style={{ fontSize: 32 }}>{eur(data.platform.ladderSavingsCents).replace(",00", "")}</b><span className="cond">{fmtPct(data.platform.acceptedVsCapPct)} du plafond payé</span></div>
+              </>
+            )}
           </div>
           <div className="card">
             <h3>Qualité des missions</h3>

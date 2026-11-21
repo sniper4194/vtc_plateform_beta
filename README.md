@@ -96,3 +96,17 @@ Deux messages, dans l'app (Messages) et par e-mail : **confirmation** quand le c
 Quand un partenaire annule une mission déjà attribuée, le chauffeur reçoit un message dans l'app (Messages, avec pastille) et un e-mail : référence `R-xxxxxx`, prise en charge, trajet, vol (atterrissage et délai de prise en charge), service, rémunération prévue, et indemnité éventuelle.
 **Règle provisoire** (à valider commercialement) : frais d'annulation du partenaire selon l'anticipation (> 24 h : 0 % ; 2–24 h : 50 % ; < 2 h : 100 %), dont le chauffeur reçoit la part nette de commission. L'indemnité figure sur le relevé de la société à la date d'annulation.
 E-mail : `EMAIL_PROVIDER=resend` (adaptateur écrit d'après la documentation, non essayé contre un vrai compte) ; sans fournisseur, le message reste dans l'application.
+
+## Échelle de prix chauffeur (prix qui monte à l'approche de la mission)
+
+Le prix **client** est fixe. À la réservation, la plateforme calcule un **plafond** pour le chauffeur (prix client − commission de base : le « prix partenaire prévisionnel »).
+Le prix **proposé** au chauffeur part à 85 % du plafond et monte linéairement entre 24 h et 1 h avant la prise en charge, pour atteindre le plafond ; le premier qui accepte prend **le prix du moment** (« prix partenaire accepté »). L'écart avec le plafond s'ajoute à la marge de la plateforme.
+Exemple (réel, testé) : client 55 € → plafond 44 € → proposé 37,40 € à 3 jours, 40,80 € à 12 h, 43,80 € à 1 h 30, 44 € à moins d'1 h.
+
+- Le prix est **calculé côté serveur** à l'instant de l'acceptation ; le chauffeur ne peut pas l'imposer. Il peut monter entre l'affichage et l'acceptation, jamais baisser.
+- Le dispatch peut imposer un prix à l'attribution manuelle, **jamais au-dessus du plafond**.
+- L'indemnité d'annulation suit le prix réellement accepté. Les missions antérieures à l'échelle gardent leur prix net comme plafond.
+- La marge de la plateforme (« Marge plateforme », « Gain échelle ») n'est visible que dans l'administration, jamais côté société ni dans les messages au chauffeur.
+- Réglages : `PRICE_LADDER`, `LADDER_START_RATIO` (jamais sous 30 %), `LADDER_FROM_MIN`, `LADDER_TO_MIN`, `LADDER_STEP_CENTS`.
+
+**Points de vigilance** : (1) un chauffeur peut attendre que le prix monte, donc une mission peu attractive risque d'être prise tard ou pas du tout : surveiller le délai moyen d'acceptation et les alertes « sans chauffeur » ; un partenaire comme Booking juge d'abord la fiabilité. (2) La transparence de la rémunération des chauffeurs indépendants est encadrée (directive européenne sur le travail via plateformes) : faire valider la formulation et les informations affichées par un juriste.

@@ -1,6 +1,7 @@
 import { HttpException, Inject, Injectable } from "@nestjs/common";
 import { Prisma, Ride, RideStatus } from "@prisma/client";
 import { canTransition } from "@vtc/shared";
+import { driverOfferCents } from "./ladder";
 import { acceptanceMessage } from "./messages";
 import { NotificationsService } from "./notifications";
 import { PrismaService } from "./prisma";
@@ -135,18 +136,26 @@ export class DispatchService {
   }
 
   // ---------- attribution ----------
-  private async claim(tx: Tx, ride: Ride, driverId: string, actor: string) {
+  /** Plafond de rémunération d'une mission (les missions antérieures à l'échelle de prix n'ont que leur prix net). */
+  private capOf(ride: Pick<Ride, "driverCapCents" | "driverNetCents">) {
+    return ride.driverCapCents > 0 ? ride.driverCapCents : ride.driverNetCents;
+  }
+
+  private async claim(tx: Tx, ride: Ride, driverId: string, actor: string, priceOverride?: number) {
     const vehicle = await tx.vehicle.findFirst({ where: { driverId, active: true, category: ride.category } });
     if (!vehicle) throw new HttpException("Aucun véhicule compatible", 409);
     if (await this.hasOverlap(tx, driverId, ride)) throw new HttpException("Conflit avec une autre course de votre planning", 409);
+    // Prix accepté = prix proposé AU MOMENT de l'acceptation, calculé ici (jamais fourni par le client).
+    const cap = this.capOf(ride);
+    const price = priceOverride ?? driverOfferCents(cap, effectivePickup(ride.pickupAt, ride.flightDelayMin), new Date());
     const res = await tx.ride.updateMany({
       where: { id: ride.id, status: "DISPATCHING", driverId: null },
-      data: { status: "ASSIGNED", driverId, vehicleId: vehicle.id, version: { increment: 1 } },
+      data: { status: "ASSIGNED", driverId, vehicleId: vehicle.id, version: { increment: 1 }, driverCapCents: cap, driverNetCents: price, commissionCents: ride.priceCents - price },
     });
     if (res.count !== 1) throw new HttpException("Course déjà attribuée", 409);
     await tx.dispatchOffer.updateMany({ where: { rideId: ride.id, driverId }, data: { status: "ACCEPTED" } });
     await tx.dispatchOffer.updateMany({ where: { rideId: ride.id, status: "PENDING" }, data: { status: "CANCELLED" } });
-    await this.event(tx, ride.id, "ride.assigned", actor, { driverId });
+    await this.event(tx, ride.id, "ride.assigned", actor, { driverId, capCents: cap, acceptedCents: price });
     await this.webhooks.enqueue(tx, ride.id, "driver.assigned");
   }
 
@@ -178,13 +187,16 @@ export class DispatchService {
     if (res.count !== 1) throw new HttpException("Offre introuvable ou déjà traitée", 404);
   }
 
-  async adminAssign(rideId: string, driverId: string, admin = "admin") {
+  async adminAssign(rideId: string, driverId: string, admin = "admin", priceCents?: number) {
     await this.prisma.$transaction(async (tx) => {
       const ride = await tx.ride.findUnique({ where: { id: rideId } });
       if (!ride) throw new HttpException("Course introuvable", 404);
       const driver = await tx.driver.findUnique({ where: { id: driverId } });
       if (!driver || driver.status !== "ACTIVE") throw new HttpException("Chauffeur non actif", 409);
-      await this.claim(tx, ride, driverId, admin);
+      if (priceCents !== undefined && priceCents > this.capOf(ride)) {
+        throw new HttpException({ errors: { priceCents: [`ne peut pas dépasser le plafond de la mission (${this.capOf(ride)} centimes)`] } }, 422);
+      }
+      await this.claim(tx, ride, driverId, admin, priceCents);
     });
     await this.confirmToDriver(driverId, rideId, true);
   }

@@ -3,6 +3,8 @@ import { DispatchService, DriverAction } from "./dispatch.service";
 import { parse } from "./http";
 import { PrismaService } from "./prisma";
 import { driverRideView } from "./views";
+import { driverOfferCents } from "./ladder";
+import { effectivePickup } from "./metrics";
 import { haversineKm } from "./zones";
 import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, DriverOtpRequestSchema, LocationUpdateSchema } from "./schemas";
 import { OtpService } from "./otp.service";
@@ -64,7 +66,7 @@ export class DriverController {
       unreadNotifications: await this.prisma.notification.count({ where: { driverId: id, readAt: null } }),
       liveRideId: (await this.prisma.ride.findFirst({ where: { driverId: id, status: { in: ["EN_ROUTE", "ARRIVED", "IN_PROGRESS"] } }, select: { id: true } }))?.id ?? null,
       pendingOffers: offers.length,
-      potentialCents: offers.reduce((s, o) => s + o.ride.driverNetCents, 0),
+      potentialCents: offers.reduce((s, o) => s + this.currentPrice(o.ride, now), 0),
       fortnightEarningsCents: earned._sum.driverNetCents ?? 0,
     };
   }
@@ -95,6 +97,12 @@ export class DriverController {
     return this.prisma.document.create({ data: { driverId: req.driverId, type: d.type, storageKey: d.storageKey, expiresAt: d.expiresAt ? new Date(d.expiresAt) : null } });
   }
 
+  /** Prix actuellement proposé pour une mission non attribuée (échelle de prix : il monte à l'approche de la prise en charge). */
+  private currentPrice(ride: { driverCapCents: number; driverNetCents: number; pickupAt: Date; flightDelayMin: number }, now: Date) {
+    const cap = ride.driverCapCents > 0 ? ride.driverCapCents : ride.driverNetCents;
+    return driverOfferCents(cap, effectivePickup(ride.pickupAt, ride.flightDelayMin), now);
+  }
+
   /** Courses à prendre : le passager n'est PAS divulgué avant l'acceptation. */
   @Get("offers")
   @UseGuards(DriverGuard)
@@ -117,8 +125,10 @@ export class DriverController {
       pickup: o.ride.pickupAddress, dropoff: o.ride.dropoffAddress,
       pickupDistanceKm: distTo(o.ride.pickupLat, o.ride.pickupLng),
       distanceKm: Math.round(o.ride.distanceKm * 10) / 10, durationMin: Math.round(o.ride.durationMin),
-      netCents: o.ride.driverNetCents,
-      netPerHourCents: Math.round(o.ride.driverNetCents / Math.max(o.ride.durationMin / 60, 0.25)),
+      // Prix du moment : il peut monter d'ici l'acceptation, jamais baisser. Le prix accepté est celui de l'instant de l'acceptation.
+      netCents: this.currentPrice(o.ride, now),
+      priceRising: this.currentPrice(o.ride, now) < (o.ride.driverCapCents > 0 ? o.ride.driverCapCents : o.ride.driverNetCents),
+      netPerHourCents: Math.round(this.currentPrice(o.ride, now) / Math.max(o.ride.durationMin / 60, 0.25)),
       flightNumber: o.ride.booking.flightNumber,
     }));
   }

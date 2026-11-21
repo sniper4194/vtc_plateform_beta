@@ -5,7 +5,7 @@ import { emailProviderFromEnv, ResendEmailProvider } from "./email";
 
 const ride = {
   ref: 100234, pickupAt: new Date("2026-11-20T21:37:00Z"), pickupAddress: "Aéroport Charles de Gaulle (CDG)", dropoffAddress: "Hôtel Paris 13, Ivry-sur-Seine",
-  category: "BERLINE", flatRateId: "cdg-paris" as string | null, priceCents: 6124, commissionCents: 1948, driverNetCents: 4176, flightBufferMin: 15,
+  category: "BERLINE", flatRateId: "cdg-paris" as string | null, priceCents: 6124, commissionCents: 1948, driverNetCents: 4176, driverCapCents: 4176, flightBufferMin: 15,
 };
 
 describe("indemnité d'annulation du chauffeur", () => {
@@ -68,6 +68,28 @@ describe("message de confirmation", () => {
     expect(priceLines(ride, true)).toHaveLength(3);
     // la rémunération = prix client − commission, au centime près
     expect(ride.priceCents - ride.commissionCents).toBe(ride.driverNetCents);
+  });
+});
+
+describe("message avec échelle de prix", () => {
+  // Cas de la confirmation Sixt : client 61,24 €, plafond 41,76 €, accepté 36,19 €
+  const laddered = { ...ride, driverCapCents: 4176, driverNetCents: 3619, commissionCents: 6124 - 3619 };
+  it("montre client, plafond et prix accepté quand le prix accepté est inférieur au plafond", () => {
+    const body = acceptanceMessage(laddered, "DL224").body;
+    expect(body).toMatch(/Prix client \(TTC\) : 61,24\s€/);
+    expect(body).toMatch(/Prix partenaire prévisionnel \(plafond\) : 41,76\s€/);
+    expect(body).toMatch(/Prix partenaire accepté \(votre rémunération\) : 36,19\s€/);
+    expect(body).not.toContain("Commission");
+  });
+  it("sans écart, retombe sur client / commission / net", () => {
+    expect(priceLines({ ...laddered, driverNetCents: 4176, commissionCents: 1948 }, true)).toHaveLength(3);
+    expect(priceLines({ ...laddered, driverNetCents: 4176, commissionCents: 1948 }, true)[1]).toContain("Commission");
+  });
+  it("masqué : seule la rémunération acceptée est montrée, plafond compris", () => {
+    const lines = priceLines(laddered, false);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/36,19/);
+    expect(lines.join()).not.toMatch(/41,76|61,24/);
   });
 });
 

@@ -78,7 +78,7 @@ export class BookingsService {
             pickupAt: quote.pickupAt, distanceKm: quote.distanceKm, durationMin: quote.durationMin,
             passengers: r.passengers, luggage: r.luggage ?? 0,
             priceCents: quote.priceCents, commissionCents: quote.commissionCents,
-            driverNetCents: quote.driverNetCents, flatRateId: quote.flatRateId, flightBufferMin: r.flightNumber ? req.flightBufferMin ?? 0 : 0,
+            driverNetCents: quote.driverNetCents, driverCapCents: quote.driverNetCents, flatRateId: quote.flatRateId, flightBufferMin: r.flightNumber ? req.flightBufferMin ?? 0 : 0,
           },
         });
         await tx.rideEvent.create({ data: { rideId: ride.id, type: "booking.confirmed", actor: `partner:${partner.id}`, payload: { sandbox } } });
