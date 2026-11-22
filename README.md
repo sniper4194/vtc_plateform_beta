@@ -221,3 +221,12 @@ Aucun `.apk` n'est fourni dans le dépôt : il se construit à la demande, et il
 - L'APK est signé avec la clé de débogage : bon pour des essais, pas pour Google Play (il faudra une clé de signature propre).
 - L'application doit joindre une API **publique en HTTPS**. Pour un essai depuis un téléphone sans serveur, exposer l'API locale par un tunnel (par exemple Cloudflare Tunnel ou ngrok) et indiquer son adresse.
 - Connexion : sans fournisseur SMS, utiliser `DRIVER_DEV_OTP=000000` côté API (jamais en production).
+
+## Essayer l'application chauffeur avec Expo Go (téléphone Android ou iPhone)
+
+Sur votre ordinateur, avec le téléphone sur le même Wi-Fi :
+1. `pnpm install`, puis `cp .env.example .env`, `pnpm db:up`, `pnpm -F @vtc/api db:deploy`, `pnpm -F @vtc/api seed`.
+2. Terminal A : `pnpm -F @vtc/api dev:demo` (API sur :3000, code de connexion fixe `000000`, contrôles d'identité et critères véhicule désactivés pour la démo).
+3. Terminal B : `pnpm -F @vtc/api demo:driver` (crée le chauffeur `06 00 00 00 01`, validé et en ligne, avec deux missions à prendre).
+4. Créer `apps/driver-app/.env` avec une ligne `EXPO_PUBLIC_API_URL=http://<IP-de-l-ordinateur>:3000`.
+5. Terminal C : `pnpm -F @vtc/driver-app start`, puis scanner le QR code avec Expo Go.
