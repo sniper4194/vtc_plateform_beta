@@ -164,6 +164,11 @@ model Vehicle {
   category  VehicleCategory
   seats     Int             @default(4)
   electric  Boolean         @default(false)
+  firstRegistrationYear Int? // année de première mise en circulation (âge du véhicule)
+  doors     Int?
+  lengthMm  Int?
+  widthMm   Int?
+  powerKw   Float?
   active    Boolean         @default(true)
   rides     Ride[]
 }

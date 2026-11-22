@@ -143,3 +143,17 @@ Principe : **anticiper doit coûter moins cher que s'y prendre tard, et ne rien 
 - Réglages : `PENALTY_RESCUE_RATIO`, `PENALTY_RESCUE_MIN_CENTS`, `PENALTY_WINDOW_DAYS`. Les paliers sont dans `apps/api/src/penalties.ts`.
 
 **À valider avant le pilote** : (1) ce barème est une proposition inspirée de pratiques de marché citées par un chauffeur, **non vérifiées** ; (2) une pénalité contractuelle de plus de 100 % du prix est une « clause pénale » que le juge peut réduire : le contrat chauffeur doit la prévoir, la justifier et la faire accepter ; (3) suspensions et fermetures de comptes d'indépendants : cadre de transparence et de recours imposé aux plateformes, à faire relire ; (4) le prélèvement effectif dépend des paiements (Stripe), pas encore branchés : aujourd'hui la pénalité est enregistrée et affichée au relevé. Les missions déjà attribuées à un chauffeur suspendu automatiquement ne sont pas encore réattribuées.
+
+## Critères d'admission du véhicule (obligatoires)
+
+Un chauffeur n'est **validé** que si au moins un de ses véhicules actifs respecte les critères, et il ne reçoit **aucune offre** ni attribution (dispatch, attribution manuelle, reprise de sauveteur) avec un véhicule non conforme. L'âge se recalcule chaque année : un véhicule peut donc devenir non conforme avec le temps. Une information absente compte comme un défaut. La carte grise devient un document obligatoire.
+
+| Critère | Valeur par défaut | Réglage |
+|---|---|---|
+| Places (chauffeur compris) | 4 à 9 | `VEHICLE_MIN_SEATS`, `VEHICLE_MAX_SEATS` |
+| Âge (année de première mise en circulation) | moins de 6 ans | `VEHICLE_MAX_AGE_YEARS` |
+| Portes | au moins 4 | `VEHICLE_MIN_DOORS` |
+| Longueur / largeur hors tout | ≥ 4 500 mm / ≥ 1 700 mm | `VEHICLE_MIN_LENGTH_MM`, `VEHICLE_MIN_WIDTH_MM` |
+| Puissance nette | strictement supérieure à 88 kW | `VEHICLE_MIN_POWER_KW` |
+
+`VEHICLE_RULES=0` désactive le contrôle (développement uniquement). **Ces valeurs viennent d'une charte de 2012 : elles n'ont pas été revérifiées dans les textes en vigueur et sont à confirmer par un juriste avant le pilote.** Non traités : exemption des véhicules de collection, signalétique (vignette) du véhicule, véhicules à deux ou trois roues, âge calculé à l'année près (et non au jour), contrôle technique.

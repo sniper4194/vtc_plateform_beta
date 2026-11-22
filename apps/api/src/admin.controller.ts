@@ -5,6 +5,7 @@ import { DispatchService } from "./dispatch.service";
 import { missingDocuments, REQUIRED_DOCS } from "./driver-docs";
 import { FlightsService } from "./flights.service";
 import { period } from "./company.controller";
+import { checkVehicle } from "./vehicle-rules";
 import { PerformanceService } from "./performance.service";
 import { parse } from "./http";
 import { PrismaService } from "./prisma";
@@ -93,7 +94,7 @@ export class AdminController {
       include: { vehicles: true, documents: true },
       orderBy: { createdAt: "desc" },
       take: 200,
-    });
+    }).then((list) => list.map((d) => ({ ...d, vehicles: d.vehicles.map((v) => ({ ...v, compliance: checkVehicle(v) })) })));
   }
 
   @Post("documents/:id/review")
@@ -108,6 +109,11 @@ export class AdminController {
   async approve(@Param("id") id: string) {
     const missing = await missingDocuments(this.prisma, id);
     if (missing.length) throw new HttpException({ message: "Documents manquants ou expirés", missing }, 409);
+    // Au moins un véhicule actif doit respecter les critères d'admission.
+    const vehicles = await this.prisma.vehicle.findMany({ where: { driverId: id, active: true } });
+    if (!vehicles.some((v) => checkVehicle(v).ok)) {
+      throw new HttpException({ message: "Aucun véhicule conforme aux critères d'admission", vehicleProblems: vehicles.map((v) => ({ plate: v.plate, problems: checkVehicle(v).problems })) }, 409);
+    }
     return this.prisma.driver.update({ where: { id }, data: { status: "ACTIVE", suspendedBy: null } });
   }
 

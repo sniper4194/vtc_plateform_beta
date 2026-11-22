@@ -7,6 +7,7 @@ import { NotificationsService } from "./notifications";
 import { minutesBefore, PenaltiesService } from "./penalties.service";
 import { PrismaService } from "./prisma";
 import { effectivePickup, NO_SHOW_WAIT_MIN } from "./metrics";
+import { firstCompliant } from "./vehicle-rules";
 import { haversineKm } from "./zones";
 import { WEBHOOK_BY_STATUS } from "./views";
 import { WebhooksService } from "./webhooks.service";
@@ -93,9 +94,13 @@ export class DispatchService {
         status: "ACTIVE", availability: "AVAILABLE", id: { notIn: declined },
         vehicles: { some: { active: true, category: ride.category } },
       },
+      include: { vehicles: true },
     });
     const eligible: typeof candidates = [];
-    for (const d of candidates) if (!(await this.hasOverlap(this.prisma, d.id, ride))) eligible.push(d);
+    for (const d of candidates) {
+      if (!firstCompliant(d.vehicles, ride.category)) continue; // véhicule non conforme : pas d'offre
+      if (!(await this.hasOverlap(this.prisma, d.id, ride))) eligible.push(d);
+    }
     const dist = (d: (typeof eligible)[number]) =>
       d.lastLat != null && d.lastLng != null ? haversineKm({ lat: d.lastLat, lng: d.lastLng }, { lat: ride.pickupLat, lng: ride.pickupLng }) : Infinity;
     const chosen = eligible.sort((a, b) => dist(a) - dist(b)).slice(0, DISPATCH.maxOffersPerRound);
@@ -145,8 +150,8 @@ export class DispatchService {
   }
 
   private async claim(tx: Tx, ride: Ride, driverId: string, actor: string, priceOverride?: number) {
-    const vehicle = await tx.vehicle.findFirst({ where: { driverId, active: true, category: ride.category } });
-    if (!vehicle) throw new HttpException("Aucun véhicule compatible", 409);
+    const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: ride.category } }), ride.category);
+    if (!vehicle) throw new HttpException("Aucun véhicule compatible et conforme", 409);
     if (await this.hasOverlap(tx, driverId, ride)) throw new HttpException("Conflit avec une autre course de votre planning", 409);
     // Prix accepté = prix proposé AU MOMENT de l'acceptation, calculé ici (jamais fourni par le client).
     const cap = this.capOf(ride);

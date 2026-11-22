@@ -5,6 +5,7 @@ import { PrismaService } from "./prisma";
 import { driverRideView } from "./views";
 import { driverOfferCents } from "./ladder";
 import { effectivePickup } from "./metrics";
+import { checkVehicle } from "./vehicle-rules";
 import { haversineKm } from "./zones";
 import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, DriverOtpRequestSchema, LocationUpdateSchema } from "./schemas";
 import { OtpService } from "./otp.service";
@@ -47,7 +48,7 @@ export class DriverController {
     });
     return {
       id: d.id, firstName: d.firstName, lastName: d.lastName, status: d.status, availability: d.availability,
-      rating: d.rating, vehicles: d.vehicles, documents: d.documents.map((x) => ({ id: x.id, type: x.type, status: x.status, expiresAt: x.expiresAt })),
+      rating: d.rating, vehicles: d.vehicles.map((v) => ({ ...v, compliance: checkVehicle(v) })), documents: d.documents.map((x) => ({ id: x.id, type: x.type, status: x.status, expiresAt: x.expiresAt })),
     };
   }
 

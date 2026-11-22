@@ -8,6 +8,7 @@ export default defineConfig({
       TOKEN_SECRET: "test-token-secret-test-token-secret",
       DISABLE_WORKERS: "1",
       OTP_IP_PER_MIN: "100000", LOGIN_IP_PER_MIN: "100000", // les limites par IP sont testées explicitement
+      VEHICLE_RULES: "0", // les tests de parcours créent des véhicules sans caractéristiques ; le contrôle est testé explicitement
       PRICE_LADDER: "0", // les tests de parcours supposent un prix stable ; l'échelle est testée explicitement
       DRIVER_DEV_OTP: "000000", // les tests de parcours se connectent avec le code de dév ; les tests OTP le retirent
     },

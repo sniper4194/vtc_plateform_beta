@@ -194,7 +194,8 @@ function Drivers() {
               </span>
             </div>
             <div className="muted">{d.phone}</div>
-            <div className="chips">{d.vehicles.map((v: any) => <span className="chip blue" key={v.id}>{v.make} {v.model} · {v.plate}</span>)}</div>
+            <div className="chips">{d.vehicles.map((v: any) => <span className={`chip ${v.compliance?.ok === false ? "bad" : "blue"}`} key={v.id} title={v.compliance?.problems?.join(" · ")}>{v.make} {v.model} · {v.plate}{v.compliance?.ok === false ? " · non conforme" : ""}</span>)}</div>
+            {d.vehicles.filter((v: any) => v.compliance?.ok === false).map((v: any) => <div className="muted" key={v.id} style={{ fontSize: 13 }}>{v.plate} : {v.compliance.problems.join(" · ")}</div>)}
             <div style={{ margin: "12px 0" }}>
               {d.documents.map((x: any) => (
                 <div className="doc" key={x.id}>

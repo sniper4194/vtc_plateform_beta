@@ -407,3 +407,40 @@ describe("pénalités : restitution, sauveteur, récidive", () => {
     expect(st.json.totals.netCents).toBe(-1000);
   });
 });
+
+describe("critères du véhicule à l'admission et à l'attribution", () => {
+  afterEach(() => { process.env.VEHICLE_RULES = "0"; });
+  const goodFacts = { firstRegistrationYear: new Date().getFullYear() - 1, doors: 4, lengthMm: 4800, widthMm: 1850, powerKw: 120 };
+
+  it("refuse la validation sans carte grise ni véhicule conforme, puis l'accepte", async () => {
+    process.env.VEHICLE_RULES = "1";
+    const d = await mkDriver({ docs: false });
+    await prisma.document.createMany({ data: ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"].map((type) => ({ driverId: d.id, type: type as any, storageKey: "k", status: "APPROVED" as const })) });
+    const a = await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} });
+    expect(a.status).toBe(409);
+    expect(a.json.missing).toContain("REGISTRATION_CERT");
+    await prisma.document.create({ data: { driverId: d.id, type: "REGISTRATION_CERT", storageKey: "k", status: "APPROVED" } });
+    const b = await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} });
+    expect(b.status).toBe(409);
+    expect(b.json.vehicleProblems[0].problems.length).toBeGreaterThan(0);
+    await prisma.vehicle.updateMany({ where: { driverId: d.id }, data: goodFacts });
+    expect((await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} })).status).toBe(201);
+    expect((await call("/admin/drivers", { admin: true })).json.find((x: any) => x.id === d.id).vehicles[0].compliance.ok).toBe(true);
+  });
+
+  it("un chauffeur dont le véhicule n'est plus conforme ne reçoit plus d'offre ni de reprise", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const requester = await mkDriver();
+    await prisma.vehicle.updateMany({ data: goodFacts });
+    process.env.VEHICLE_RULES = "1";
+    await prisma.vehicle.updateMany({ where: { driverId: d.id }, data: { firstRegistrationYear: new Date().getFullYear() - 9 } }); // trop ancien
+    await mkBooking(p);
+    expect((await call("/driver/offers", { token: d.token })).json).toHaveLength(0);
+    expect((await call("/driver/offers", { token: requester.token })).json).toHaveLength(1);
+    // la même règle protège l'attribution manuelle
+    const ride = await prisma.ride.findFirstOrThrow();
+    expect((await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: d.id } })).status).toBe(409);
+    expect((await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: requester.id } })).status).toBe(201);
+  });
+});

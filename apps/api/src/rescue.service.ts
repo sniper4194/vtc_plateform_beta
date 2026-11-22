@@ -6,6 +6,7 @@ import { NotificationsService } from "./notifications";
 import { minutesBefore, PenaltiesService } from "./penalties.service";
 import { PrismaService } from "./prisma";
 import { eliteCheck, RESCUABLE, RESCUE, rescueAcceptedToRequester, rescueBonusCents, rescueExpiredToRequester, rescueRequestMessage } from "./rescue";
+import { firstCompliant } from "./vehicle-rules";
 import { haversineKm } from "./zones";
 import { WebhooksService } from "./webhooks.service";
 
@@ -60,12 +61,14 @@ export class RescueService {
     const ride = await this.ownRescuable(driverId, rideId);
     const cands = await this.prisma.driver.findMany({
       where: { id: { not: driverId }, status: "ACTIVE", availability: "AVAILABLE", rescueOptIn: true, rescueRevokedAt: null, vehicles: { some: { active: true, category: ride.category } } },
+      include: { vehicles: true },
     });
     const done = await this.completed(cands.map((c) => c.id));
     const out = [];
     for (const c of cands) {
       const completedRides = done.get(c.id) ?? 0;
       if (!eliteCheck({ ...c, completedRides }).listed) continue;
+      if (!firstCompliant(c.vehicles, ride.category)) continue;
       if (await this.dispatch.hasOverlap(this.prisma, c.id, ride)) continue;
       const km = c.lastLat != null && c.lastLng != null ? haversineKm({ lat: c.lastLat, lng: c.lastLng }, { lat: ride.pickupLat, lng: ride.pickupLng }) : null;
       out.push({ driverId: c.id, name: initials(c), rating: c.rating, completedRides, distanceKm: km == null ? null : Math.round(km * 10) / 10 });
@@ -156,8 +159,8 @@ export class RescueService {
       const d = await tx.driver.findUniqueOrThrow({ where: { id: driverId } });
       const completedRides = await tx.ride.count({ where: { driverId, status: "COMPLETED" } });
       if (!eliteCheck({ ...d, completedRides }).listed) throw new HttpException("Réservé aux sauveteurs", 403);
-      const vehicle = await tx.vehicle.findFirst({ where: { driverId, active: true, category: r.ride.category } });
-      if (!vehicle) throw new HttpException("Aucun véhicule compatible", 409);
+      const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: r.ride.category } }), r.ride.category);
+      if (!vehicle) throw new HttpException("Aucun véhicule compatible et conforme", 409);
       if (await this.dispatch.hasOverlap(tx, driverId, r.ride)) throw new HttpException("Conflit avec une autre course de votre planning", 409);
       const claimed = await tx.rescueRequest.updateMany({ where: { id, status: "OPEN" }, data: { status: "ACCEPTED", rescuerId: driverId, resolvedAt: new Date() } });
       if (claimed.count !== 1) throw new HttpException("Appel déjà pris en charge", 409);

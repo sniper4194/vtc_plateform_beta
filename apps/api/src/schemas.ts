@@ -19,17 +19,27 @@ export const PartnerCreateSchema = z.object({
   commissionRate: z.number().min(0).max(0.9).default(0.2),
   paymentMode: z.enum(["PREPAID", "INVOICE"]).default("INVOICE"),
 });
+/** Caractéristiques contrôlées à l'admission du véhicule (voir vehicle-rules.ts). */
+const vehicleFacts = {
+  firstRegistrationYear: z.number().int().min(1990).max(2100).optional(),
+  doors: z.number().int().min(1).max(9).optional(),
+  lengthMm: z.number().int().min(1000).max(8000).optional(),
+  widthMm: z.number().int().min(1000).max(3000).optional(),
+  powerKw: z.number().min(10).max(1000).optional(),
+};
 export const DriverCreateSchema = z.object({
   firstName: z.string().min(1), lastName: z.string().min(1),
   phone: phoneField, email: z.string().email(),
   vehicle: z.object({
     plate: z.string().min(4), make: z.string(), model: z.string(),
-    category: z.enum(["BERLINE", "BUSINESS", "VAN", "GREEN"]), seats: z.number().int().min(1).default(4),
+    category: z.enum(["BERLINE", "BUSINESS", "VAN", "GREEN"]), seats: z.number().int().min(1).max(9).default(4),
+    ...vehicleFacts,
   }).optional(),
 });
 export const VehicleCreateSchema = z.object({
   plate: z.string().min(4), make: z.string().min(1), model: z.string().min(1),
   category: z.enum(["BERLINE", "BUSINESS", "VAN", "GREEN"]), seats: z.number().int().min(1).max(9).default(4),
+  ...vehicleFacts,
   driverId: z.string().uuid().optional(),
 });
 export const CompanyCreateSchema = z.object({ name: z.string().min(1), siret: z.string().regex(/^\d{14}$/).optional(), vtcRegistry: z.string().optional() });

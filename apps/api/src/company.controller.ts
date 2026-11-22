@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { missingDocuments } from "./driver-docs";
+import { checkVehicle } from "./vehicle-rules";
 import { parse } from "./http";
 import { csvCell } from "./metrics";
 import { PerformanceService } from "./performance.service";
@@ -86,7 +87,8 @@ export class CompanyController {
   // ---- véhicules ----
   @Get("vehicles")
   vehicles(@Req() req: any) {
-    return this.prisma.vehicle.findMany({ where: { companyId: req.company.id }, include: { driver: { select: { id: true, firstName: true, lastName: true } } }, orderBy: { plate: "asc" } });
+    return this.prisma.vehicle.findMany({ where: { companyId: req.company.id }, include: { driver: { select: { id: true, firstName: true, lastName: true } } }, orderBy: { plate: "asc" } })
+      .then((list) => list.map((v) => ({ ...v, compliance: checkVehicle(v) })));
   }
 
   @Post("vehicles")

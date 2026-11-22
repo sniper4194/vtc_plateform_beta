@@ -29,7 +29,7 @@
 | Qualité | Notes, fiabilité, tableau de performance |
 
 ## 3. Écarts (à traiter avant d'accepter de vrais chauffeurs)
-1. **Aucune vérification du véhicule contre des critères** : nous stockons marque, modèle, couleur, places, catégorie, mais ni année, ni portes, ni dimensions, ni puissance. Et nous ne demandons ni carte grise ni contrôle technique par défaut (ils existent dans la liste des types de document, pas dans les documents obligatoires). **À faire** : fixer les critères en vigueur avec un juriste, ajouter les champs, contrôler à l'inscription.
+1. ~~Aucune vérification du véhicule contre des critères~~ **Traité (voir README, « Critères d'admission du véhicule »)**, valeurs à confirmer. Contexte d'origine : nous stockons marque, modèle, couleur, places, catégorie, mais ni année, ni portes, ni dimensions, ni puissance. Et nous ne demandons ni carte grise ni contrôle technique par défaut (ils existent dans la liste des types de document, pas dans les documents obligatoires). **À faire** : fixer les critères en vigueur avec un juriste, ajouter les champs, contrôler à l'inscription.
 2. **Pas de démarchage interdit dans nos règles, et pas de protection technique** : le chauffeur voit le nom et le téléphone du passager dès l'acceptation. **À faire** : clause d'interdiction de démarchage, durée de conservation côté application, **numéro masqué** si possible.
 3. **Information CO₂ du voyageur** : obligation citée dans la charte, absente de nos messages. À vérifier dans le droit actuel, puis à ajouter aux confirmations (il faut une source de calcul).
 4. **Casier et condamnations** : aucune vérification (la carte professionnelle les couvre en principe). À confirmer avec le juriste : suffit-il de contrôler la carte et sa date d'expiration ?
