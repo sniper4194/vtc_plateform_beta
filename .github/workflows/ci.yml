@@ -52,3 +52,12 @@ jobs:
           build-args: NEXT_PUBLIC_API_URL=https://api.exemple.fr
           cache-from: type=gha,scope=backoffice
           cache-to: type=gha,mode=max,scope=backoffice
+      - name: Image page de suivi voyageur
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web-booking/Dockerfile
+          push: false
+          build-args: NEXT_PUBLIC_API_URL=https://api.exemple.fr
+          cache-from: type=gha,scope=web-booking
+          cache-to: type=gha,mode=max,scope=web-booking

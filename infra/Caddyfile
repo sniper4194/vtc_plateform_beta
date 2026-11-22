@@ -1,4 +1,4 @@
-# HTTPS automatique (Let's Encrypt) : les deux noms de domaine doivent pointer vers ce serveur (ports 80 et 443 ouverts).
+# HTTPS automatique (Let's Encrypt) : les trois noms de domaine doivent pointer vers ce serveur (ports 80 et 443 ouverts).
 (securite) {
 	encode gzip
 	header {
@@ -17,4 +17,11 @@
 {$ADMIN_DOMAIN} {
 	import securite
 	reverse_proxy backoffice:3001
+}
+
+# Page de suivi du voyageur : le lien contient un jeton secret, il ne doit pas fuiter ni être mis en cache.
+{$TRACK_DOMAIN} {
+	import securite
+	header Referrer-Policy "no-referrer"
+	reverse_proxy web-booking:3002
 }

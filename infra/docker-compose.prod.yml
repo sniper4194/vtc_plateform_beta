@@ -30,7 +30,9 @@ services:
       DATABASE_URL: postgresql://vtc:${POSTGRES_PASSWORD}@db:5432/vtc?schema=public
       TOKEN_SECRET: ${TOKEN_SECRET:?TOKEN_SECRET requis (openssl rand -hex 32)}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
-      CORS_ORIGINS: https://${ADMIN_DOMAIN:?ADMIN_DOMAIN requis}
+      CORS_ORIGINS: https://${ADMIN_DOMAIN:?ADMIN_DOMAIN requis},https://${TRACK_DOMAIN:?TRACK_DOMAIN requis}
+      # Adresse publique de la page de suivi voyageur : sert à fabriquer le lien envoyé par SMS et e-mail.
+      TRACKING_BASE_URL: https://${TRACK_DOMAIN}
       TRUST_PROXY: "1"
       ROUTING_URL: ${ROUTING_URL:-}
       SMS_PROVIDER: ${SMS_PROVIDER:-}
@@ -45,6 +47,9 @@ services:
       LADDER_TO_MIN: ${LADDER_TO_MIN:-60}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
+      IDENTITY_CHECKS: ${IDENTITY_CHECKS:-1}
+      IDENTITY_SPOT: ${IDENTITY_SPOT:-1}
+      VEHICLE_RULES: ${VEHICLE_RULES:-1}
     expose: ["3000"]
 
   backoffice:
@@ -57,14 +62,44 @@ services:
     depends_on: [api]
     expose: ["3001"]
 
+  # Page de suivi du voyageur (lien reçu par SMS et e-mail).
+  web-booking:
+    build:
+      context: ..
+      dockerfile: apps/web-booking/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN}
+    restart: unless-stopped
+    depends_on: [api]
+    expose: ["3002"]
+
+  # Sauvegarde automatique de la base (voir infra/backup.sh et docs/DEPLOIEMENT.md : à copier aussi hors du serveur).
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGHOST: db
+      PGUSER: vtc
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: vtc
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    entrypoint: ["sh", "/backup.sh"]
+    volumes:
+      - ./backup.sh:/backup.sh:ro
+      - backups:/backups
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
-    depends_on: [api, backoffice]
+    depends_on: [api, backoffice, web-booking]
     ports: ["80:80", "443:443"]
     environment:
       API_DOMAIN: ${API_DOMAIN}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN}
+      TRACK_DOMAIN: ${TRACK_DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -72,5 +107,6 @@ services:
 
 volumes:
   dbdata:
+  backups:
   caddy_data:
   caddy_config:
