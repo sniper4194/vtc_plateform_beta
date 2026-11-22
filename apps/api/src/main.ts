@@ -16,6 +16,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: { origin: process.env.CORS_ORIGINS?.split(",") ?? false } });
   // Derrière un proxy/répartiteur : TRUST_PROXY=1 pour que req.ip soit l'IP réelle du client (limitation des connexions).
   if (process.env.TRUST_PROXY) (app as any).set("trust proxy", Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
+  // Les selfies de vérification d'identité sont envoyés en base64 (400 Ko max décodés) : la limite par défaut (100 Ko) est trop basse.
+  (app as any).useBodyParser("json", { limit: "1mb" });
   app.enableShutdownHooks();
   await app.listen(Number(process.env.PORT ?? 3000));
 }

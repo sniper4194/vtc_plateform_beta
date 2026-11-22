@@ -136,6 +136,8 @@ model Driver {
   siret         String? // Siren/Siret de l'exploitant (sinon celui de la société)
   revtcNumber   String? // numéro d'inscription au registre des exploitants de VTC (sinon celui de la société)
   proCardNumber String? // numéro de la carte professionnelle VTC
+  identityVerifiedAt DateTime? // dernière vérification d'identité par selfie valide (prise de service)
+  identityChecks IdentityCheck[]
   rescueOptIn   Boolean            @default(false) // accepte de figurer dans la liste des sauveteurs (s'il remplit les critères)
   rescueRevokedAt DateTime? // retrait du statut par l'administration
   suspendedUntil DateTime? // suspension automatique à durée limitée (récidive) ; nul + suspendedBy=auto : à examiner par l'équipe
@@ -488,4 +490,34 @@ enum VehicleFuel {
   THERMAL
   HYBRID
   ELECTRIC
+}
+
+enum IdentityKind {
+  REFERENCE
+  SHIFT
+}
+
+enum IdentityStatus {
+  PENDING
+  VALID
+  REJECTED
+}
+
+/// Selfie du chauffeur : le premier (REFERENCE) est validé par un humain en le comparant à la pièce d'identité ; les suivants (SHIFT) sont conservés 30 jours
+/// pour dissuader le prêt de compte et permettre un contrôle a posteriori. Aucune reconnaissance faciale automatique (donnée biométrique : RGPD art. 9).
+model IdentityCheck {
+  id         String         @id @default(uuid())
+  driverId   String
+  driver     Driver         @relation(fields: [driverId], references: [id])
+  kind       IdentityKind
+  status     IdentityStatus @default(PENDING)
+  mime       String
+  image      Bytes
+  reason     String?
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime       @default(now())
+
+  @@index([driverId, createdAt])
+  @@index([status, createdAt])
 }

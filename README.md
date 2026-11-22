@@ -162,3 +162,15 @@ Documents ajoutés : **carte grise** et **contrôle technique** (ce dernier doit
 
 **Identité d'exploitant** (nécessaire au justificatif de réservation et à la validation) : numéro de carte professionnelle, et soit Siret + n° REVTC du chauffeur indépendant, soit ceux de sa société. Le chauffeur les renseigne via `POST /driver/identity`.
 **Revenu minimal** : 9 € net de commission par course (`MIN_DRIVER_PAY_CENTS`), appliqué au devis et au prix proposé.
+
+## Identité du chauffeur et lutte contre le prêt de compte
+
+Prêter son compte (ou son inscription au registre des VTC) à un tiers expose le chauffeur, la société et la plateforme à de lourdes sanctions (voir `docs/EXIGENCES_REGLEMENTAIRES.md`). Le produit combine :
+- **Écran « Mon identité »** (onglet Cap) : informations d'exploitant (raison sociale, Siren/Siret, n° REVTC, carte professionnelle) et selfie. Un chauffeur rattaché à une société ne renseigne que sa carte professionnelle.
+- **Photo de référence** : le premier selfie est **validé par un humain** (comparaison avec la pièce d'identité) avant la première mise en ligne.
+- **Selfie de prise de service** : un selfie est demandé pour se mettre en ligne s'il date de plus de 12 h (`IDENTITY_CHECK_HOURS`). Les chauffeurs en ligne dont le selfie expire sont remis hors ligne (hors mission en cours). Les selfies de service sont **conservés 30 jours** (`IDENTITY_RETENTION_DAYS`) puis supprimés ; la référence est gardée tant que le compte existe.
+- **Contrôle par l'équipe** (onglet Alertes) : photos à valider, selfies récents à comparer à la référence ; un visage différent est **signalé** : le compte est suspendu pour examen, le chauffeur est prévenu.
+- `IDENTITY_CHECKS=0` désactive le contrôle (développement).
+
+**Choix assumé : pas de reconnaissance faciale automatique.** Comparer des visages par algorithme est un traitement de données biométriques (RGPD, article 9 : interdit par principe, avec exceptions étroites ; analyse d'impact obligatoire). Le contrôle repose donc sur un **humain** et sur l'effet dissuasif d'un selfie horodaté conservé. C'est plus faible qu'un contrôle automatique : un chauffeur et un complice peuvent encore se présenter l'un pour l'autre tant que personne ne compare. Pistes si le risque se confirme : fournisseur de vérification d'identité certifié (document + visage, avec consentement explicite et analyse d'impact), contrôles aléatoires supplémentaires pendant le service, liaison appareil-compte, vérification de la validité des cartes via le portail officiel.
+**Limites actuelles** : les selfies sont stockés dans la base de données (prototype) : stockage chiffré à prévoir ; la capture par la caméra de l'application a été testée sur le web (sélecteur de fichier), pas sur un téléphone ; le consentement à la photo et la politique de conservation sont à intégrer à la politique de données (`docs/POLITIQUE_DONNEES_CHAUFFEURS.md`) et à faire valider par un DPO.

@@ -9,6 +9,7 @@ import { BookingsService, cancellationFeeCents } from "./bookings.service";
 import { DISPATCH, DispatchService } from "./dispatch.service";
 import { signWebhook } from "./security";
 import { PenaltiesService } from "./penalties.service";
+import { IdentityService } from "./identity.service";
 import { RescueService } from "./rescue.service";
 import { WebhooksService } from "./webhooks.service";
 import { FlightsService } from "./flights.service";
@@ -126,7 +127,7 @@ beforeEach(async () => {
   received = [];
   hookStatus = 200;
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "DriverPenalty","RescueRequest","Notification","OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
+    'TRUNCATE "IdentityCheck","DriverPenalty","RescueRequest","Notification","OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
   );
 });
 
@@ -496,5 +497,73 @@ describe("revenu minimal par course et justificatif de réservation préalable",
     expect(checkVehicle({ ...old, collector: true }).ok).toBe(true);
     expect(checkVehicle({ ...old, collector: true, doors: 2 }).ok).toBe(false);
     process.env.VEHICLE_RULES = "0";
+  });
+});
+
+describe("vérification d'identité par selfie", () => {
+  afterEach(() => { process.env.IDENTITY_CHECKS = "0"; });
+  const on = () => { process.env.IDENTITY_CHECKS = "1"; }; // à activer APRÈS la création du chauffeur (qui se met en ligne sans selfie)
+  // Un JPEG minimal valide pour le contrôle de format (en-tête FFD8) : le contenu n'est pas analysé.
+  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(300, 7)]).toString("base64");
+
+  it("première mise en ligne : photo de référence validée par l'équipe, puis selfie à chaque prise de service", async () => {
+    const d = await mkDriver();
+    on();
+    const online = () => call("/driver/availability", { token: d.token, body: { availability: "AVAILABLE" } });
+    await call("/driver/availability", { token: d.token, body: { availability: "SUSPENDED" } });
+    expect((await online()).status).toBe(403); // aucune photo
+    expect((await online()).json.code).toBe("IDENTITY_CHECK_REQUIRED");
+
+    const ref = await call("/driver/identity/selfie", { token: d.token, body: { image: jpeg } });
+    expect(ref.json).toMatchObject({ kind: "REFERENCE", status: "PENDING" });
+    expect((await online()).json.message).toMatch(/validation/); // en attente de l'équipe
+
+    const list = await call("/admin/identity-checks?status=PENDING", { admin: true });
+    expect(list.json).toHaveLength(1);
+    expect(list.json[0].image).toMatch(/^data:image\/jpeg;base64,/);
+    // refus sans motif impossible ; avec motif, le chauffeur reprend une photo
+    expect((await call(`/admin/identity-checks/${list.json[0].id}/review`, { admin: true, body: { decision: "REJECT" } })).status).toBe(422);
+    expect((await call(`/admin/identity-checks/${list.json[0].id}/review`, { admin: true, body: { decision: "REJECT", reason: "Photo floue" } })).status).toBe(201);
+    expect((await call("/driver/identity/selfie", { token: d.token, body: { image: jpeg } })).json.kind).toBe("REFERENCE");
+    const again = (await call("/admin/identity-checks?status=PENDING", { admin: true })).json;
+    expect((await call(`/admin/identity-checks/${again[0].id}/review`, { admin: true, body: { decision: "APPROVE" } })).status).toBe(201);
+    expect((await online()).status).toBe(201);
+
+    // le selfie expire : le chauffeur est remis hors ligne par le balayage, et doit en reprendre un (cette fois c'est un selfie de service)
+    await prisma.driver.update({ where: { id: d.id }, data: { identityVerifiedAt: new Date(Date.now() - 13 * 3600_000) } });
+    await app.get(IdentityService).sweep();
+    expect((await prisma.driver.findUniqueOrThrow({ where: { id: d.id } })).availability).toBe("SUSPENDED");
+    expect((await online()).status).toBe(403);
+    expect((await call("/driver/identity/selfie", { token: d.token, body: { image: jpeg } })).json).toMatchObject({ kind: "SHIFT", status: "VALID" });
+    expect((await online()).status).toBe(201);
+    expect((await call("/driver/identity", { token: d.token })).json.selfie.mustVerify).toBe(false);
+  });
+
+  it("un selfie qui ne correspond pas à la référence suspend le compte (prêt de compte) ; refuse un fichier qui n'est pas une image", async () => {
+    const d = await mkDriver();
+    on();
+    await call("/driver/availability", { token: d.token, body: { availability: "SUSPENDED" } });
+    expect((await call("/driver/identity/selfie", { token: d.token, body: { image: Buffer.alloc(300, 1).toString("base64") } })).status).toBe(422);
+    await call("/driver/identity/selfie", { token: d.token, body: { image: jpeg } });
+    const ref = (await call("/admin/identity-checks?status=PENDING", { admin: true })).json[0];
+    await call(`/admin/identity-checks/${ref.id}/review`, { admin: true, body: { decision: "APPROVE" } });
+    await call("/driver/identity/selfie", { token: d.token, body: { image: jpeg } });
+    const shift = (await call("/admin/identity-checks", { admin: true })).json.find((x: any) => x.kind === "SHIFT");
+    expect(shift.reference).toMatch(/^data:image/); // l'équipe compare avec la référence
+    await call(`/admin/identity-checks/${shift.id}/review`, { admin: true, body: { decision: "REJECT", reason: "Visage différent" } });
+    const after = await prisma.driver.findUniqueOrThrow({ where: { id: d.id } });
+    expect(after.status).toBe("SUSPENDED");
+    expect(after.identityVerifiedAt).toBeNull();
+    expect((await prisma.notification.findMany({ where: { driverId: d.id } })).map((n) => n.type)).toContain("IDENTITY_REJECTED");
+  });
+
+  it("les selfies de prise de service sont purgés après 30 jours, pas la référence", async () => {
+    const d = await mkDriver();
+    on();
+    const mk = (kind: "REFERENCE" | "SHIFT", days: number) => prisma.identityCheck.create({ data: { driverId: d.id, kind, status: "VALID", mime: "image/jpeg", image: Buffer.from("x"), createdAt: new Date(Date.now() - days * 86400_000) } });
+    await mk("REFERENCE", 90); await mk("SHIFT", 45); await mk("SHIFT", 2);
+    await app.get(IdentityService).sweep();
+    const left = await prisma.identityCheck.findMany({ where: { driverId: d.id } });
+    expect(left.map((x) => x.kind).sort()).toEqual(["REFERENCE", "SHIFT"]);
   });
 });

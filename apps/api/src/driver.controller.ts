@@ -6,6 +6,8 @@ import { driverRideView } from "./views";
 import { driverOfferCents } from "./ladder";
 import { effectivePickup } from "./metrics";
 import { checkVehicle } from "./vehicle-rules";
+import { IdentityService } from "./identity.service";
+import { missingIdentifiers } from "./driver-docs";
 import { buildJustificatif } from "./justificatif";
 import { haversineKm } from "./zones";
 import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, DriverOtpRequestSchema, LocationUpdateSchema } from "./schemas";
@@ -25,6 +27,7 @@ export class DriverController {
     @Inject(PrismaService) private prisma: PrismaService,
     @Inject(DispatchService) private dispatch: DispatchService,
     @Inject(OtpService) private otp: OtpService,
+    @Inject(IdentityService) private identityChecks: IdentityService,
   ) {}
 
   /** Envoie un code à usage unique par SMS (réponse identique que le numéro soit connu ou non). */
@@ -73,6 +76,27 @@ export class DriverController {
     };
   }
 
+  /** Situation d'identité : champs d'exploitant, ce qui manque, et état du selfie de prise de service. */
+  @Get("identity")
+  @UseGuards(DriverGuard)
+  async identityState(@Req() req: any) {
+    const d = await this.prisma.driver.findUniqueOrThrow({ where: { id: req.driverId }, include: { company: true } });
+    return {
+      attachedToCompany: !!d.companyId, companyName: d.company?.name ?? null,
+      businessName: d.businessName, siret: d.siret, revtcNumber: d.revtcNumber, proCardNumber: d.proCardNumber,
+      missing: await missingIdentifiers(this.prisma, d.id),
+      selfie: await this.identityChecks.state(d.id),
+    };
+  }
+
+  /** Selfie de prise de service (ou photo de référence la première fois). Image JPEG/PNG en base64, 400 Ko maximum. */
+  @Post("identity/selfie")
+  @UseGuards(DriverGuard)
+  selfie(@Req() req: any, @Body() body: unknown) {
+    const b = parse(z.object({ image: z.string().min(100).max(600_000), mime: z.enum(["image/jpeg", "image/png"]).default("image/jpeg") }), body);
+    return this.identityChecks.submitSelfie(req.driverId, b.image.replace(/^data:[^,]+,/, ""), b.mime);
+  }
+
   /** Identité d'exploitant : un indépendant la renseigne lui-même ; un chauffeur rattaché à une société ne renseigne que sa carte professionnelle. */
   @Post("identity")
   @UseGuards(DriverGuard)
@@ -108,6 +132,10 @@ export class DriverController {
     const { availability } = parse(AvailabilitySchema, body);
     const d = await this.prisma.driver.findUniqueOrThrow({ where: { id: req.driverId } });
     if (d.status !== "ACTIVE") throw new HttpException("Compte non actif", 403);
+    if (availability === "AVAILABLE") {
+      const blocked = await this.identityChecks.blockReason(d.id);
+      if (blocked) throw new HttpException({ message: blocked, code: "IDENTITY_CHECK_REQUIRED" }, 403);
+    }
     await this.prisma.driver.update({ where: { id: d.id }, data: { availability } });
     return { availability };
   }

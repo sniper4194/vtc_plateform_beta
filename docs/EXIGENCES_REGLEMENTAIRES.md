@@ -14,6 +14,7 @@
 | Revenu minimal **9 € par course**, net de commission | Plancher appliqué au devis et au prix proposé (`MIN_DRIVER_PAY_CENTS`) |
 | Aucun dispositif lumineux extérieur ; vignette VTC | Non vérifiables à distance : à inscrire dans la charte chauffeur |
 | Carte professionnelle renouvelée tous les 5 ans | Date d'échéance du document `VTC_CARD` contrôlée |
+| Interdiction de prêter son inscription au registre (donc son compte) | Photo de référence validée par un humain + selfie de prise de service ; signalement et suspension si le visage diffère (voir README) |
 
 ## 2. Points que la fiche révèle et que le produit NE traite PAS encore
 1. **Garanties de revenu horaire (30 € par heure travaillée) et kilométrique (1 € par km)** : la fiche les cite sans détailler le calcul (heure travaillée = ? approche comprise ?). Notre échelle de prix peut les enfreindre sur une course longue ou lente. **À faire** : lire l'accord du 19 décembre 2023 et calculer sur le bon périmètre. L'application affiche déjà le net par heure.

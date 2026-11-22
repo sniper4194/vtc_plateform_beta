@@ -2,6 +2,7 @@ import { Body, Controller, Get, Inject, Param, Post, Query, Req, UseGuards } fro
 import { z } from "zod";
 import { parse } from "./http";
 import { PenaltiesService } from "./penalties.service";
+import { IdentityService } from "./identity.service";
 import { RescueService } from "./rescue.service";
 import { AdminGuard, AdminOnly, DriverGuard } from "./security";
 
@@ -28,7 +29,13 @@ export class RescueController {
 @Controller("admin")
 @UseGuards(AdminGuard)
 export class AdminRescueController {
-  constructor(@Inject(RescueService) private rescue: RescueService, @Inject(PenaltiesService) private penalties: PenaltiesService) {}
+  constructor(@Inject(RescueService) private rescue: RescueService, @Inject(PenaltiesService) private penalties: PenaltiesService, @Inject(IdentityService) private identity: IdentityService) {}
+
+  @Get("identity-checks") identityList(@Query("status") status?: string) { return this.identity.adminList(status); }
+  @Post("identity-checks/:id/review") @AdminOnly() identityReview(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
+    const b = parse(z.object({ decision: z.enum(["APPROVE", "REJECT"]), reason: z.string().trim().min(3).max(300).optional() }), body);
+    return this.identity.review(id, b.decision === "APPROVE", b.reason, req.admin.actor);
+  }
 
   @Get("penalties") penaltyList(@Query("driverId") driverId?: string) { return this.penalties.adminList(driverId); }
   @Post("penalties/:id/waive") @AdminOnly() waive(@Req() req: any, @Param("id") id: string, @Body() body: unknown) { return this.penalties.waive(id, parse(z.object({ reason: z.string().trim().min(3).max(300) }), body).reason, req.admin.actor); }

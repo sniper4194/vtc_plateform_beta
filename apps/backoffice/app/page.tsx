@@ -412,6 +412,13 @@ function AlertsTab() {
   const alerts = useLoad<any[]>("/admin/alerts");
   const rescues = useLoad<any[]>("/admin/rescues", 8000);
   const pens = useLoad<any[]>("/admin/penalties", 15000);
+  const ids = useLoad<any[]>("/admin/identity-checks", 15000);
+  async function reviewId(id: string, approve: boolean) {
+    let reason: string | undefined;
+    if (!approve) { reason = window.prompt("Motif du refus (visible par le chauffeur) : ex. photo floue, visage différent de la référence") ?? undefined; if (!reason) return; }
+    try { await api(`/admin/identity-checks/${id}/review`, { decision: approve ? "APPROVE" : "REJECT", reason }); } catch (e: any) { alert(e.message); }
+    ids.reload();
+  }
   async function waive(id: string) {
     const reason = window.prompt("Motif de la dérogation (accident, urgence médicale, justificatif reçu…)");
     if (!reason) return;
@@ -447,6 +454,28 @@ function AlertsTab() {
         ) : <p className="muted">Aucun appel à l'aide.</p>}
       </div>
       <div className="card" style={{ marginTop: 16 }}>
+        <h3>Vérifications d'identité (selfies)</h3>
+        <p className="muted" style={{ fontSize: 13 }}>Première photo : à comparer avec la pièce d'identité. Selfies de prise de service : à signaler si le visage diffère de la référence (le compte est alors suspendu). Conservation : 30 jours.</p>
+        {ids.error && <div className="err">{ids.error}</div>}
+        {ids.data?.length ? (
+          <table>
+            <thead><tr><th>Date</th><th>Chauffeur</th><th>Type</th><th>Selfie</th><th>Référence</th><th>État</th><th></th></tr></thead>
+            <tbody>{ids.data.map((x) => (
+              <tr key={x.id}>
+                <td>{dt(x.createdAt)}</td><td>{x.driver}</td><td>{x.kind === "REFERENCE" ? "Référence" : "Prise de service"}</td>
+                <td><img src={x.image} alt="Selfie" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, border: "2px solid #14172b" }} /></td>
+                <td>{x.reference ? <img src={x.reference} alt="Référence" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, border: "2px solid #14172b" }} /> : "—"}</td>
+                <td><span className={`chip ${x.status === "VALID" ? "ok" : x.status === "REJECTED" ? "bad" : ""}`}>{x.status === "PENDING" ? "À valider" : x.status === "VALID" ? "Valide" : `Refusé${x.reason ? ` (${x.reason})` : ""}`}</span></td>
+                <td>
+                  {x.status === "PENDING" && <button className="btn primary" onClick={() => reviewId(x.id, true)}>Valider</button>}{" "}
+                  {x.status !== "REJECTED" && <button className="btn danger" onClick={() => reviewId(x.id, false)}>{x.status === "VALID" && x.kind === "SHIFT" ? "Signaler" : "Refuser"}</button>}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        ) : <p className="muted">Aucun selfie.</p>}
+      </div>
+      <div className="card" style={{ marginTop: 16 }}>
         <h3>Pénalités chauffeurs (mission rendue ou sauveteur)</h3>
         {pens.error && <div className="err">{pens.error}</div>}
         {pens.data?.length ? (
@@ -475,6 +504,7 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("rides");
   const alerts = useLoad<any[]>("/admin/alerts", 8000);
   const rescues = useLoad<any[]>("/admin/rescues?open=1", 8000);
+  const pendingIds = useLoad<any[]>("/admin/identity-checks?status=PENDING", 8000);
   const sync = () => { setAuthed(Boolean(getToken())); setUserState(getUser()); };
   useEffect(() => {
     sync(); setReady(true);
@@ -489,7 +519,7 @@ export default function Home() {
     ["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"],
     ...(isAdmin ? ([["companies", "Sociétés"], ["partners", "Partenaires"], ["team", "Équipe"]] as [Tab, string][]) : []),
   ];
-  const nAlerts = (alerts.data?.length ?? 0) + (rescues.data?.length ?? 0);
+  const nAlerts = (alerts.data?.length ?? 0) + (rescues.data?.length ?? 0) + (pendingIds.data?.length ?? 0);
   return (
     <>
       <header>

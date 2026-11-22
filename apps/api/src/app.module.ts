@@ -17,6 +17,7 @@ import { PrismaService } from "./prisma";
 import { QuotesService } from "./quotes.service";
 import { AdminRescueController, RescueController } from "./rescue.controller";
 import { PenaltiesService } from "./penalties.service";
+import { IdentityService } from "./identity.service";
 import { RescueService } from "./rescue.service";
 import { RoutingService } from "./routing";
 import { AdminGuard, CompanyGuard, DriverGuard, PartnerGuard } from "./security";
@@ -33,6 +34,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
     @Inject(WebhooksService) private webhooks: WebhooksService,
     @Inject(FlightsService) private flights: FlightsService,
     @Inject(RescueService) private rescue: RescueService,
+    @Inject(IdentityService) private identity: IdentityService,
   ) {}
   onModuleInit() {
     if (process.env.DISABLE_WORKERS === "1") return;
@@ -42,6 +44,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
       try {
         await this.dispatch.sweep();
         await this.rescue.sweep();
+        await this.identity.sweep();
         await this.webhooks.deliverDue();
         await this.flights.poll();
       } catch (e: any) {
@@ -58,6 +61,6 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 
 @Module({
   controllers: [HealthController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, CompanyController, AuthController],
-  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
+  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, IdentityService, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
 })
 export class AppModule {}

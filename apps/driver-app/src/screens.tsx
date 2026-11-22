@@ -1,3 +1,4 @@
+import { IdentityScreen } from "./identity";
 import { CostNote, RescueCard, RescuePicker } from "./rescue";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Text, View } from "react-native";
@@ -40,13 +41,15 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
   const me = useFetch<any>("/driver/me", 15000);
   const home = useFetch<any>("/driver/home");
   const [busy, setBusy] = useState(false);
+  const [showId, setShowId] = useState(false);
+  const identity = useFetch<any>("/driver/identity", 20000);
   const online = me.data?.availability === "AVAILABLE";
   const active = me.data?.status === "ACTIVE";
   async function toggle() {
     if (!active) return notify("Votre compte n'est pas encore validé");
     setBusy(true);
     try { await api("/driver/availability", { availability: online ? "SUSPENDED" : "AVAILABLE" }); await me.reload(); notify(online ? "Vous êtes hors ligne" : "Vous êtes en ligne", "ok"); }
-    catch (e: any) { notify(e.message); } finally { setBusy(false); }
+    catch (e: any) { notify(e.message); if (e.code === "IDENTITY_CHECK_REQUIRED") setShowId(true); } finally { setBusy(false); }
   }
   if (me.loading) return <ActivityIndicator color={c.onSky} style={{ marginTop: 80 }} />;
   const v = me.data?.vehicles?.[0];
@@ -82,6 +85,14 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
         <Cond size={14}>Gains de la quinzaine · net</Cond>
         <Display size={58} color={c.ink} shadow={c.red}>{home.data ? eurShort(home.data.fortnightEarningsCents) : "—"}</Display>
       </Card>
+
+      <Card color={identity.data && (identity.data.missing.length > 0 || identity.data.selfie?.mustVerify) ? c.yel : c.cream} onPress={() => setShowId(true)}>
+        <Slab size={17} color={c.ink} shadow={null}>Mon identité</Slab>
+        <Cond size={12} color={c.muted}>
+          {!identity.data ? "…" : identity.data.selfie?.mustVerify ? "Selfie de prise de service à faire" : identity.data.missing.length > 0 ? `À compléter : ${identity.data.missing.join(", ")}` : "À jour"} →
+        </Cond>
+      </Card>
+      {showId && <IdentityScreen notify={notify} onClose={() => setShowId(false)} onChanged={() => { identity.reload(); me.reload(); }} />}
 
       <RescueCard notify={notify} onAccepted={openMission} />
 

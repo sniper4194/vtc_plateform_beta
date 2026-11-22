@@ -22,7 +22,7 @@ export async function saveToken(t: string | null) {
 }
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(message: string, public status: number, public code?: string) {
     super(message);
   }
 }
@@ -35,6 +35,6 @@ export async function api<T = any>(path: string, body?: unknown): Promise<T> {
   });
   const text = await res.text();
   const json = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new ApiError(json?.message ?? `Erreur ${res.status}`, res.status);
+  if (!res.ok) throw new ApiError(json?.message ?? `Erreur ${res.status}`, res.status, json?.code);
   return json as T;
 }

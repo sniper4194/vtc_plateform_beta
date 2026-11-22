@@ -28,9 +28,9 @@ Contact protection des données : `[adresse e-mail dédiée]` · Délégué à l
 | **Pénalités, sanctions, appels à l'aide** (qui a demandé, motif, issue) | Appliquer les règles du contrat ; tracer les décisions | Exécution du contrat |
 | Messages envoyés (application, e-mail, SMS) | Confirmations, annulations, alertes | Exécution du contrat |
 | Journaux techniques (connexions, adresse IP, journal d'audit) | Sécurité, prévention de la fraude, preuve | Intérêt légitime ; obligation légale |
-| Photo de profil `[si elle est ajoutée]` | Permettre au passager de reconnaître son chauffeur | **Consentement** |
+| **Selfie de vérification d'identité** : photo de référence (conservée tant que le compte existe) et selfies de prise de service (supprimés après 30 jours) | Empêcher le prêt de compte, sécurité des passagers, preuve en cas de litige | **Consentement** et intérêt légitime `[à faire valider]` ; **aucune reconnaissance faciale automatique** : la comparaison est faite par un humain |
 
-Nous ne collectons **pas** de données sensibles au sens strict. `[Confirmer : aucune donnée de santé n'est demandée]` : le motif d'un appel à l'aide (« malaise », par exemple) pourrait en révéler une ; il doit donc rester un choix guidé et non un champ libre, ou être traité avec précaution.
+Nous ne traitons **pas** les photos par reconnaissance faciale (donnée biométrique, article 9 du RGPD) : un membre de l'équipe les compare à la main. `[À confirmer avec un DPO.]` Nous ne collectons pas d'autres données sensibles au sens strict. `[Confirmer : aucune donnée de santé n'est demandée]` : le motif d'un appel à l'aide (« malaise », par exemple) pourrait en révéler une ; il doit donc rester un choix guidé et non un champ libre, ou être traité avec précaution.
 
 ## 4. Ce que voient les autres
 
@@ -63,6 +63,8 @@ Nous ne vendons pas vos données.
 | Position géographique | `[proposition : détaillée quelques semaines, puis agrégée ou supprimée]` |
 | Missions, relevés, pièces comptables | Durées légales comptables et fiscales `[à confirmer]` |
 | Pénalités et sanctions | Fenêtre de récidive (90 jours), puis conservation limitée à la preuve `[à fixer]` |
+| Selfies de prise de service | 30 jours |
+| Photo de référence | Durée du compte, puis suppression |
 | Journaux techniques | `[proposition : 12 mois]` |
 
 ## 8. Vos droits
@@ -91,7 +93,7 @@ Connexion par code SMS à usage unique, mots de passe hachés, clés d'accès ja
 1. **Aucune purge automatique** des données : à construire (comptes inactifs, candidatures abandonnées, positions).
 2. **Aucun consentement ni acceptation enregistrés** (CGU, politique de données, clause de pénalité) : `contractSignedAt` existe mais n'est pas alimenté par un parcours d'acceptation.
 3. **Position GPS** : on garde seulement la dernière, c'est bien, mais il faut vérifier qu'elle n'est pas journalisée ailleurs.
-4. **Documents d'identité** : le stockage sécurisé et chiffré n'existe pas encore (on enregistre une référence).
+4. **Documents d'identité et selfies** : le stockage sécurisé et chiffré n'existe pas encore (les documents sont des références ; les selfies sont dans la base de données, en prototype).
 5. **Suspensions automatiques** : voir section 5 (article 22).
 6. **Export et suppression à la demande** (accès, portabilité, effacement) : aucun outil ; aujourd'hui ce serait manuel dans la base.
 7. **Masquage du numéro du chauffeur** auprès du passager : à vérifier.
