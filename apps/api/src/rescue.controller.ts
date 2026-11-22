@@ -31,6 +31,8 @@ export class RescueController {
 export class AdminRescueController {
   constructor(@Inject(RescueService) private rescue: RescueService, @Inject(PenaltiesService) private penalties: PenaltiesService, @Inject(IdentityService) private identity: IdentityService) {}
 
+  /** Demande immédiate d'un selfie à un chauffeur (soupçon, contrôle ciblé). */
+  @Post("drivers/:id/identity-spot") @AdminOnly() async identitySpot(@Req() req: any, @Param("id") id: string) { const c = await this.identity.requestSpot(id, req.admin.actor); return { id: c.id, dueAt: c.dueAt }; }
   @Get("identity-checks") identityList(@Query("status") status?: string) { return this.identity.adminList(status); }
   @Post("identity-checks/:id/review") @AdminOnly() identityReview(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
     const b = parse(z.object({ decision: z.enum(["APPROVE", "REJECT"]), reason: z.string().trim().min(3).max(300).optional() }), body);

@@ -567,3 +567,95 @@ describe("vérification d'identité par selfie", () => {
     expect(left.map((x) => x.kind).sort()).toEqual(["REFERENCE", "SHIFT"]);
   });
 });
+
+describe("vérifications d'identité aléatoires en cours de service", () => {
+  afterEach(() => { process.env.IDENTITY_CHECKS = "0"; });
+  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(300, 7)]).toString("base64");
+  /** Chauffeur en ligne, référence validée, dernier selfie vieux de 3 h. Le contrôle est activé APRÈS sa création. */
+  async function onDutyDriver(enable = true) {
+    const d = await mkDriver();
+    await prisma.identityCheck.create({ data: { driverId: d.id, kind: "REFERENCE", status: "VALID", mime: "image/jpeg", image: Buffer.from("ref") } });
+    await prisma.driver.update({ where: { id: d.id }, data: { identityVerifiedAt: new Date(Date.now() - 3 * 3600_000) } });
+    if (enable) process.env.IDENTITY_CHECKS = "1";
+    return d;
+  }
+  const svc = () => app.get(IdentityService);
+
+  it("le tirage sollicite un chauffeur en service, une seule fois, et sa réponse valide la vérification", async () => {
+    const d = await onDutyDriver();
+    expect(await svc().spotSweep(new Date(), () => 0.999)).toBe(0); // tirage défavorable : personne
+    expect(await svc().spotSweep(new Date(), () => 0)).toBe(1);
+    expect(await svc().spotSweep(new Date(), () => 0)).toBe(0); // déjà une demande ouverte
+    const st = (await call("/driver/identity", { token: d.token })).json.selfie;
+    expect(st.spotCheck.id).toBeTruthy();
+    expect(st.spotCheck.deferred).toBe(false);
+    expect((await prisma.notification.findMany({ where: { driverId: d.id } })).map((n) => n.type)).toContain("IDENTITY_SPOT");
+
+    expect((await call("/driver/identity/selfie", { token: d.token, body: { image: jpeg } })).json).toMatchObject({ kind: "SPOT", status: "VALID" });
+    expect((await call("/driver/identity", { token: d.token })).json.selfie.spotCheck).toBeNull();
+    const row = await prisma.identityCheck.findFirstOrThrow({ where: { kind: "SPOT" } });
+    expect(row.status).toBe("VALID");
+    expect(row.image).not.toBeNull();
+    expect(row.requestedBy).toBe("system");
+    // l'écart minimal avec le dernier selfie évite une nouvelle sollicitation immédiate
+    expect(await svc().spotSweep(new Date(), () => 0)).toBe(0);
+  });
+
+  it("jamais pour un chauffeur hors service, ni pendant une course en cours", async () => {
+    const p = await mkPartner();
+    const off = await onDutyDriver(false);
+    await prisma.driver.update({ where: { id: off.id }, data: { availability: "SUSPENDED" } });
+    const busy = await onDutyDriver(false);
+    const { ride } = await assigned(busy, p);
+    process.env.IDENTITY_CHECKS = "1";
+    await prisma.ride.update({ where: { id: ride.id }, data: { status: "IN_PROGRESS" } });
+    expect(await svc().spotSweep(new Date(), () => 0)).toBe(0);
+    // et une demande ouverte avant le départ de la course est suspendue, pas pénalisée
+    await prisma.ride.update({ where: { id: ride.id }, data: { status: "ASSIGNED" } });
+    expect(await svc().spotSweep(new Date(), () => 0)).toBe(1); // en mission assignée : sollicité
+    await prisma.ride.update({ where: { id: ride.id }, data: { status: "IN_PROGRESS" } });
+    expect((await call("/driver/identity", { token: busy.token })).json.selfie.spotCheck.deferred).toBe(true);
+    await svc().expireSpots(new Date(Date.now() + 3600_000));
+    const open = await prisma.identityCheck.findFirstOrThrow({ where: { driverId: busy.id, kind: "SPOT" } });
+    expect(open.status).toBe("REQUESTED"); // reportée
+    expect(open.dueAt!.getTime()).toBeGreaterThan(Date.now() + 3600_000);
+  });
+
+  it("sans réponse à l'échéance : vérification manquée, chauffeur hors ligne, comptage visible de l'équipe", async () => {
+    const d = await onDutyDriver();
+    await svc().spotSweep(new Date(), () => 0);
+    await svc().expireSpots(new Date()); // avant l'échéance : rien
+    expect((await prisma.driver.findUniqueOrThrow({ where: { id: d.id } })).availability).toBe("AVAILABLE");
+    await svc().expireSpots(new Date(Date.now() + 11 * 60_000));
+    const after = await prisma.driver.findUniqueOrThrow({ where: { id: d.id } });
+    expect(after.availability).toBe("SUSPENDED");
+    expect(after.identityVerifiedAt).toBeNull();
+    expect((await prisma.identityCheck.findFirstOrThrow({ where: { kind: "SPOT" } })).status).toBe("MISSED");
+    expect((await call("/admin/identity-checks", { admin: true })).json[0]).toMatchObject({ status: "MISSED", missedLast30Days: 1 });
+    expect((await prisma.notification.findMany({ where: { driverId: d.id } })).map((n) => n.type)).toContain("IDENTITY_MISSED");
+    // le chauffeur reprend un selfie normal pour se remettre en ligne
+    expect((await call("/driver/identity/selfie", { token: d.token, body: { image: jpeg } })).json.kind).toBe("SHIFT");
+  });
+
+  it("l'équipe peut demander une vérification immédiate ; un visage différent suspend le compte", async () => {
+    const d = await onDutyDriver();
+    const r = await call(`/admin/drivers/${d.id}/identity-spot`, { admin: true, body: {} });
+    expect(r.status).toBe(201);
+    expect((await call(`/admin/drivers/${d.id}/identity-spot`, { admin: true, body: {} })).status).toBe(409);
+    await call("/driver/identity/selfie", { token: d.token, body: { image: jpeg } });
+    const spot = (await call("/admin/identity-checks", { admin: true })).json.find((x: any) => x.kind === "SPOT");
+    expect(spot.reference).toMatch(/^data:image/);
+    await call(`/admin/identity-checks/${spot.id}/review`, { admin: true, body: { decision: "REJECT", reason: "Visage différent" } });
+    expect((await prisma.driver.findUniqueOrThrow({ where: { id: d.id } })).status).toBe("SUSPENDED");
+  });
+
+  it("désactivable, et la probabilité par passage reste faible", async () => {
+    await onDutyDriver();
+    process.env.IDENTITY_SPOT = "0";
+    expect(await svc().spotSweep(new Date(), () => 0)).toBe(0);
+    delete process.env.IDENTITY_SPOT;
+    // moyenne de 240 min, passage toutes les 5 s : ~0,03 % par passage
+    const p = 1 - Math.exp(-5 / (240 * 60));
+    expect(p).toBeLessThan(0.001);
+  });
+});

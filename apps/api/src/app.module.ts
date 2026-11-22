@@ -45,6 +45,8 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
         await this.dispatch.sweep();
         await this.rescue.sweep();
         await this.identity.sweep();
+        await this.identity.spotSweep();
+        await this.identity.expireSpots();
         await this.webhooks.deliverDue();
         await this.flights.poll();
       } catch (e: any) {

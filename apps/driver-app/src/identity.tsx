@@ -19,6 +19,44 @@ function Field({ label, value, onChange, placeholder, keyboard }: { label: strin
   );
 }
 
+/** Ouvre la caméra frontale, envoie le selfie. Renvoie le résultat de l'API, ou null si annulé. */
+export async function takeSelfie(notify: Notify): Promise<any | null> {
+  const perm = await ImagePicker.requestCameraPermissionsAsync();
+  if (!perm.granted) { notify("L'accès à la caméra est nécessaire pour le selfie"); return null; }
+  const r = await ImagePicker.launchCameraAsync({ cameraType: ImagePicker.CameraType.front, quality: 0.3, base64: true, allowsEditing: false, mediaTypes: ["images"] });
+  if (r.canceled || !r.assets?.[0]?.base64) return null;
+  return api("/driver/identity/selfie", { image: r.assets[0].base64, mime: "image/jpeg" });
+}
+
+/** Vérification demandée par la plateforme en cours de service : fenêtre qui s'impose, avec le temps restant. Jamais pendant une course en cours. */
+export function SpotPrompt({ notify }: { notify: Notify }) {
+  const st = useFetch<any>("/driver/identity", 10000);
+  const [now, setNow] = useState(Date.now());
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const sp = st.data?.selfie?.spotCheck;
+  if (!sp || sp.deferred) return null;
+  const left = Math.max(0, Math.round((new Date(sp.dueAt).getTime() - now) / 1000));
+  async function go() {
+    setBusy(true);
+    try { const res = await takeSelfie(notify); if (res) { notify("Merci, vérification validée", "ok"); await st.reload(); } }
+    catch (e: any) { notify(e.message); } finally { setBusy(false); }
+  }
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={() => {}}>
+      <View style={{ flex: 1, backgroundColor: "rgba(11,42,74,0.7)", justifyContent: "center", padding: 24 }}>
+        <Card color={c.yel}>
+          <Display size={30} color={c.ink} shadow={c.red}>Vérification rapide</Display>
+          <Slab size={16} color={c.ink} shadow={null}>Un selfie pour confirmer que c'est bien vous au volant.</Slab>
+          <Cond size={13} color={c.muted}>Temps restant : {Math.floor(left / 60)} min {String(left % 60).padStart(2, "0")} s</Cond>
+          <Cond size={12} color={c.muted}>Sans réponse, vous serez remis hors ligne.</Cond>
+          <View style={{ marginTop: 12 }}><Btn label={busy ? "Envoi…" : "Prendre un selfie"} color={c.blue} text={c.cream} onPress={go} disabled={busy} /></View>
+        </Card>
+      </View>
+    </Modal>
+  );
+}
+
 /** Mon identité : informations d'exploitant (justificatif de réservation, validation) et selfie de prise de service. */
 export function IdentityScreen({ onClose, notify, onChanged }: { onClose: () => void; notify: Notify; onChanged?: () => void }) {
   const st = useFetch<any>("/driver/identity", 15000);
@@ -41,11 +79,8 @@ export function IdentityScreen({ onClose, notify, onChanged }: { onClose: () => 
   async function selfie() {
     setBusy(true);
     try {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) { notify("L'accès à la caméra est nécessaire pour le selfie"); return; }
-      const r = await ImagePicker.launchCameraAsync({ cameraType: ImagePicker.CameraType.front, quality: 0.3, base64: true, allowsEditing: false, mediaTypes: ["images"] });
-      if (r.canceled || !r.assets?.[0]?.base64) return;
-      const res = await api("/driver/identity/selfie", { image: r.assets[0].base64, mime: "image/jpeg" });
+      const res = await takeSelfie(notify);
+      if (!res) return;
       notify(res.kind === "REFERENCE" ? "Photo envoyée : l'équipe la valide" : "Selfie validé : bonne route !", "ok");
       await st.reload(); onChanged?.();
     } catch (e: any) { notify(e.message); } finally { setBusy(false); }

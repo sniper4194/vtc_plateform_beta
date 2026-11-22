@@ -495,12 +495,15 @@ enum VehicleFuel {
 enum IdentityKind {
   REFERENCE
   SHIFT
+  SPOT // vérification aléatoire en cours de service
 }
 
 enum IdentityStatus {
   PENDING
   VALID
   REJECTED
+  REQUESTED // vérification demandée, selfie pas encore reçu
+  MISSED // pas de réponse avant l'échéance
 }
 
 /// Selfie du chauffeur : le premier (REFERENCE) est validé par un humain en le comparant à la pièce d'identité ; les suivants (SHIFT) sont conservés 30 jours
@@ -511,8 +514,11 @@ model IdentityCheck {
   driver     Driver         @relation(fields: [driverId], references: [id])
   kind       IdentityKind
   status     IdentityStatus @default(PENDING)
-  mime       String
-  image      Bytes
+  mime       String?
+  image      Bytes?
+  dueAt      DateTime? // échéance d'une vérification demandée
+  answeredAt DateTime?
+  requestedBy String? // « system » (tirage aléatoire) ou l'administrateur
   reason     String?
   reviewedBy String?
   reviewedAt DateTime?

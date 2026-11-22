@@ -211,6 +211,7 @@ function Drivers() {
             </div>
             {d.status !== "ACTIVE" && <button className="btn primary" onClick={() => act(`/admin/drivers/${d.id}/approve`)}>Valider le chauffeur</button>}
             {d.status === "ACTIVE" && <button className="btn danger" onClick={() => act(`/admin/drivers/${d.id}/suspend`)}>Suspendre</button>}
+            {d.status === "ACTIVE" && <button className="btn" style={{ marginLeft: 8 }} onClick={() => act(`/admin/drivers/${d.id}/identity-spot`)}>Demander un selfie</button>}
             {d.status === "ACTIVE" && (d.rescueRevokedAt
               ? <button className="btn" style={{ marginLeft: 8 }} onClick={() => act(`/admin/drivers/${d.id}/rescue-restore`)}>Rétablir le statut sauveteur</button>
               : d.rescueOptIn && <button className="btn" style={{ marginLeft: 8 }} onClick={() => act(`/admin/drivers/${d.id}/rescue-revoke`)}>Retirer le statut sauveteur</button>)}
@@ -462,13 +463,13 @@ function AlertsTab() {
             <thead><tr><th>Date</th><th>Chauffeur</th><th>Type</th><th>Selfie</th><th>Référence</th><th>État</th><th></th></tr></thead>
             <tbody>{ids.data.map((x) => (
               <tr key={x.id}>
-                <td>{dt(x.createdAt)}</td><td>{x.driver}</td><td>{x.kind === "REFERENCE" ? "Référence" : "Prise de service"}</td>
-                <td><img src={x.image} alt="Selfie" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, border: "2px solid #14172b" }} /></td>
+                <td>{dt(x.createdAt)}</td><td>{x.driver}</td><td>{x.kind === "REFERENCE" ? "Référence" : x.kind === "SPOT" ? "Vérification aléatoire" : "Prise de service"}</td>
+                <td>{x.image ? <img src={x.image} alt="Selfie" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, border: "2px solid #14172b" }} /> : "—"}</td>
                 <td>{x.reference ? <img src={x.reference} alt="Référence" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, border: "2px solid #14172b" }} /> : "—"}</td>
-                <td><span className={`chip ${x.status === "VALID" ? "ok" : x.status === "REJECTED" ? "bad" : ""}`}>{x.status === "PENDING" ? "À valider" : x.status === "VALID" ? "Valide" : `Refusé${x.reason ? ` (${x.reason})` : ""}`}</span></td>
+                <td><span className={`chip ${x.status === "VALID" ? "ok" : x.status === "REJECTED" || x.status === "MISSED" ? "bad" : ""}`}>{x.status === "PENDING" ? "À valider" : x.status === "VALID" ? "Valide" : x.status === "REQUESTED" ? `Demandé (avant ${dt(x.dueAt)})` : x.status === "MISSED" ? `Sans réponse${x.missedLast30Days > 1 ? ` · ${x.missedLast30Days} en 30 j` : ""}` : `Refusé${x.reason ? ` (${x.reason})` : ""}`}</span></td>
                 <td>
                   {x.status === "PENDING" && <button className="btn primary" onClick={() => reviewId(x.id, true)}>Valider</button>}{" "}
-                  {x.status !== "REJECTED" && <button className="btn danger" onClick={() => reviewId(x.id, false)}>{x.status === "VALID" && x.kind === "SHIFT" ? "Signaler" : "Refuser"}</button>}
+                  {(x.status === "PENDING" || (x.status === "VALID" && x.kind !== "REFERENCE")) && <button className="btn danger" onClick={() => reviewId(x.id, false)}>{x.status === "VALID" ? "Signaler" : "Refuser"}</button>}
                 </td>
               </tr>
             ))}</tbody>

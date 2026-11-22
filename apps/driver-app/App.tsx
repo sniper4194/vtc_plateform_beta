@@ -8,6 +8,7 @@ import { RozhaOne_400Regular } from "@expo-google-fonts/rozha-one";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, TextInput, View } from "react-native";
 import { api, loadToken, saveToken } from "./src/api";
+import { SpotPrompt } from "./src/identity";
 import { MissionScreen } from "./src/mission";
 import { Agenda, Cap, Messages, Radar } from "./src/screens";
 import { BRAND, c, font } from "./src/theme";
@@ -126,6 +127,7 @@ export default function App() {
         <StatusBar style="dark" />
         <Messages onClose={() => setShowMessages(false)} notify={toast.show} openMission={setMissionId} />
         {toast.node}
+        <SpotPrompt notify={toast.show} />
       </SafeAreaView>
     );
   }
@@ -135,6 +137,7 @@ export default function App() {
         <StatusBar style="light" />
         <MissionScreen rideId={missionId} onClose={() => setMissionId(null)} notify={toast.show} />
         {toast.node}
+        <SpotPrompt notify={toast.show} />
       </SafeAreaView>
     );
   }
@@ -146,6 +149,7 @@ export default function App() {
         {tab === "cap" && <Cap goRadar={() => setTab("radar")} onQuit={async () => { await saveToken(null); setAuthed(false); }} notify={toast.show} openMission={setMissionId} openMessages={() => setShowMessages(true)} />}
         {tab === "agenda" && <Agenda notify={toast.show} openMission={setMissionId} />}
         {toast.node}
+        <SpotPrompt notify={toast.show} />
       </View>
       <View style={{ flexDirection: "row", backgroundColor: c.cream, borderTopWidth: 3, borderColor: c.ink, paddingVertical: 8 }}>
         {TABS.map((t) => (
