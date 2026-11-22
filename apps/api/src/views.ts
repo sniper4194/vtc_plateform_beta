@@ -34,14 +34,16 @@ export function bookingView(r: RideFull) {
     flightNumber: r.booking.flightNumber,
     total: euros(r.priceCents),
     currency: "EUR",
+    // Lien de suivi à transmettre au voyageur (page publique, sans compte) ; null pour les anciennes réservations.
+    trackingUrl: r.booking.trackingToken ? `${(process.env.TRACKING_BASE_URL ?? "http://localhost:3002").replace(/\/$/, "")}/suivi/${r.booking.trackingToken}` : null,
     driver: r.driver
       ? {
           firstName: r.driver.firstName,
           phone: r.driver.phone,
           vehicle: r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : null,
           plate: r.vehicle?.plate ?? null,
-          // Photo du chauffeur, montrée au voyageur pendant sa course seulement (GET avec la clé du partenaire ; 404 tant qu'aucune photo n'est validée).
-          photoUrl: `/v1/bookings/${r.booking.id}/driver-photo`,
+          // Photo du chauffeur, seulement s'il y a consenti, montrée au voyageur pendant sa course (GET avec la clé du partenaire ; 404 tant qu'aucune photo n'est validée).
+          photoUrl: r.driver.photoConsentAt ? `/v1/bookings/${r.booking.id}/driver-photo` : null,
         }
       : null,
   };

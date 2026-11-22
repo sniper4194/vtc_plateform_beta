@@ -175,6 +175,10 @@ components:
         status:
           type: string
           enum: [CONFIRMED, DISPATCHING, ASSIGNED, EN_ROUTE, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED_BY_CLIENT, CANCELLED_BY_PARTNER, NO_SHOW, DISPUTED, REFUNDED]
+        trackingUrl:
+          type: string
+          nullable: true
+          description: "Lien de suivi à transmettre au voyageur (SMS, e-mail, application) : page publique sans compte, statut de la course, chauffeur, véhicule, vol. Le jeton est secret : à ne pas publier."
         driver:
           nullable: true
           type: object
@@ -183,7 +187,7 @@ components:
             phone: { type: string }
             vehicle: { type: string }
             plate: { type: string }
-            photoUrl: { type: string, description: "Chemin de la photo du chauffeur (GET avec votre clé API ; image JPEG/PNG). Disponible de l'attribution à la fin de la course ; 404 sinon ou si aucune photo n'est validée." }
+            photoUrl: { type: string, nullable: true, description: "Chemin de la photo du chauffeur (GET avec votre clé API ; image JPEG/PNG). Présent seulement si le chauffeur y a consenti ; disponible de l'attribution à la fin de la course ; 404 sinon ou si la photo n'est pas validée." }
         pickupAt: { type: string, format: date-time, description: "Heure demandée" }
         effectivePickupAt: { type: string, format: date-time, description: "Heure demandée + retard de vol" }
         signText: { type: string }

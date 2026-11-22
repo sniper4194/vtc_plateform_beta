@@ -92,6 +92,15 @@ export function IdentityScreen({ onClose, notify, onChanged }: { onClose: () => 
     } catch (e: any) { notify(e.message); } finally { setBusy(false); }
   }
 
+  async function consent(accept: boolean) {
+    setBusy(true);
+    try {
+      await api("/driver/identity/photo-consent", { accept });
+      notify(accept ? "Merci : votre photo sera montrée au client pendant la course" : "Accord retiré : votre photo n'est plus montrée", "ok");
+      await st.reload();
+    } catch (e: any) { notify(e.message); } finally { setBusy(false); }
+  }
+
   const s = d?.selfie;
   const selfieLine = !s ? "…"
     : s.referenceStatus === "NONE" ? "Aucune photo : prenez un selfie, de face, visage découvert."
@@ -110,9 +119,21 @@ export function IdentityScreen({ onClose, notify, onChanged }: { onClose: () => 
             <Avatar photo={d?.photo} size={96} />
             <Slab size={17} color={c.ink} shadow={null}>Ma photo et selfie de prise de service</Slab>
             <Cond size={12} color={c.muted}>{selfieLine}</Cond>
-            <Cond size={12} color={c.muted}>Une fois validée, votre photo est montrée au client pendant sa course (de l'attribution à l'arrivée) pour qu'il vous reconnaisse. Elle n'est plus accessible ensuite.</Cond>
             <Cond size={12} color={c.muted}>Il protège votre compte : personne d'autre ne peut rouler à votre place.</Cond>
             <View style={{ marginTop: 10 }}><Btn label={s?.referenceStatus === "VALID" ? "Prendre un selfie" : "Prendre ma photo"} color={c.blue} text={c.cream} onPress={selfie} disabled={busy} /></View>
+          </Card>
+
+          <Card color={d && !d.photoConsent?.given ? c.yel : c.cream}>
+            <Slab size={17} color={c.ink} shadow={null}>Montrer ma photo au client</Slab>
+            <Cond size={12} color={c.muted}>
+              {d?.photoConsent?.given
+                ? "Vous avez accepté : votre photo, votre prénom, votre véhicule et sa plaque sont montrés au client, de l'attribution de la course à sa fin, pour qu'il vous reconnaisse. Rien d'autre."
+                : "C'est facultatif. Si vous acceptez, votre photo validée est montrée au client, avec votre prénom, votre véhicule et sa plaque, de l'attribution de la course à sa fin. Jamais votre téléphone ni votre nom de famille."}
+            </Cond>
+            <Cond size={12} color={c.muted}>Vous pouvez changer d'avis à tout moment : la photo disparaît aussitôt de la page du client. Refuser n'a aucune conséquence sur vos courses.</Cond>
+            <View style={{ marginTop: 10 }}>
+              <Btn label={d?.photoConsent?.given ? "Retirer mon accord" : "J'accepte"} color={d?.photoConsent?.given ? c.cream : c.blue} text={d?.photoConsent?.given ? c.ink : c.cream} onPress={() => consent(!d?.photoConsent?.given)} disabled={busy || !d} />
+            </View>
           </Card>
 
           <Card>

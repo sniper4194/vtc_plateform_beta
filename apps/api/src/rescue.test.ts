@@ -557,26 +557,54 @@ describe("vérification d'identité par selfie", () => {
     expect((await call("/driver/identity", { token: d.token })).json.photo.status).toBe("VALID");
   });
 
-  it("le client voit la photo du chauffeur pendant sa course seulement, et seulement si elle est validée", async () => {
+  it("le voyageur voit la photo du chauffeur seulement si le chauffeur y a consenti, que la photo est validée et que la course est en cours", async () => {
     const d = await mkDriver();
     const p = await mkPartner(false);
     const other = await mkPartner(false);
     const { bookingId, ride } = await assigned(d, p);
     const get = (key: string) => fetch(`${base}/v1/bookings/${bookingId}/driver-photo`, { headers: { authorization: `Bearer ${key}` } });
-    const view = await call(`/v1/bookings/${bookingId}`, { token: p.apiKey });
-    expect(view.json.driver.photoUrl).toBe(`/v1/bookings/${bookingId}/driver-photo`);
-    expect((await get(p.apiKey)).status).toBe(404); // aucune photo
+    const view = (await call(`/v1/bookings/${bookingId}`, { token: p.apiKey })).json;
+    expect(view.driver.photoUrl).toBeNull(); // pas de consentement
+    expect(view.trackingUrl).toMatch(/\/suivi\/[A-Za-z0-9_-]{20,}$/);
+    const track = () => fetch(`${base}/track/${view.trackingUrl.split("/suivi/")[1]}`).then((r) => r.json());
+    const trackPhoto = () => fetch(`${base}/track/${view.trackingUrl.split("/suivi/")[1]}/photo`);
+
     await call("/driver/identity/selfie", { token: d.token, body: { image: jpeg } });
-    expect((await get(p.apiKey)).status).toBe(404); // photo non validée
     const pending = (await call("/admin/identity-checks?status=PENDING", { admin: true })).json;
     await call(`/admin/identity-checks/${pending[0].id}/review`, { admin: true, body: { decision: "APPROVE" } });
+    expect((await get(p.apiKey)).status).toBe(404); // photo validée mais aucun consentement
+    expect((await trackPhoto()).status).toBe(404);
+    expect((await track()).driver.photoUrl).toBeNull();
+
+    expect((await call("/driver/identity", { token: d.token })).json.photoConsent.given).toBe(false);
+    expect((await call("/driver/identity/photo-consent", { token: d.token, body: { accept: true } })).json.given).toBe(true);
+    expect((await call("/driver/identity", { token: d.token })).json.photoConsent.given).toBe(true);
+    expect((await call(`/v1/bookings/${bookingId}`, { token: p.apiKey })).json.driver.photoUrl).toBe(`/v1/bookings/${bookingId}/driver-photo`);
     const ok = await get(p.apiKey);
     expect(ok.status).toBe(200);
     expect(ok.headers.get("content-type")).toBe("image/jpeg");
     expect(Buffer.from(await ok.arrayBuffer()).equals(Buffer.from(jpeg, "base64"))).toBe(true);
     expect((await get(other.apiKey)).status).toBe(404); // un autre partenaire ne voit rien
+    const t = await track();
+    expect(t.driver).toMatchObject({ firstName: expect.stringMatching(/^Chauffeur/), plate: expect.any(String), photoUrl: expect.stringContaining("/photo") });
+    expect(JSON.stringify(t)).not.toContain(d.phone); // jamais le téléphone du chauffeur
+    expect((await trackPhoto()).status).toBe(200);
+
+    // retrait du consentement : la photo disparaît aussitôt
+    await call("/driver/identity/photo-consent", { token: d.token, body: { accept: false } });
+    expect((await get(p.apiKey)).status).toBe(404);
+    expect((await trackPhoto()).status).toBe(404);
+    expect((await track()).driver.photoUrl).toBeNull();
+    expect((await prisma.auditLog.findMany({ where: { entity: "Driver", entityId: d.id, action: { startsWith: "photo." } } })).map((a) => a.action).sort()).toEqual(["photo.consent", "photo.consent_withdrawn"]);
+
+    // course terminée : plus de chauffeur ni de photo sur la page de suivi
+    await call("/driver/identity/photo-consent", { token: d.token, body: { accept: true } });
     await prisma.ride.update({ where: { id: ride.id }, data: { status: "COMPLETED" } });
-    expect((await get(p.apiKey)).status).toBe(404); // course terminée
+    expect((await get(p.apiKey)).status).toBe(404);
+    expect((await track()).driver).toBeNull();
+    // jeton inconnu ou mal formé
+    expect((await fetch(`${base}/track/${"x".repeat(32)}`)).status).toBe(404);
+    expect((await fetch(`${base}/track/abc`)).status).toBe(404);
   });
 
   it("un selfie qui ne correspond pas à la référence suspend le compte (prêt de compte) ; refuse un fichier qui n'est pas une image", async () => {

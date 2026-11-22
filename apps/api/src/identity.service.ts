@@ -16,6 +16,14 @@ export const IDENTITY = {
   get spotDeadlineMin() { return num("IDENTITY_SPOT_DEADLINE_MIN", 10); }, // délai pour répondre
 };
 
+/** Photo montrable au voyageur : le chauffeur y a consenti ET l'équipe a validé la photo de référence. Sinon null. */
+export async function shareablePhoto(prisma: PrismaService, driverId: string): Promise<{ mime: string; image: Buffer } | null> {
+  const d = await prisma.driver.findUnique({ where: { id: driverId }, select: { photoConsentAt: true } });
+  if (!d?.photoConsentAt) return null;
+  const ref = await prisma.identityCheck.findFirst({ where: { driverId, kind: "REFERENCE", status: "VALID", image: { not: null } }, orderBy: { createdAt: "desc" } });
+  return ref?.image ? { mime: ref.mime ?? "image/jpeg", image: Buffer.from(ref.image) } : null;
+}
+
 @Injectable()
 export class IdentityService {
   constructor(
@@ -45,6 +53,13 @@ export class IdentityService {
     const ref = await this.prisma.identityCheck.findFirst({ where: { driverId, kind: "REFERENCE", status: { in: ["VALID", "PENDING"] }, image: { not: null } }, orderBy: [{ status: "desc" }, { createdAt: "desc" }] });
     if (!ref?.image) return null;
     return { photo: `data:${ref.mime ?? "image/jpeg"};base64,${Buffer.from(ref.image).toString("base64")}`, status: ref.status };
+  }
+
+  /** Consentement (ou retrait) du chauffeur à montrer sa photo au voyageur pendant la course. Révocable à tout moment ; sans effet sur le reste du compte. */
+  async setPhotoConsent(driverId: string, accept: boolean) {
+    const d = await this.prisma.driver.update({ where: { id: driverId }, data: { photoConsentAt: accept ? new Date() : null } });
+    await this.prisma.auditLog.create({ data: { actor: `driver:${driverId}`, action: accept ? "photo.consent" : "photo.consent_withdrawn", entity: "Driver", entityId: driverId } }).catch(() => undefined);
+    return { given: !!d.photoConsentAt, at: d.photoConsentAt };
   }
 
   /** Doit-on empêcher ce chauffeur de se mettre en ligne ? Renvoie le motif lisible, ou null. */

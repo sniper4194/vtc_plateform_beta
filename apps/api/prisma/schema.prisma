@@ -136,6 +136,7 @@ model Driver {
   siret         String? // Siren/Siret de l'exploitant (sinon celui de la société)
   revtcNumber   String? // numéro d'inscription au registre des exploitants de VTC (sinon celui de la société)
   proCardNumber String? // numéro de la carte professionnelle VTC
+  photoConsentAt DateTime? // consentement du chauffeur à montrer sa photo au voyageur pendant la course (révocable : remis à nul)
   identityVerifiedAt DateTime? // dernière vérification d'identité par selfie valide (prise de service)
   identityChecks IdentityCheck[]
   incidents     Incident[]
@@ -213,6 +214,7 @@ model Booking {
   flightNumber      String?
   signText          String? // texte de la pancarte (par défaut : nom du passager)
   notes             String? // consignes de rendez-vous (terminal, porte…)
+  trackingToken     String?  @unique // jeton secret du lien de suivi envoyé au voyageur (non devinable)
   createdAt         DateTime @default(now())
   rides             Ride[]
 

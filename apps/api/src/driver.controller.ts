@@ -88,8 +88,16 @@ export class DriverController {
       businessName: d.businessName, siret: d.siret, revtcNumber: d.revtcNumber, proCardNumber: d.proCardNumber,
       missing: await missingIdentifiers(this.prisma, d.id),
       selfie: await this.identityChecks.state(d.id),
-      photo: await this.identityChecks.photo(d.id), // photo de profil : visible par le chauffeur et l'équipe seulement
+      photo: await this.identityChecks.photo(d.id), // photo de profil : visible par le chauffeur et l'équipe ; le voyageur la voit seulement avec le consentement ci-dessous
+      photoConsent: { given: !!d.photoConsentAt, at: d.photoConsentAt },
     };
+  }
+
+  /** Consentement (accept=true) ou retrait (false) : montrer sa photo au voyageur pendant la course. Révocable à tout moment. */
+  @Post("identity/photo-consent")
+  @UseGuards(DriverGuard)
+  photoConsent(@Req() req: any, @Body() body: unknown) {
+    return this.identityChecks.setPhotoConsent(req.driverId, parse(z.object({ accept: z.boolean() }), body).accept);
   }
 
   /** Selfie de prise de service (ou photo de référence la première fois). Image JPEG/PNG en base64, 400 Ko maximum. */

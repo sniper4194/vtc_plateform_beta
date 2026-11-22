@@ -1,8 +1,10 @@
 import { HttpException, Inject, Injectable } from "@nestjs/common";
+import { randomBytes } from "node:crypto";
 import { Partner } from "@prisma/client";
 import { BookingRequest, canTransition } from "@vtc/shared";
 import { DispatchService } from "./dispatch.service";
 import { euros } from "./http";
+import { shareablePhoto } from "./identity.service";
 import { cancellationMessage } from "./messages";
 import { NotificationsService } from "./notifications";
 import { PrismaService } from "./prisma";
@@ -50,9 +52,9 @@ export class BookingsService {
   async driverPhoto(partner: Partner, bookingId: string): Promise<{ mime: string; image: Buffer }> {
     const ride = await this.findForPartner(partner, bookingId);
     if (!ride.driverId || !["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"].includes(ride.status)) throw new HttpException("Photo indisponible", 404);
-    const ref = await this.prisma.identityCheck.findFirst({ where: { driverId: ride.driverId, kind: "REFERENCE", status: "VALID", image: { not: null } }, orderBy: { createdAt: "desc" } });
-    if (!ref?.image) throw new HttpException("Photo indisponible", 404);
-    return { mime: ref.mime ?? "image/jpeg", image: Buffer.from(ref.image) };
+    const photo = await shareablePhoto(this.prisma, ride.driverId); // consentement du chauffeur + photo validée
+    if (!photo) throw new HttpException("Photo indisponible", 404);
+    return photo;
   }
 
   async create(partner: Partner, idempotencyKey: string, req: BookingRequest, sandbox: boolean) {
@@ -77,6 +79,7 @@ export class BookingsService {
             passengerFirstName: req.passenger.firstName, passengerLastName: req.passenger.lastName,
             passengerPhone: req.passenger.phone, passengerEmail: req.passenger.email, signText: req.signText, notes: req.notes,
             passengerLanguage: req.passenger.language, flightNumber: r.flightNumber,
+            trackingToken: randomBytes(24).toString("base64url"),
           },
         });
         const ride = await tx.ride.create({
