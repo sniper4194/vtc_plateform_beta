@@ -18,6 +18,7 @@ export const PartnerCreateSchema = z.object({
   priceMultiplier: z.number().positive().max(5).default(1),
   commissionRate: z.number().min(0).max(0.9).default(0.2),
   paymentMode: z.enum(["PREPAID", "INVOICE"]).default("INVOICE"),
+  notifyPassenger: z.boolean().default(true),
 });
 /** Caractéristiques contrôlées à l'admission du véhicule (voir vehicle-rules.ts). */
 const vehicleFacts = {

@@ -95,3 +95,30 @@ export function cancellationMessage(ride: RideForMessage, flightNumber: string |
   ];
   return { title: `Mission R-${ride.ref} annulée`, body: lines.join("\n") };
 }
+
+
+/** Message au voyageur avec son lien de suivi (SMS court + e-mail). Français pour « fr », anglais sinon. Fonction pure. */
+export function trackingMessage(
+  b: { firstName: string; language: string; reference: string; pickupAt: Date; pickup: string; dropoff: string; url: string },
+  brand = process.env.BRAND_NAME ?? "Étoile",
+) {
+  const fr = b.language === "fr";
+  const when = b.pickupAt.toLocaleString(fr ? "fr-FR" : "en-GB", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+  const short = b.pickupAt.toLocaleString(fr ? "fr-FR" : "en-GB", { timeZone: "Europe/Paris", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  if (fr) {
+    return {
+      sms: `${brand} : trajet ${b.reference} confirmé le ${short}. Suivez votre chauffeur : ${b.url}`,
+      subject: `Votre trajet ${b.reference} est confirmé`,
+      text: [`Bonjour ${b.firstName},`, "", `Votre trajet est confirmé : ${when}.`, `Départ : ${b.pickup}`, `Arrivée : ${b.dropoff}`, "",
+        "Suivez votre chauffeur (nom, photo si le chauffeur l'a acceptée, véhicule, plaque, vol) sur cette page personnelle :", b.url, "",
+        "Ne partagez pas ce lien : il donne accès à votre trajet.", "", `— ${brand}`].join("\n"),
+    };
+  }
+  return {
+    sms: `${brand}: ride ${b.reference} confirmed for ${short}. Track your driver: ${b.url}`,
+    subject: `Your ride ${b.reference} is confirmed`,
+    text: [`Hello ${b.firstName},`, "", `Your ride is confirmed: ${when}.`, `Pick-up: ${b.pickup}`, `Drop-off: ${b.dropoff}`, "",
+      "Track your driver (name, photo if the driver has agreed, vehicle, plate, flight) on this personal page:", b.url, "",
+      "Please do not share this link: it gives access to your ride.", "", `— ${brand}`].join("\n"),
+  };
+}

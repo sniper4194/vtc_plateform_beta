@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { cancellationMessage, driverCompensationCents } from "./bookings.service";
-import { acceptanceMessage, priceLines } from "./messages";
+import { acceptanceMessage, priceLines, trackingMessage } from "./messages";
 import { emailProviderFromEnv, ResendEmailProvider } from "./email";
 
 const ride = {
@@ -112,5 +112,23 @@ describe("fournisseur e-mail", () => {
     expect(emailProviderFromEnv({ NODE_ENV: "production", EMAIL_PROVIDER: "console" } as any)).toBeNull();
     expect(() => emailProviderFromEnv({ EMAIL_PROVIDER: "resend" } as any)).toThrow();
     expect(emailProviderFromEnv({ EMAIL_PROVIDER: "resend", RESEND_API_KEY: "k", EMAIL_FROM: "x@y.fr" } as any)).toBeInstanceOf(ResendEmailProvider);
+  });
+});
+
+describe("message du lien de suivi au voyageur", () => {
+  const b = { firstName: "Ana", reference: "R-100234", pickupAt: new Date("2026-11-20T21:37:00Z"), pickup: "CDG T2", dropoff: "Paris 8e", url: "https://suivi.exemple.fr/suivi/abc" };
+  it("français : SMS court avec le lien, e-mail détaillé et mise en garde", () => {
+    const m = trackingMessage({ ...b, language: "fr" }, "Étoile");
+    expect(m.sms).toContain("R-100234");
+    expect(m.sms).toContain("https://suivi.exemple.fr/suivi/abc");
+    expect(m.sms).toContain("20/11 22:37"); // heure de Paris
+    expect(m.sms.length).toBeLessThan(160);
+    expect(m.text).toContain("CDG T2");
+    expect(m.text).toMatch(/Ne partagez pas ce lien/);
+  });
+  it("toute autre langue : anglais", () => {
+    const m = trackingMessage({ ...b, language: "pt" }, "Étoile");
+    expect(m.subject).toBe("Your ride R-100234 is confirmed");
+    expect(m.text).toMatch(/do not share this link/);
   });
 });

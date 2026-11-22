@@ -105,6 +105,7 @@ export class BookingsService {
       throw e;
     }
     await this.dispatch.start(rideId);
+    void this.notif.trackingLink(rideId, sandbox); // SMS + e-mail au voyageur, sans retarder la réponse au partenaire
     const ride = await this.prisma.ride.findUniqueOrThrow({ where: { id: rideId }, include });
     return { created: true, booking: bookingView(ride) };
   }

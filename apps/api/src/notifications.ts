@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { EmailService } from "./email";
+import { trackingMessage } from "./messages";
+import { SmsService } from "./sms";
 import { PrismaService } from "./prisma";
 
 export const fmtDateTime = (d: Date) =>
@@ -14,6 +16,7 @@ export class NotificationsService {
   constructor(
     @Inject(PrismaService) private prisma: PrismaService,
     @Inject(EmailService) private email: EmailService,
+    @Inject(SmsService) private sms: SmsService,
   ) {}
 
   /** Alerte légère (futur push) : journalisée seulement. */
@@ -34,6 +37,31 @@ export class NotificationsService {
       }
     } catch (e: any) {
       this.log.warn(`notification chauffeur ${driverId} (${m.type}) : ${e?.message ?? e}`);
+    }
+  }
+
+  /**
+   * Envoie au voyageur son lien de suivi par SMS et par e-mail (chaque canal indépendamment : l'échec de l'un n'empêche pas l'autre).
+   * Ne lève jamais. Les clés de test (sandbox) n'envoient rien, sauf TRACKING_NOTIFY_SANDBOX=1. Marque la réservation si au moins un canal a abouti.
+   */
+  async trackingLink(rideId: string, sandbox: boolean) {
+    try {
+      if (sandbox && process.env.TRACKING_NOTIFY_SANDBOX !== "1") return;
+      const ride = await this.prisma.ride.findUnique({ where: { id: rideId }, include: { booking: { include: { partner: true } } } });
+      const b = ride?.booking;
+      if (!ride || !b?.trackingToken || b.trackingSentAt || b.partner?.notifyPassenger === false) return;
+      const url = `${(process.env.TRACKING_BASE_URL ?? "http://localhost:3002").replace(/\/$/, "")}/suivi/${b.trackingToken}`;
+      const m = trackingMessage({ firstName: b.passengerFirstName, language: b.passengerLanguage, reference: `R-${ride.ref}`, pickupAt: ride.pickupAt, pickup: ride.pickupAddress, dropoff: ride.dropoffAddress, url });
+      let sent = false;
+      if (b.passengerPhone && this.sms.provider) {
+        try { await this.sms.provider.send(b.passengerPhone, m.sms); sent = true; } catch (e: any) { this.log.warn(`SMS de suivi ${rideId} : ${e?.message ?? e}`); }
+      }
+      if (b.passengerEmail && this.email.provider) {
+        try { await this.email.provider.send({ to: b.passengerEmail, subject: m.subject, text: m.text }); sent = true; } catch (e: any) { this.log.warn(`e-mail de suivi ${rideId} : ${e?.message ?? e}`); }
+      }
+      if (sent) await this.prisma.booking.update({ where: { id: b.id }, data: { trackingSentAt: new Date() } });
+    } catch (e: any) {
+      this.log.warn(`lien de suivi ${rideId} : ${e?.message ?? e}`);
     }
   }
 }

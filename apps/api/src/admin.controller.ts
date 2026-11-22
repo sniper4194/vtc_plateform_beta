@@ -67,7 +67,7 @@ export class AdminController {
     const p = parse(PartnerCreateSchema, body);
     const webhookSecret = p.webhookUrl ? `whsec_${randomBytes(24).toString("hex")}` : null;
     const partner = await this.prisma.partner.create({
-      data: { name: p.name, webhookUrl: p.webhookUrl, webhookSecret, priceMultiplier: p.priceMultiplier, commissionRate: p.commissionRate, paymentMode: p.paymentMode },
+      data: { name: p.name, webhookUrl: p.webhookUrl, webhookSecret, priceMultiplier: p.priceMultiplier, commissionRate: p.commissionRate, paymentMode: p.paymentMode, notifyPassenger: p.notifyPassenger },
     });
     const k = generateApiKey(true);
     await this.prisma.apiKey.create({ data: { partnerId: partner.id, keyHash: k.hash, prefix: k.prefix, sandbox: true } });

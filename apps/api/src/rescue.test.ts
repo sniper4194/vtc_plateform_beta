@@ -607,6 +607,62 @@ describe("vérification d'identité par selfie", () => {
     expect((await fetch(`${base}/track/abc`)).status).toBe(404);
   });
 
+  it("le lien de suivi part par SMS et par e-mail à la confirmation, une seule fois, sauf clé de test ou partenaire qui s'en charge", async () => {
+    process.env.TRACKING_NOTIFY_SANDBOX = "1";
+    const sms = app.get(SmsService), mail = app.get(EmailService);
+    const oldSms = sms.provider, oldMail = mail.provider;
+    const sent: { sms: any[]; mail: any[] } = { sms: [], mail: [] };
+    sms.provider = { send: async (to, text) => { sent.sms.push({ to, text }); } };
+    mail.provider = { send: async (m) => { sent.mail.push(m); } };
+    const waitFor = async (f: () => boolean) => { for (let i = 0; i < 40 && !f(); i++) await new Promise((r) => setTimeout(r, 50)); };
+    const pass = { firstName: "Ana", lastName: "Silva", phone: "+351900000000", email: "ana@exemple.fr", language: "fr" };
+    try {
+      const p = await mkPartner(false);
+      const { res } = await mkBooking(p, {}, "trk-1", { passenger: pass });
+      await waitFor(() => sent.sms.length > 0 && sent.mail.length > 0);
+      expect(sent.sms).toHaveLength(1);
+      expect(sent.sms[0].to).toBe("+351900000000");
+      expect(sent.sms[0].text).toContain(res.json.trackingUrl);
+      expect(sent.mail).toHaveLength(1);
+      expect(sent.mail[0]).toMatchObject({ to: "ana@exemple.fr" });
+      expect(sent.mail[0].text).toContain(res.json.trackingUrl);
+      expect((await prisma.booking.findUniqueOrThrow({ where: { id: res.json.id } })).trackingSentAt).not.toBeNull();
+      // rejeu idempotent de la même réservation : pas de second envoi
+      await mkBooking(p, {}, "trk-1", { passenger: pass });
+      await new Promise((r) => setTimeout(r, 200));
+      expect(sent.sms).toHaveLength(1);
+
+      // un échec du SMS n'empêche ni l'e-mail ni la réservation
+      sms.provider = { send: async () => { throw new Error("panne SMS"); } };
+      const b2 = await mkBooking(p, {}, "trk-2", { passenger: pass });
+      expect(b2.res.status).toBe(201);
+      await waitFor(() => sent.mail.length > 1);
+      expect(sent.mail).toHaveLength(2);
+
+      // sans e-mail : SMS seul
+      sms.provider = { send: async (to, text) => { sent.sms.push({ to, text }); } };
+      await mkBooking(p, {}, "trk-3", { passenger: { ...pass, email: undefined } });
+      await waitFor(() => sent.sms.length > 1);
+      expect(sent.sms).toHaveLength(2);
+      expect(sent.mail).toHaveLength(2);
+
+      // partenaire qui envoie lui-même le lien : rien ne part
+      await prisma.partner.update({ where: { id: p.partnerId }, data: { notifyPassenger: false } });
+      await mkBooking(p, {}, "trk-4", { passenger: pass });
+      await new Promise((r) => setTimeout(r, 200));
+      expect(sent.sms).toHaveLength(2);
+
+      // clé de test : rien ne part sans TRACKING_NOTIFY_SANDBOX
+      await prisma.partner.update({ where: { id: p.partnerId }, data: { notifyPassenger: true } });
+      delete process.env.TRACKING_NOTIFY_SANDBOX;
+      await mkBooking(p, {}, "trk-5", { passenger: pass });
+      await new Promise((r) => setTimeout(r, 200));
+      expect(sent.sms).toHaveLength(2);
+    } finally {
+      sms.provider = oldSms; mail.provider = oldMail; delete process.env.TRACKING_NOTIFY_SANDBOX;
+    }
+  });
+
   it("un selfie qui ne correspond pas à la référence suspend le compte (prêt de compte) ; refuse un fichier qui n'est pas une image", async () => {
     const d = await mkDriver();
     on();

@@ -81,6 +81,7 @@ model Partner {
   commissionRate   Decimal       @default(0.2) @db.Decimal(5, 4)
   webhookUrl       String?
   webhookSecret    String?
+  notifyPassenger  Boolean       @default(true) // envoyer au voyageur le lien de suivi par SMS et e-mail (désactiver si le partenaire s'en charge)
   active           Boolean       @default(true)
   createdAt        DateTime      @default(now())
   apiKeys          ApiKey[]
@@ -214,6 +215,7 @@ model Booking {
   flightNumber      String?
   signText          String? // texte de la pancarte (par défaut : nom du passager)
   notes             String? // consignes de rendez-vous (terminal, porte…)
+  trackingSentAt    DateTime? // lien de suivi envoyé au voyageur (SMS et/ou e-mail)
   trackingToken     String?  @unique // jeton secret du lien de suivi envoyé au voyageur (non devinable)
   createdAt         DateTime @default(now())
   rides             Ride[]
