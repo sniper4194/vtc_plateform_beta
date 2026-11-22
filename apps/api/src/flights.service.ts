@@ -60,6 +60,7 @@ export class FlightsService {
       if (delayChanged) await this.webhooks.enqueue(tx, rideId, "flight.delayed");
       if (delayChanged || earlyChanged || statusChanged) await this.webhooks.enqueue(tx, rideId, "flight.updated");
     });
+    if (delayChanged && delay > 0) void this.notif.passengerAlert(rideId, "FLIGHT_DELAY"); // SMS au voyageur (seuils et plafond dans passengerAlert)
     // Le chauffeur est prévenu à chaque changement significatif (message dans l'application, relais e-mail pour une annulation).
     if ((delayChanged || earlyChanged || statusChanged) && ride.driverId) {
       const m = flightMessage({

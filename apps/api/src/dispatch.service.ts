@@ -256,5 +256,6 @@ export class DispatchService {
       const hook = WEBHOOK_BY_STATUS[to];
       if (hook) await this.webhooks.enqueue(tx, rideId, hook);
     });
+    if (to === "ARRIVED") void this.notif.passengerAlert(rideId, "ARRIVED"); // SMS « votre chauffeur est arrivé », sans retarder le chauffeur
   }
 }

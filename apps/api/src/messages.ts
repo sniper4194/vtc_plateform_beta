@@ -122,3 +122,23 @@ export function trackingMessage(
       "Please do not share this link: it gives access to your ride.", "", `— ${brand}`].join("\n"),
   };
 }
+
+
+/** SMS d'alerte au voyageur (une seule phrase, lien de suivi en fin). Français pour « fr », anglais sinon. Fonction pure. */
+export function passengerAlertSms(
+  a: { kind: "ARRIVED"; language: string; driverFirstName: string; vehicle: string | null; plate: string | null; url: string }
+   | { kind: "FLIGHT_DELAY"; language: string; flightNumber: string; delayMin: number; pickupAt: Date; url: string },
+  brand = process.env.BRAND_NAME ?? "Étoile",
+) {
+  const fr = a.language === "fr";
+  if (a.kind === "ARRIVED") {
+    const car = [a.vehicle, a.plate].filter(Boolean).join(" ");
+    return fr
+      ? `${brand} : ${a.driverFirstName}, votre chauffeur, est arrivé${car ? ` (${car})` : ""}. Il vous attend, pancarte à votre nom. ${a.url}`
+      : `${brand}: ${a.driverFirstName}, your driver, has arrived${car ? ` (${car})` : ""}. They are waiting for you with a sign with your name. ${a.url}`;
+  }
+  const hm = a.pickupAt.toLocaleTimeString(fr ? "fr-FR" : "en-GB", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" });
+  return fr
+    ? `${brand} : vol ${a.flightNumber} retardé de ${a.delayMin} min. Votre chauffeur s'adapte : prise en charge vers ${hm}. ${a.url}`
+    : `${brand}: flight ${a.flightNumber} delayed by ${a.delayMin} min. Your driver adapts: pick-up around ${hm}. ${a.url}`;
+}

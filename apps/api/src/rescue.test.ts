@@ -663,6 +663,62 @@ describe("vérification d'identité par selfie", () => {
     }
   });
 
+  it("alertes SMS au voyageur : chauffeur arrivé (une fois) et retard de vol (seuil, aggravation, plafond), seulement si le lien de suivi lui a été envoyé", async () => {
+    process.env.TRACKING_NOTIFY_SANDBOX = "1";
+    const sms = app.get(SmsService), old = sms.provider;
+    const sent: { to: string; text: string }[] = [];
+    sms.provider = { send: async (to, text) => { sent.push({ to, text }); } };
+    const waitFor = async (f: () => boolean) => { for (let i = 0; i < 40 && !f(); i++) await new Promise((r) => setTimeout(r, 50)); };
+    const quiet = () => new Promise((r) => setTimeout(r, 200));
+    try {
+      const d = await mkDriver();
+      const p = await mkPartner(false);
+      const { ride } = await assigned(d, p);
+      await waitFor(() => sent.length === 1); // lien de suivi
+      const flights = app.get(FlightsService);
+      const delayTo = (min: number) => flights.update(ride.id, { estimatedArrivalAt: new Date(ride.pickupAt.getTime() - ride.flightBufferMin * 60_000 + min * 60_000) }, "test");
+      const before = sent.length;
+
+      await delayTo(10); await quiet(); // sous le seuil de 15 min : rien
+      expect(sent).toHaveLength(before);
+      await delayTo(30); await waitFor(() => sent.length === before + 1);
+      expect(sent[before].text).toMatch(/delayed by 30 min/);
+      await delayTo(35); await quiet(); // aggravation de 5 min seulement : rien
+      expect(sent).toHaveLength(before + 1);
+      await delayTo(60); await waitFor(() => sent.length === before + 2);
+      expect(sent[before + 1].text).toMatch(/delayed by 60 min/);
+      await delayTo(90); await waitFor(() => sent.length === before + 3);
+      await delayTo(150); await quiet(); // plafond de 3 alertes de retard par course
+      expect(sent).toHaveLength(before + 3);
+      expect(sent.every((m) => m.to === "+351900000000")).toBe(true);
+
+      // chauffeur arrivé : une seule alerte, avec prénom, véhicule et plaque
+      await call(`/driver/rides/${ride.id}/en-route`, { token: d.token, body: {} });
+      await call(`/driver/rides/${ride.id}/arrived`, { token: d.token, body: {} });
+      await waitFor(() => sent.length === before + 4);
+      expect(sent[before + 3].text).toMatch(/Chauffeur\w*, your driver, has arrived.*Toyota Camry/);
+      expect(sent[before + 3].text).toContain("/suivi/");
+      await delayTo(240); await quiet(); // chauffeur déjà sur place : plus d'alerte de retard
+      expect(sent).toHaveLength(before + 4);
+      const arrivedAgain = await prisma.rideEvent.count({ where: { rideId: ride.id, type: "passenger.alert" } });
+      expect(arrivedAgain).toBe(4);
+
+      // pas de lien envoyé (partenaire qui s'en charge) : aucune alerte
+      await prisma.partner.update({ where: { id: p.partnerId }, data: { notifyPassenger: false } });
+      const d2 = await mkDriver();
+      const { ride: r2 } = await assigned(d2, p);
+      await quiet();
+      const n = sent.length;
+      await flights.update(r2.id, { estimatedArrivalAt: new Date(r2.pickupAt.getTime() + 45 * 60_000) }, "test");
+      await call(`/driver/rides/${r2.id}/en-route`, { token: d2.token, body: {} });
+      await call(`/driver/rides/${r2.id}/arrived`, { token: d2.token, body: {} });
+      await quiet();
+      expect(sent).toHaveLength(n);
+    } finally {
+      sms.provider = old; delete process.env.TRACKING_NOTIFY_SANDBOX;
+    }
+  });
+
   it("un selfie qui ne correspond pas à la référence suspend le compte (prêt de compte) ; refuse un fichier qui n'est pas une image", async () => {
     const d = await mkDriver();
     on();

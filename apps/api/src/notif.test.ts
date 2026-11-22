@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { cancellationMessage, driverCompensationCents } from "./bookings.service";
-import { acceptanceMessage, priceLines, trackingMessage } from "./messages";
+import { acceptanceMessage, passengerAlertSms, priceLines, trackingMessage } from "./messages";
 import { emailProviderFromEnv, ResendEmailProvider } from "./email";
 
 const ride = {
@@ -130,5 +130,19 @@ describe("message du lien de suivi au voyageur", () => {
     const m = trackingMessage({ ...b, language: "pt" }, "Étoile");
     expect(m.subject).toBe("Your ride R-100234 is confirmed");
     expect(m.text).toMatch(/do not share this link/);
+  });
+});
+
+describe("alertes SMS au voyageur", () => {
+  it("chauffeur arrivé : prénom, véhicule, plaque et lien", () => {
+    const m = passengerAlertSms({ kind: "ARRIVED", language: "fr", driverFirstName: "Hamza", vehicle: "Toyota Camry", plate: "GH-156-RM", url: "https://s/x" }, "Étoile");
+    expect(m).toContain("Hamza");
+    expect(m).toContain("Toyota Camry GH-156-RM");
+    expect(m).toContain("https://s/x");
+  });
+  it("retard de vol : durée et nouvelle heure de prise en charge (heure de Paris), en anglais hors français", () => {
+    const base = { kind: "FLIGHT_DELAY" as const, flightNumber: "AF1234", delayMin: 40, pickupAt: new Date("2026-11-20T21:37:00Z"), url: "https://s/x" };
+    expect(passengerAlertSms({ ...base, language: "fr" }, "Étoile")).toMatch(/vol AF1234 retardé de 40 min.*22:37/);
+    expect(passengerAlertSms({ ...base, language: "en" }, "Étoile")).toMatch(/flight AF1234 delayed by 40 min/);
   });
 });

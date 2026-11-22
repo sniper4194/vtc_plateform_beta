@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { EmailService } from "./email";
-import { trackingMessage } from "./messages";
+import { passengerAlertSms, trackingMessage } from "./messages";
 import { SmsService } from "./sms";
 import { PrismaService } from "./prisma";
 
@@ -62,6 +62,39 @@ export class NotificationsService {
       if (sent) await this.prisma.booking.update({ where: { id: b.id }, data: { trackingSentAt: new Date() } });
     } catch (e: any) {
       this.log.warn(`lien de suivi ${rideId} : ${e?.message ?? e}`);
+    }
+  }
+
+  /**
+   * Alerte SMS au voyageur : chauffeur arrivé (une fois par course) ou retard de vol (dès 15 min, puis à chaque aggravation d'au moins 15 min, 3 au plus).
+   * Uniquement si son lien de suivi lui a bien été envoyé par nous (donc ni clé de test, ni partenaire qui s'en charge) et s'il a un numéro. Ne lève jamais.
+   * Chaque alerte est tracée dans le journal de la course (`passenger.alert`), ce qui sert aussi d'anti-doublon.
+   */
+  async passengerAlert(rideId: string, kind: "ARRIVED" | "FLIGHT_DELAY") {
+    try {
+      if (!this.sms.provider) return;
+      const ride = await this.prisma.ride.findUnique({ where: { id: rideId }, include: { booking: true, driver: true, vehicle: true } });
+      const b = ride?.booking;
+      if (!ride || !b?.trackingToken || !b.trackingSentAt || !b.passengerPhone) return;
+      const past = (await this.prisma.rideEvent.findMany({ where: { rideId, type: "passenger.alert" }, orderBy: { createdAt: "asc" } })).map((e) => e.payload as any).filter((p) => p?.kind === kind);
+      const url = `${(process.env.TRACKING_BASE_URL ?? "http://localhost:3002").replace(/\/$/, "")}/suivi/${b.trackingToken}`;
+      let text: string, payload: Record<string, unknown>;
+      if (kind === "ARRIVED") {
+        if (past.length || !ride.driver) return;
+        text = passengerAlertSms({ kind, language: b.passengerLanguage, driverFirstName: ride.driver.firstName, vehicle: ride.vehicle ? `${ride.vehicle.make} ${ride.vehicle.model}` : null, plate: ride.vehicle?.plate ?? null, url });
+        payload = { kind };
+      } else {
+        const delay = ride.flightDelayMin;
+        const last = past.length ? Number(past[past.length - 1].delayMin) : 0;
+        if (!b.flightNumber || delay < 15 || past.length >= 3 || (past.length && delay - last < 15)) return;
+        if (!["DISPATCHING", "ASSIGNED", "EN_ROUTE"].includes(ride.status)) return; // chauffeur déjà sur place ou course en cours : le retard n'a plus de sens
+        text = passengerAlertSms({ kind, language: b.passengerLanguage, flightNumber: b.flightNumber, delayMin: delay, pickupAt: new Date(ride.pickupAt.getTime() + delay * 60_000), url });
+        payload = { kind, delayMin: delay };
+      }
+      await this.prisma.rideEvent.create({ data: { rideId, type: "passenger.alert", actor: "system", payload: payload as any } });
+      await this.sms.provider.send(b.passengerPhone, text);
+    } catch (e: any) {
+      this.log.warn(`alerte voyageur ${rideId} (${kind}) : ${e?.message ?? e}`);
     }
   }
 }
