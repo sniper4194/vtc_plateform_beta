@@ -36,7 +36,7 @@ C'est notre meilleur argument auprès des chauffeurs, à condition de le **prouv
 | Annulation tardive | Indemnité d'annulation (barème provisoire) | Barème à valider avec les chauffeurs et les partenaires |
 | Attente, vol retardé, client absent | Suivi de vol, attente sur l'heure réelle, client absent après 15 min | Source de données de vol à brancher (Flightradar24 visé) |
 | Panne, malaise | Sauveteurs | Liste vide au lancement |
-| Contrôle routier | Justificatif de réservation dans l'application | Rappel des échéances (contrôle technique annuel, carte professionnelle, assurance, registre) : **la fiche Service-Public précise qu'aucun rappel n'est envoyé au chauffeur** |
+| Contrôle routier | Justificatif de réservation, **rappels d'échéances** (30, 14, 7, 1 jours, hors ligne à l'expiration) | Envoi d'un nouveau document depuis l'application, suivi de l'inscription au registre et de l'assurance du véhicule |
 | Compte suspendu sans comprendre | Barème annoncé, examen humain avant fermeture | Recours organisé, délai de réponse |
 | Client agressif, accident | Rien | **Signalement d'incident et alerte sécurité à concevoir** |
 | Non-paiement, paiement tardif | Relevé de paiements lisible | **Paiements réels et délai de paiement à fixer** (Stripe non branché) |

@@ -1,3 +1,4 @@
+import { DeadlinesCard, DeadlinesScreen } from "./deadlines";
 import { IdentityScreen } from "./identity";
 import { CostNote, RescueCard, RescuePicker } from "./rescue";
 import { useEffect, useRef, useState } from "react";
@@ -42,6 +43,8 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
   const home = useFetch<any>("/driver/home");
   const [busy, setBusy] = useState(false);
   const [showId, setShowId] = useState(false);
+  const [showDl, setShowDl] = useState(false);
+  const deadlines = useFetch<any[]>("/driver/deadlines", 60000);
   const identity = useFetch<any>("/driver/identity", 20000);
   const online = me.data?.availability === "AVAILABLE";
   const active = me.data?.status === "ACTIVE";
@@ -49,7 +52,7 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
     if (!active) return notify("Votre compte n'est pas encore validé");
     setBusy(true);
     try { await api("/driver/availability", { availability: online ? "SUSPENDED" : "AVAILABLE" }); await me.reload(); notify(online ? "Vous êtes hors ligne" : "Vous êtes en ligne", "ok"); }
-    catch (e: any) { notify(e.message); if (e.code === "IDENTITY_CHECK_REQUIRED") setShowId(true); } finally { setBusy(false); }
+    catch (e: any) { notify(e.message); if (e.code === "IDENTITY_CHECK_REQUIRED") setShowId(true); if (e.code === "DOCUMENTS_EXPIRED") setShowDl(true); } finally { setBusy(false); }
   }
   if (me.loading) return <ActivityIndicator color={c.onSky} style={{ marginTop: 80 }} />;
   const v = me.data?.vehicles?.[0];
@@ -92,6 +95,8 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
           {!identity.data ? "…" : identity.data.selfie?.mustVerify ? "Selfie de prise de service à faire" : identity.data.missing.length > 0 ? `À compléter : ${identity.data.missing.join(", ")}` : "À jour"} →
         </Cond>
       </Card>
+      <DeadlinesCard list={deadlines.data} onOpen={() => setShowDl(true)} />
+      {showDl && <DeadlinesScreen onClose={() => setShowDl(false)} />}
       {showId && <IdentityScreen notify={notify} onClose={() => setShowId(false)} onChanged={() => { identity.reload(); me.reload(); }} />}
 
       <RescueCard notify={notify} onAccepted={openMission} />

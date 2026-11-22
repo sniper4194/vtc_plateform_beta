@@ -2,6 +2,7 @@ import { Body, Controller, Get, Inject, Param, Post, Query, Req, UseGuards } fro
 import { z } from "zod";
 import { parse } from "./http";
 import { PenaltiesService } from "./penalties.service";
+import { DeadlinesService } from "./deadlines.service";
 import { IdentityService } from "./identity.service";
 import { RescueService } from "./rescue.service";
 import { AdminGuard, AdminOnly, DriverGuard } from "./security";
@@ -29,7 +30,10 @@ export class RescueController {
 @Controller("admin")
 @UseGuards(AdminGuard)
 export class AdminRescueController {
-  constructor(@Inject(RescueService) private rescue: RescueService, @Inject(PenaltiesService) private penalties: PenaltiesService, @Inject(IdentityService) private identity: IdentityService) {}
+  constructor(@Inject(RescueService) private rescue: RescueService, @Inject(PenaltiesService) private penalties: PenaltiesService, @Inject(IdentityService) private identity: IdentityService, @Inject(DeadlinesService) private deadlines: DeadlinesService) {}
+
+  /** Documents qui expirent bientôt (30 jours par défaut). */
+  @Get("expiring") expiring(@Query("days") days?: string) { return this.deadlines.expiring(Math.min(90, Math.max(1, Number(days) || 30))); }
 
   /** Demande immédiate d'un selfie à un chauffeur (soupçon, contrôle ciblé). */
   @Post("drivers/:id/identity-spot") @AdminOnly() async identitySpot(@Req() req: any, @Param("id") id: string) { const c = await this.identity.requestSpot(id, req.admin.actor); return { id: c.id, dueAt: c.dueAt }; }

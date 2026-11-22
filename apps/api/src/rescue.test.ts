@@ -10,6 +10,7 @@ import { DISPATCH, DispatchService } from "./dispatch.service";
 import { signWebhook } from "./security";
 import { PenaltiesService } from "./penalties.service";
 import { IdentityService } from "./identity.service";
+import { DeadlinesService } from "./deadlines.service";
 import { RescueService } from "./rescue.service";
 import { WebhooksService } from "./webhooks.service";
 import { FlightsService } from "./flights.service";
@@ -721,5 +722,71 @@ describe("suivi du vol : retard, avance, atterri, annulé", () => {
     expect((await call(`/v1/bookings/${b.id}`, { token: p.apiKey })).json.flight.status).toBe("CANCELLED");
     // idempotent : une seconde annulation ne renotifie pas
     expect((await flights.update(ride.id, { status: "CANCELLED" }, "test")).changed).toBe(false);
+  });
+});
+
+describe("rappels d'échéances des documents", () => {
+  const svc = () => app.get(DeadlinesService);
+  async function setExpiry(driverId: string, type: string, days: number, status: "APPROVED" | "PENDING" = "APPROVED") {
+    await prisma.document.deleteMany({ where: { driverId, type: type as any } });
+    return prisma.document.create({ data: { driverId, type: type as any, storageKey: "k", status, expiresAt: new Date(Date.now() + days * 86400_000 - 3600_000) } });
+  }
+  const types = async (id: string) => (await prisma.notification.findMany({ where: { driverId: id } })).map((n) => n.type);
+
+  it("un rappel par palier, une seule fois, avec e-mail à partir de 7 jours", async () => {
+    const d = await mkDriver();
+    const ins = await setExpiry(d.id, "INSURANCE", 25);
+    expect((await svc().sweep(new Date(), true)).reminded).toBe(1);
+    expect((await svc().sweep(new Date(), true)).reminded).toBe(0); // déjà envoyé pour ce palier
+    expect((await prisma.notification.findMany({ where: { driverId: d.id, type: "DOC_EXPIRING" } }))[0].title).toContain("Assurance");
+    // le temps passe : palier de 7 jours, nouveau rappel
+    expect((await svc().sweep(new Date(Date.now() + 19 * 86400_000), true)).reminded).toBe(1);
+    expect(await prisma.documentReminder.count({ where: { documentId: ins.id } })).toBe(2);
+    // loin de l'échéance : rien
+    const e = await mkDriver();
+    await setExpiry(e.id, "INSURANCE", 120);
+    expect((await svc().sweep(new Date(), true)).reminded).toBe(0);
+  });
+
+  it("un document remplacé par un plus récent ne déclenche plus de rappel ; en attente de validation : ignoré", async () => {
+    const d = await mkDriver();
+    const old = await setExpiry(d.id, "TECHNICAL_INSPECTION", 5);
+    await prisma.document.create({ data: { driverId: d.id, type: "TECHNICAL_INSPECTION", storageKey: "k2", status: "APPROVED", expiresAt: new Date(Date.now() + 360 * 86400_000) } });
+    expect((await svc().sweep(new Date(), true)).reminded).toBe(0);
+    expect(await prisma.documentReminder.count({ where: { documentId: old.id } })).toBe(0);
+    const e = await mkDriver();
+    await setExpiry(e.id, "TECHNICAL_INSPECTION", 5, "PENDING");
+    expect((await svc().sweep(new Date(), true)).reminded).toBe(0);
+  });
+
+  it("document obligatoire expiré : hors ligne, mise en ligne refusée jusqu'au renouvellement ; jamais pendant une mission", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const busy = await mkDriver();
+    const { ride } = await assigned(busy, p);
+    void ride;
+    await setExpiry(d.id, "INSURANCE", -2);
+    await setExpiry(busy.id, "INSURANCE", -2);
+    const r = await svc().sweep(new Date(), true);
+    expect(r.offline).toBe(1); // d est mis hors ligne ; busy a une mission : on n'interrompt pas
+    expect((await prisma.driver.findUniqueOrThrow({ where: { id: d.id } })).availability).toBe("SUSPENDED");
+    expect(await types(d.id)).toContain("DOC_EXPIRED");
+    const blocked = await call("/driver/availability", { token: d.token, body: { availability: "AVAILABLE" } });
+    expect(blocked.status).toBe(403);
+    expect(blocked.json.code).toBe("DOCUMENTS_EXPIRED");
+    await setExpiry(d.id, "INSURANCE", 300); // renouvelé et validé
+    expect((await call("/driver/availability", { token: d.token, body: { availability: "AVAILABLE" } })).status).toBe(201);
+  });
+
+  it("tableau des échéances du chauffeur, trié du plus urgent ; liste de l'équipe", async () => {
+    const d = await mkDriver();
+    await setExpiry(d.id, "VTC_CARD", 400);
+    await setExpiry(d.id, "DRIVING_LICENSE", 12);
+    const list = (await call("/driver/deadlines", { token: d.token })).json;
+    expect(list[0]).toMatchObject({ type: "DRIVING_LICENSE", status: "SOON", daysLeft: 12, label: "Permis de conduire" });
+    expect(list.find((x: any) => x.type === "VTC_CARD").status).toBe("OK");
+    expect(list.every((x: any) => x.label)).toBe(true);
+    const adm = (await call("/admin/expiring?days=30", { admin: true })).json;
+    expect(adm.find((x: any) => x.driverId === d.id)).toMatchObject({ type: "DRIVING_LICENSE", daysLeft: 12 });
   });
 });

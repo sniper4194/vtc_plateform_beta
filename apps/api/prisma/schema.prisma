@@ -193,6 +193,8 @@ model Document {
   reviewedAt DateTime?
   createdAt  DateTime       @default(now())
 
+  reminders  DocumentReminder[]
+
   @@index([driverId, type])
 }
 
@@ -527,4 +529,15 @@ model IdentityCheck {
 
   @@index([driverId, createdAt])
   @@index([status, createdAt])
+}
+
+/// Rappel d'échéance déjà envoyé (une seule fois par document et par palier : 30, 14, 7, 1 jours, puis le jour de l'expiration).
+model DocumentReminder {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  threshold  Int
+  sentAt     DateTime @default(now())
+
+  @@unique([documentId, threshold])
 }

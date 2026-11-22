@@ -6,8 +6,9 @@ import { driverRideView } from "./views";
 import { driverOfferCents } from "./ladder";
 import { effectivePickup } from "./metrics";
 import { checkVehicle } from "./vehicle-rules";
+import { DeadlinesService } from "./deadlines.service";
 import { IdentityService } from "./identity.service";
-import { missingIdentifiers } from "./driver-docs";
+import { missingDocuments, missingIdentifiers } from "./driver-docs";
 import { buildJustificatif } from "./justificatif";
 import { haversineKm } from "./zones";
 import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, DriverOtpRequestSchema, LocationUpdateSchema } from "./schemas";
@@ -28,6 +29,7 @@ export class DriverController {
     @Inject(DispatchService) private dispatch: DispatchService,
     @Inject(OtpService) private otp: OtpService,
     @Inject(IdentityService) private identityChecks: IdentityService,
+    @Inject(DeadlinesService) private deadlines: DeadlinesService,
   ) {}
 
   /** Envoie un code à usage unique par SMS (réponse identique que le numéro soit connu ou non). */
@@ -126,6 +128,11 @@ export class DriverController {
     });
   }
 
+  /** Échéances des documents obligatoires (valable, bientôt expiré, expiré, manquant, en attente de validation). */
+  @Get("deadlines")
+  @UseGuards(DriverGuard)
+  deadlinesList(@Req() req: any) { return this.deadlines.list(req.driverId); }
+
   @Post("availability")
   @UseGuards(DriverGuard)
   async availability(@Req() req: any, @Body() body: unknown) {
@@ -133,6 +140,8 @@ export class DriverController {
     const d = await this.prisma.driver.findUniqueOrThrow({ where: { id: req.driverId } });
     if (d.status !== "ACTIVE") throw new HttpException("Compte non actif", 403);
     if (availability === "AVAILABLE") {
+      const expired = await missingDocuments(this.prisma, d.id);
+      if (expired.length) throw new HttpException({ message: "Document manquant ou expiré : renouvelez-le pour vous mettre en ligne", code: "DOCUMENTS_EXPIRED", missing: expired }, 403);
       const blocked = await this.identityChecks.blockReason(d.id);
       if (blocked) throw new HttpException({ message: blocked, code: "IDENTITY_CHECK_REQUIRED" }, 403);
     }
