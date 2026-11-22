@@ -27,12 +27,20 @@ export class ApiError extends Error {
   }
 }
 
+/** Échec réseau (serveur éteint, mauvaise adresse, pare-feu, CORS) : on dit quelle adresse a été tentée, pour que l'on puisse diagnostiquer. */
+export const unreachableMessage = () => `Serveur injoignable (${API_URL}). Vérifiez que l'API tourne et que l'adresse est la bonne.`;
+
 export async function api<T = any>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(API_URL + path, {
-    method: body === undefined ? "GET" : "POST",
-    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(API_URL + path, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(unreachableMessage(), 0, "NETWORK");
+  }
   const text = await res.text();
   const json = text ? JSON.parse(text) : null;
   if (!res.ok) throw new ApiError(json?.message ?? `Erreur ${res.status}`, res.status, json?.code);
@@ -41,7 +49,8 @@ export async function api<T = any>(path: string, body?: unknown): Promise<T> {
 
 /** Requête GET qui renvoie du texte (export CSV). */
 export async function apiText(path: string): Promise<string> {
-  const res = await fetch(API_URL + path, { headers: token ? { authorization: `Bearer ${token}` } : {} });
+  let res: Response;
+  try { res = await fetch(API_URL + path, { headers: token ? { authorization: `Bearer ${token}` } : {} }); } catch { throw new ApiError(unreachableMessage(), 0, "NETWORK"); }
   const text = await res.text();
   if (!res.ok) { let m = `Erreur ${res.status}`; try { m = JSON.parse(text)?.message ?? m; } catch { /* texte brut */ } throw new ApiError(m, res.status); }
   return text;
