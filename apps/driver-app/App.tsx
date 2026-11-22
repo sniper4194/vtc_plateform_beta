@@ -7,7 +7,7 @@ import { KaushanScript_400Regular } from "@expo-google-fonts/kaushan-script";
 import { RozhaOne_400Regular } from "@expo-google-fonts/rozha-one";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, TextInput, View } from "react-native";
-import { api, loadToken, saveToken } from "./src/api";
+import { api, API_URL, loadToken, saveToken } from "./src/api";
 import { SpotPrompt } from "./src/identity";
 import { MissionScreen } from "./src/mission";
 import { Earnings } from "./src/earnings";
@@ -81,6 +81,7 @@ function Login({ onDone }: { onDone: () => void }) {
             </View>
           </>
         )}
+        <Cond size={11} color={c.onSky}>Serveur : {API_URL}</Cond>
       </View>
     </SafeAreaView>
   );
