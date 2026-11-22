@@ -225,7 +225,7 @@ Aucun `.apk` n'est fourni dans le dépôt : il se construit à la demande, et il
 ## Essayer l'application chauffeur avec Expo Go (téléphone Android ou iPhone)
 
 Sur votre ordinateur, avec le téléphone sur le même Wi-Fi :
-1. `pnpm install`, puis `pnpm setup:env` (crée les fichiers `.env`, y compris `apps/api/.env` dont Prisma a besoin), `pnpm db:up`, `pnpm -F @vtc/api db:deploy`, `pnpm -F @vtc/api seed`.
+1. `pnpm install`, puis `pnpm setup:env` (crée les fichiers `.env`, y compris `apps/api/.env` dont Prisma a besoin), `pnpm setup:build` (compile les paquets partagés et génère le client Prisma), `pnpm db:up`, `pnpm -F @vtc/api db:deploy`, `pnpm -F @vtc/api seed`.
 2. Terminal A : `pnpm -F @vtc/api dev:demo` (API sur :3000, code de connexion fixe `000000`, contrôles d'identité et critères véhicule désactivés pour la démo).
 3. Terminal B : `pnpm -F @vtc/api demo:driver` (crée le chauffeur `06 00 00 00 01`, validé et en ligne, avec deux missions à prendre).
 4. Créer `apps/driver-app/.env` avec une ligne `EXPO_PUBLIC_API_URL=http://<IP-de-l-ordinateur>:3000`.
