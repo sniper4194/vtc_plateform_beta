@@ -444,7 +444,27 @@ function AlertsTab() {
   return (
     <>
       <h1 className="title">Alertes</h1>
-      <div className="card">
+      <div className="card" style={{ borderColor: inc.data?.some((x) => x.urgent && x.status === "OPEN") ? "#ee2a14" : undefined }}>
+        <h3>Incidents signalés par les chauffeurs</h3>
+        <p className="muted" style={{ fontSize: 13 }}>Les urgences d'abord. L'équipe n'est pas un service d'urgence : en cas de danger immédiat, le chauffeur est renvoyé vers le 112.</p>
+        {inc.error && <div className="err">{inc.error}</div>}
+        {inc.data?.length ? (
+          <table>
+            <thead><tr><th>Heure</th><th>Chauffeur</th><th>Type</th><th>Mission</th><th>Détail</th><th>État</th><th></th></tr></thead>
+            <tbody>{inc.data.map((x) => (
+              <tr key={x.id}>
+                <td>{dt(x.createdAt)}</td>
+                <td>{x.driver}<br /><a href={`tel:${x.phone}`}>{x.phone}</a>{x.map && <> · <a href={x.map} target="_blank" rel="noreferrer">carte</a></>}</td>
+                <td><span className={`chip ${x.urgent ? "bad" : ""}`}>{x.urgent ? "URGENT · " : ""}{x.label}</span></td>
+                <td>{x.ref ? `R-${x.ref}` : "—"}</td><td>{x.message ?? "—"}</td>
+                <td><span className={`chip ${x.status === "CLOSED" ? "ok" : x.status === "OPEN" ? "bad" : ""}`}>{x.status === "OPEN" ? "À traiter" : x.status === "ACKNOWLEDGED" ? "Pris en charge" : `Clos${x.resolution ? ` : ${x.resolution}` : ""}`}</span></td>
+                <td>{x.status === "OPEN" && <button className="btn primary" onClick={() => incAct(x.id, "ack")}>Prendre en charge</button>}{" "}{x.status !== "CLOSED" && <button className="btn" onClick={() => incAct(x.id, "close")}>Clore</button>}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        ) : <p className="muted">Aucun incident.</p>}
+      </div>
+      <div className="card" style={{ marginTop: 16 }}>
         <h3>Missions sans chauffeur après tous les tours de recherche, et vols annulés</h3>
         {alerts.error && <div className="err">{alerts.error}</div>}
         {alerts.data?.length ? (
@@ -468,26 +488,6 @@ function AlertsTab() {
             ))}</tbody>
           </table>
         ) : <p className="muted">Aucun appel à l'aide.</p>}
-      </div>
-      <div className="card" style={{ marginTop: 16, borderColor: inc.data?.some((x) => x.urgent && x.status === "OPEN") ? "#ee2a14" : undefined }}>
-        <h3>Incidents signalés par les chauffeurs</h3>
-        <p className="muted" style={{ fontSize: 13 }}>Les urgences d'abord. L'équipe n'est pas un service d'urgence : en cas de danger immédiat, le chauffeur est renvoyé vers le 112.</p>
-        {inc.error && <div className="err">{inc.error}</div>}
-        {inc.data?.length ? (
-          <table>
-            <thead><tr><th>Heure</th><th>Chauffeur</th><th>Type</th><th>Mission</th><th>Détail</th><th>État</th><th></th></tr></thead>
-            <tbody>{inc.data.map((x) => (
-              <tr key={x.id}>
-                <td>{dt(x.createdAt)}</td>
-                <td>{x.driver}<br /><a href={`tel:${x.phone}`}>{x.phone}</a>{x.map && <> · <a href={x.map} target="_blank" rel="noreferrer">carte</a></>}</td>
-                <td><span className={`chip ${x.urgent ? "bad" : ""}`}>{x.urgent ? "URGENT · " : ""}{x.label}</span></td>
-                <td>{x.ref ? `R-${x.ref}` : "—"}</td><td>{x.message ?? "—"}</td>
-                <td><span className={`chip ${x.status === "CLOSED" ? "ok" : x.status === "OPEN" ? "bad" : ""}`}>{x.status === "OPEN" ? "À traiter" : x.status === "ACKNOWLEDGED" ? "Pris en charge" : `Clos${x.resolution ? ` : ${x.resolution}` : ""}`}</span></td>
-                <td>{x.status === "OPEN" && <button className="btn primary" onClick={() => incAct(x.id, "ack")}>Prendre en charge</button>}{" "}{x.status !== "CLOSED" && <button className="btn" onClick={() => incAct(x.id, "close")}>Clore</button>}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        ) : <p className="muted">Aucun incident.</p>}
       </div>
       <div className="card" style={{ marginTop: 16 }}>
         <h3>Vérifications d'identité (selfies)</h3>
