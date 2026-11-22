@@ -23,7 +23,7 @@ function Login({ onOk }: { onOk: () => void }) {
   }
   return (
     <main style={{ maxWidth: 460, marginTop: 70 }}>
-      <div className="brand" style={{ fontSize: 56, marginBottom: 24 }}>ClicCab<small>espace société</small></div>
+      <div className="brand" style={{ fontSize: 56, marginBottom: 24 }}>CliCab<small>espace société</small></div>
       <form className="card" onSubmit={submit}>
         <div className="cond muted">Clé d'accès de votre société</div>
         <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="cmp_…" style={{ width: "100%", margin: "8px 0" }} autoFocus />
@@ -202,7 +202,7 @@ export default function CompanyPortal() {
   return (
     <>
       <header>
-        <div className="brand">ClicCab<small>{me.data?.name ?? "espace société"}</small></div>
+        <div className="brand">CliCab<small>{me.data?.name ?? "espace société"}</small></div>
         <nav>{tabs.map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}</nav>
         <button className="btn" style={{ marginLeft: "auto" }} onClick={() => { clearCompanyKey(); setAuthed(false); }}>Quitter</button>
       </header>

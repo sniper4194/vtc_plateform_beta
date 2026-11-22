@@ -5,7 +5,7 @@ import "@fontsource/kaushan-script/400.css";
 import "./globals.css";
 import type { ReactNode } from "react";
 
-export const metadata = { title: "ClicCab · Tour de contrôle" };
+export const metadata = { title: "CliCab · Tour de contrôle" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

@@ -600,10 +600,10 @@ describe("espace société", () => {
   const range = () => `from=${encodeURIComponent(new Date(Date.now() - 86400_000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 6 * 86400_000).toISOString())}`;
 
   it("authentifie par clé, refuse l'inconnu", async () => {
-    const co = await mkCompany("Taxis ClicCab");
+    const co = await mkCompany("Taxis CliCab");
     expect((await call("/company/me")).status).toBe(401);
     expect((await call("/company/me", { token: "cmp_nope" })).status).toBe(401);
-    expect((await call("/company/me", { token: co.key })).json.name).toBe("Taxis ClicCab");
+    expect((await call("/company/me", { token: co.key })).json.name).toBe("Taxis CliCab");
     expect((await call("/company/me", { token: (await mkPartner()).apiKey })).status).toBe(401); // une clé partenaire ne passe pas
   });
 

@@ -18,13 +18,13 @@ describe("numéros de téléphone", () => {
 describe("fournisseur Twilio", () => {
   it("poste le message avec authentification Basic, expéditeur et corps encodés", async () => {
     const f = vi.fn().mockResolvedValue({ ok: true, status: 201 });
-    await new TwilioSmsProvider("ACxxx", "tok", { from: "ClicCab" }, f as any).send("+33612345678", "Votre code : 123456");
+    await new TwilioSmsProvider("ACxxx", "tok", { from: "CliCab" }, f as any).send("+33612345678", "Votre code : 123456");
     const [url, init] = f.mock.calls[0];
     expect(url).toBe("https://api.twilio.com/2010-04-01/Accounts/ACxxx/Messages.json");
     expect(init.headers.authorization).toBe("Basic " + Buffer.from("ACxxx:tok").toString("base64"));
     const body = init.body as URLSearchParams;
     expect(body.get("To")).toBe("+33612345678");
-    expect(body.get("From")).toBe("ClicCab");
+    expect(body.get("From")).toBe("CliCab");
     expect(body.get("Body")).toBe("Votre code : 123456");
   });
   it("préfère le service de messagerie et signale les erreurs", async () => {
@@ -45,6 +45,6 @@ describe("choix du fournisseur", () => {
   });
   it("Twilio exige une configuration complète", () => {
     expect(() => smsProviderFromEnv({ SMS_PROVIDER: "twilio" } as any)).toThrow();
-    expect(smsProviderFromEnv({ SMS_PROVIDER: "twilio", TWILIO_ACCOUNT_SID: "AC", TWILIO_AUTH_TOKEN: "t", TWILIO_FROM: "ClicCab" } as any)).toBeInstanceOf(TwilioSmsProvider);
+    expect(smsProviderFromEnv({ SMS_PROVIDER: "twilio", TWILIO_ACCOUNT_SID: "AC", TWILIO_AUTH_TOKEN: "t", TWILIO_FROM: "CliCab" } as any)).toBeInstanceOf(TwilioSmsProvider);
   });
 });

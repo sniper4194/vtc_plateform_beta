@@ -53,7 +53,7 @@ Le simulateur crée un partenaire et deux chauffeurs, réserve un CDG → Paris 
 
 Connexion chauffeur en dev : téléphone d'un chauffeur créé via `/admin/drivers`, code `DRIVER_DEV_OTP` (000000 par défaut).
 
-**Identité visuelle** : aplats bleu/jaune/rouge, serif massif, pastilles, grain d'impression (voir `apps/driver-app/src/theme.ts`). « ClicCab » est le nom retenu, pas encore vérifié (marque, domaine, boutiques d'applications) : il se change dans une seule constante (`BRAND`) et dans le back-office.
+**Identité visuelle** : aplats bleu/jaune/rouge, serif massif, pastilles, grain d'impression (voir `apps/driver-app/src/theme.ts`). « CliCab » est le nom retenu, pas encore vérifié (marque, domaine, boutiques d'applications) : il se change dans une seule constante (`BRAND`) et dans le back-office.
 
 ## Google Maps (app chauffeur)
 

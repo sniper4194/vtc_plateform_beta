@@ -100,7 +100,7 @@ export function cancellationMessage(ride: RideForMessage, flightNumber: string |
 /** Message au voyageur avec son lien de suivi (SMS court + e-mail). Français pour « fr », anglais sinon. Fonction pure. */
 export function trackingMessage(
   b: { firstName: string; language: string; reference: string; pickupAt: Date; pickup: string; dropoff: string; url: string },
-  brand = process.env.BRAND_NAME ?? "ClicCab",
+  brand = process.env.BRAND_NAME ?? "CliCab",
 ) {
   const fr = b.language === "fr";
   const when = b.pickupAt.toLocaleString(fr ? "fr-FR" : "en-GB", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
@@ -128,7 +128,7 @@ export function trackingMessage(
 export function passengerAlertSms(
   a: { kind: "ARRIVED"; language: string; driverFirstName: string; vehicle: string | null; plate: string | null; url: string }
    | { kind: "FLIGHT_DELAY"; language: string; flightNumber: string; delayMin: number; pickupAt: Date; url: string },
-  brand = process.env.BRAND_NAME ?? "ClicCab",
+  brand = process.env.BRAND_NAME ?? "CliCab",
 ) {
   const fr = a.language === "fr";
   if (a.kind === "ARRIVED") {

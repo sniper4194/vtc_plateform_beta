@@ -49,7 +49,7 @@ export class OtpService {
     ]);
     const driver = await this.prisma.driver.findUnique({ where: { phone }, select: { id: true } });
     if (driver && this.sms.provider) {
-      await this.sms.provider.send(phone, `Votre code ${process.env.BRAND_NAME ?? "ClicCab"} : ${code}. Valable ${OTP.ttlMin} min. Ne le communiquez à personne.`);
+      await this.sms.provider.send(phone, `Votre code ${process.env.BRAND_NAME ?? "CliCab"} : ${code}. Valable ${OTP.ttlMin} min. Ne le communiquez à personne.`);
     }
     return { ok: true, resendInSeconds: OTP.resendSeconds };
   }

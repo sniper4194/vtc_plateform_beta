@@ -55,7 +55,7 @@ function Login({ onOk }: { onOk: () => void }) {
   }
   return (
     <main style={{ maxWidth: 460, marginTop: 70 }}>
-      <div className="brand" style={{ fontSize: 64, marginBottom: 24 }}>ClicCab<small>tour de contrôle</small></div>
+      <div className="brand" style={{ fontSize: 64, marginBottom: 24 }}>CliCab<small>tour de contrôle</small></div>
       <form className="card" onSubmit={submit}>
         <div className="cond muted">E-mail</div>
         <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: "100%", margin: "6px 0 12px" }} autoFocus />
@@ -570,7 +570,7 @@ export default function Home() {
   return (
     <>
       <header>
-        <div className="brand">ClicCab<small>tour de contrôle</small></div>
+        <div className="brand">CliCab<small>tour de contrôle</small></div>
         <nav>
           {tabs.map(([k, l]) => (
             <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
