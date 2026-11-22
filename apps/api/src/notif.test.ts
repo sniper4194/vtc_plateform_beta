@@ -96,11 +96,11 @@ describe("message avec échelle de prix", () => {
 describe("fournisseur e-mail", () => {
   it("Resend : appel REST avec clé, expéditeur et destinataire", async () => {
     const f = vi.fn().mockResolvedValue({ ok: true, status: 200 });
-    await new ResendEmailProvider("re_key", "Étoile <noreply@exemple.fr>", f as any).send({ to: "a@b.fr", subject: "Sujet", text: "Corps" });
+    await new ResendEmailProvider("re_key", "ClicCab <noreply@exemple.fr>", f as any).send({ to: "a@b.fr", subject: "Sujet", text: "Corps" });
     const [url, init] = f.mock.calls[0];
     expect(url).toBe("https://api.resend.com/emails");
     expect(init.headers.authorization).toBe("Bearer re_key");
-    expect(JSON.parse(init.body)).toEqual({ from: "Étoile <noreply@exemple.fr>", to: ["a@b.fr"], subject: "Sujet", text: "Corps" });
+    expect(JSON.parse(init.body)).toEqual({ from: "ClicCab <noreply@exemple.fr>", to: ["a@b.fr"], subject: "Sujet", text: "Corps" });
   });
   it("signale les erreurs HTTP", async () => {
     const f = vi.fn().mockResolvedValue({ ok: false, status: 403 });
@@ -118,7 +118,7 @@ describe("fournisseur e-mail", () => {
 describe("message du lien de suivi au voyageur", () => {
   const b = { firstName: "Ana", reference: "R-100234", pickupAt: new Date("2026-11-20T21:37:00Z"), pickup: "CDG T2", dropoff: "Paris 8e", url: "https://suivi.exemple.fr/suivi/abc" };
   it("français : SMS court avec le lien, e-mail détaillé et mise en garde", () => {
-    const m = trackingMessage({ ...b, language: "fr" }, "Étoile");
+    const m = trackingMessage({ ...b, language: "fr" }, "ClicCab");
     expect(m.sms).toContain("R-100234");
     expect(m.sms).toContain("https://suivi.exemple.fr/suivi/abc");
     expect(m.sms).toContain("20/11 22:37"); // heure de Paris
@@ -127,7 +127,7 @@ describe("message du lien de suivi au voyageur", () => {
     expect(m.text).toMatch(/Ne partagez pas ce lien/);
   });
   it("toute autre langue : anglais", () => {
-    const m = trackingMessage({ ...b, language: "pt" }, "Étoile");
+    const m = trackingMessage({ ...b, language: "pt" }, "ClicCab");
     expect(m.subject).toBe("Your ride R-100234 is confirmed");
     expect(m.text).toMatch(/do not share this link/);
   });
@@ -135,14 +135,14 @@ describe("message du lien de suivi au voyageur", () => {
 
 describe("alertes SMS au voyageur", () => {
   it("chauffeur arrivé : prénom, véhicule, plaque et lien", () => {
-    const m = passengerAlertSms({ kind: "ARRIVED", language: "fr", driverFirstName: "Hamza", vehicle: "Toyota Camry", plate: "GH-156-RM", url: "https://s/x" }, "Étoile");
+    const m = passengerAlertSms({ kind: "ARRIVED", language: "fr", driverFirstName: "Hamza", vehicle: "Toyota Camry", plate: "GH-156-RM", url: "https://s/x" }, "ClicCab");
     expect(m).toContain("Hamza");
     expect(m).toContain("Toyota Camry GH-156-RM");
     expect(m).toContain("https://s/x");
   });
   it("retard de vol : durée et nouvelle heure de prise en charge (heure de Paris), en anglais hors français", () => {
     const base = { kind: "FLIGHT_DELAY" as const, flightNumber: "AF1234", delayMin: 40, pickupAt: new Date("2026-11-20T21:37:00Z"), url: "https://s/x" };
-    expect(passengerAlertSms({ ...base, language: "fr" }, "Étoile")).toMatch(/vol AF1234 retardé de 40 min.*22:37/);
-    expect(passengerAlertSms({ ...base, language: "en" }, "Étoile")).toMatch(/flight AF1234 delayed by 40 min/);
+    expect(passengerAlertSms({ ...base, language: "fr" }, "ClicCab")).toMatch(/vol AF1234 retardé de 40 min.*22:37/);
+    expect(passengerAlertSms({ ...base, language: "en" }, "ClicCab")).toMatch(/flight AF1234 delayed by 40 min/);
   });
 });

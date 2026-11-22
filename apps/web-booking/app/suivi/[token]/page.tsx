@@ -28,8 +28,8 @@ export default function Suivi({ params }: { params: { token: string } }) {
   const lang: Lang = data?.language ?? "fr";
   const t = text(lang);
 
-  if (state === "gone") return <main className="wrap"><div className="brand">ÉTOILE</div><div className="card"><p className="err">{text("fr").notFound} · {text("en").notFound}</p></div></main>;
-  if (!data) return <main className="wrap"><div className="brand">ÉTOILE</div><div className="card"><p className="muted">{state === "offline" ? t.offline : t.loading}</p></div></main>;
+  if (state === "gone") return <main className="wrap"><div className="brand">ClicCab</div><div className="card"><p className="err">{text("fr").notFound} · {text("en").notFound}</p></div></main>;
+  if (!data) return <main className="wrap"><div className="brand">ClicCab</div><div className="card"><p className="muted">{state === "offline" ? t.offline : t.loading}</p></div></main>;
 
   const idx = stepIndex(data.status);
   const cancelled = isCancelled(data.status);
@@ -37,7 +37,7 @@ export default function Suivi({ params }: { params: { token: string } }) {
   const f = data.flight;
   return (
     <main className="wrap">
-      <div className="brand">ÉTOILE</div>
+      <div className="brand">ClicCab</div>
       <section className="hero" aria-live="polite">
         <div className="muted" style={{ fontSize: 13 }}>{t.ref} {data.reference}</div>
         <h1>{headline(lang, data.status)}</h1>

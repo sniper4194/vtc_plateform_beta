@@ -33,7 +33,7 @@ export class NotificationsService {
       const driver = await this.prisma.driver.findUnique({ where: { id: driverId }, select: { email: true } });
       await this.prisma.notification.create({ data: { driverId, type: m.type, title: m.title, body: m.body, data: m.data as any } });
       if (opts.email && driver?.email && this.email.provider) {
-        await this.email.provider.send({ to: driver.email, subject: m.title, text: `${m.body}\n\n— ${process.env.BRAND_NAME ?? "Étoile"}` });
+        await this.email.provider.send({ to: driver.email, subject: m.title, text: `${m.body}\n\n— ${process.env.BRAND_NAME ?? "ClicCab"}` });
       }
     } catch (e: any) {
       this.log.warn(`notification chauffeur ${driverId} (${m.type}) : ${e?.message ?? e}`);

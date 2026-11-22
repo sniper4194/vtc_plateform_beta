@@ -1,5 +1,5 @@
 /** Identité visuelle : aplats bleu / jaune / rouge, serif massif, pastilles. Nom de marque provisoire : une seule constante. */
-export const BRAND = "ÉTOILE";
+export const BRAND = "ClicCab";
 
 export const c = {
   sky: "#8fd0f5", onSky: "#0b2a4a", // fond bleu ciel + texte bleu nuit posé dessus (contraste 8,7)
