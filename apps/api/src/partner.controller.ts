@@ -55,6 +55,13 @@ export class PartnerController {
     return this.bookings.get(req.partner, id);
   }
 
+  /** Photo du chauffeur (image JPEG/PNG), à afficher au voyageur pendant sa course ; 404 si aucune photo validée ou course hors période. */
+  @Get("bookings/:id/driver-photo")
+  async driverPhoto(@Req() req: any, @Param("id") id: string, @Res() res: any) {
+    const p = await this.bookings.driverPhoto(req.partner, id);
+    res.set({ "Content-Type": p.mime, "Cache-Control": "private, no-store" }).send(p.image);
+  }
+
   /** Note du trajet par le voyageur (via le partenaire), 1 à 5 ; uniquement après la course. */
   @Post("bookings/:id/rating")
   rate(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {

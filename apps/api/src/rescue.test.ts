@@ -557,6 +557,28 @@ describe("vérification d'identité par selfie", () => {
     expect((await call("/driver/identity", { token: d.token })).json.photo.status).toBe("VALID");
   });
 
+  it("le client voit la photo du chauffeur pendant sa course seulement, et seulement si elle est validée", async () => {
+    const d = await mkDriver();
+    const p = await mkPartner(false);
+    const other = await mkPartner(false);
+    const { bookingId, ride } = await assigned(d, p);
+    const get = (key: string) => fetch(`${base}/v1/bookings/${bookingId}/driver-photo`, { headers: { authorization: `Bearer ${key}` } });
+    const view = await call(`/v1/bookings/${bookingId}`, { token: p.apiKey });
+    expect(view.json.driver.photoUrl).toBe(`/v1/bookings/${bookingId}/driver-photo`);
+    expect((await get(p.apiKey)).status).toBe(404); // aucune photo
+    await call("/driver/identity/selfie", { token: d.token, body: { image: jpeg } });
+    expect((await get(p.apiKey)).status).toBe(404); // photo non validée
+    const pending = (await call("/admin/identity-checks?status=PENDING", { admin: true })).json;
+    await call(`/admin/identity-checks/${pending[0].id}/review`, { admin: true, body: { decision: "APPROVE" } });
+    const ok = await get(p.apiKey);
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("content-type")).toBe("image/jpeg");
+    expect(Buffer.from(await ok.arrayBuffer()).equals(Buffer.from(jpeg, "base64"))).toBe(true);
+    expect((await get(other.apiKey)).status).toBe(404); // un autre partenaire ne voit rien
+    await prisma.ride.update({ where: { id: ride.id }, data: { status: "COMPLETED" } });
+    expect((await get(p.apiKey)).status).toBe(404); // course terminée
+  });
+
   it("un selfie qui ne correspond pas à la référence suspend le compte (prêt de compte) ; refuse un fichier qui n'est pas une image", async () => {
     const d = await mkDriver();
     on();

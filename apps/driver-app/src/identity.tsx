@@ -110,6 +110,7 @@ export function IdentityScreen({ onClose, notify, onChanged }: { onClose: () => 
             <Avatar photo={d?.photo} size={96} />
             <Slab size={17} color={c.ink} shadow={null}>Ma photo et selfie de prise de service</Slab>
             <Cond size={12} color={c.muted}>{selfieLine}</Cond>
+            <Cond size={12} color={c.muted}>Une fois validée, votre photo est montrée au client pendant sa course (de l'attribution à l'arrivée) pour qu'il vous reconnaisse. Elle n'est plus accessible ensuite.</Cond>
             <Cond size={12} color={c.muted}>Il protège votre compte : personne d'autre ne peut rouler à votre place.</Cond>
             <View style={{ marginTop: 10 }}><Btn label={s?.referenceStatus === "VALID" ? "Prendre un selfie" : "Prendre ma photo"} color={c.blue} text={c.cream} onPress={selfie} disabled={busy} /></View>
           </Card>

@@ -46,6 +46,15 @@ export class BookingsService {
     return bookingView(await this.findForPartner(partner, bookingId));
   }
 
+  /** Photo du chauffeur affecté : uniquement pour le partenaire qui a réservé, et seulement entre l'attribution et la fin de la course. */
+  async driverPhoto(partner: Partner, bookingId: string): Promise<{ mime: string; image: Buffer }> {
+    const ride = await this.findForPartner(partner, bookingId);
+    if (!ride.driverId || !["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"].includes(ride.status)) throw new HttpException("Photo indisponible", 404);
+    const ref = await this.prisma.identityCheck.findFirst({ where: { driverId: ride.driverId, kind: "REFERENCE", status: "VALID", image: { not: null } }, orderBy: { createdAt: "desc" } });
+    if (!ref?.image) throw new HttpException("Photo indisponible", 404);
+    return { mime: ref.mime ?? "image/jpeg", image: Buffer.from(ref.image) };
+  }
+
   async create(partner: Partner, idempotencyKey: string, req: BookingRequest, sandbox: boolean) {
     const existing = await this.prisma.booking.findUnique({
       where: { partnerId_idempotencyKey: { partnerId: partner.id, idempotencyKey } },

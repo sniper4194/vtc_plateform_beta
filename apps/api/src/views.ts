@@ -40,6 +40,8 @@ export function bookingView(r: RideFull) {
           phone: r.driver.phone,
           vehicle: r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : null,
           plate: r.vehicle?.plate ?? null,
+          // Photo du chauffeur, montrée au voyageur pendant sa course seulement (GET avec la clé du partenaire ; 404 tant qu'aucune photo n'est validée).
+          photoUrl: `/v1/bookings/${r.booking.id}/driver-photo`,
         }
       : null,
   };

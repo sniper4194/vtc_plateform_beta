@@ -183,6 +183,7 @@ components:
             phone: { type: string }
             vehicle: { type: string }
             plate: { type: string }
+            photoUrl: { type: string, description: "Chemin de la photo du chauffeur (GET avec votre clé API ; image JPEG/PNG). Disponible de l'attribution à la fin de la course ; 404 sinon ou si aucune photo n'est validée." }
         pickupAt: { type: string, format: date-time, description: "Heure demandée" }
         effectivePickupAt: { type: string, format: date-time, description: "Heure demandée + retard de vol" }
         signText: { type: string }
