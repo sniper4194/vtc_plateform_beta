@@ -540,6 +540,23 @@ describe("vérification d'identité par selfie", () => {
     expect((await call("/driver/identity", { token: d.token })).json.selfie.mustVerify).toBe(false);
   });
 
+  it("la photo de référence sert de photo de profil : visible du chauffeur et de l'équipe, jamais des autres chauffeurs", async () => {
+    const d = await mkDriver();
+    const other = await mkDriver();
+    expect((await call("/driver/identity", { token: d.token })).json.photo).toBeNull();
+    expect((await call(`/admin/drivers/${d.id}/photo`, { admin: true })).json).toMatchObject({ photo: null, status: "NONE" });
+    await call("/driver/identity/selfie", { token: d.token, body: { image: jpeg } });
+    const mine = (await call("/driver/identity", { token: d.token })).json.photo;
+    expect(mine.status).toBe("PENDING");
+    expect(mine.photo).toMatch(/^data:image\/jpeg;base64,/);
+    expect((await call(`/admin/drivers/${d.id}/photo`, { admin: true })).json.photo).toBe(mine.photo);
+    expect((await call("/driver/identity", { token: other.token })).json.photo).toBeNull();
+    expect((await call(`/admin/drivers/${d.id}/photo`)).status).toBe(401); // sans identifiants d'équipe
+    const pending = (await call("/admin/identity-checks?status=PENDING", { admin: true })).json;
+    await call(`/admin/identity-checks/${pending[0].id}/review`, { admin: true, body: { decision: "APPROVE" } });
+    expect((await call("/driver/identity", { token: d.token })).json.photo.status).toBe("VALID");
+  });
+
   it("un selfie qui ne correspond pas à la référence suspend le compte (prêt de compte) ; refuse un fichier qui n'est pas une image", async () => {
     const d = await mkDriver();
     on();

@@ -1,5 +1,5 @@
 import { DeadlinesCard, DeadlinesScreen } from "./deadlines";
-import { IdentityScreen } from "./identity";
+import { Avatar, IdentityScreen } from "./identity";
 import { IncidentCard, IncidentScreen } from "./incident";
 import { CostNote, RescueCard, RescuePicker } from "./rescue";
 import { useEffect, useRef, useState } from "react";
@@ -92,10 +92,15 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
       </Card>
 
       <Card color={identity.data && (identity.data.missing.length > 0 || identity.data.selfie?.mustVerify) ? c.yel : c.cream} onPress={() => setShowId(true)}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <Avatar photo={identity.data?.photo} size={52} />
+        <View style={{ flex: 1 }}>
         <Slab size={17} color={c.ink} shadow={null}>Mon identité</Slab>
         <Cond size={12} color={c.muted}>
           {!identity.data ? "…" : identity.data.selfie?.mustVerify ? "Selfie de prise de service à faire" : identity.data.missing.length > 0 ? `À compléter : ${identity.data.missing.join(", ")}` : "À jour"} →
         </Cond>
+        </View>
+        </View>
       </Card>
       <IncidentCard onOpen={() => setShowInc(true)} />
       {showInc && <IncidentScreen notify={notify} onClose={() => setShowInc(false)} />}

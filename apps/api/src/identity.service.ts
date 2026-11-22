@@ -40,6 +40,13 @@ export class IdentityService {
     };
   }
 
+  /** Photo de profil du chauffeur = sa photo de référence (validée, sinon en attente), en data URI ; null si aucune. */
+  async photo(driverId: string): Promise<{ photo: string; status: string } | null> {
+    const ref = await this.prisma.identityCheck.findFirst({ where: { driverId, kind: "REFERENCE", status: { in: ["VALID", "PENDING"] }, image: { not: null } }, orderBy: [{ status: "desc" }, { createdAt: "desc" }] });
+    if (!ref?.image) return null;
+    return { photo: `data:${ref.mime ?? "image/jpeg"};base64,${Buffer.from(ref.image).toString("base64")}`, status: ref.status };
+  }
+
   /** Doit-on empêcher ce chauffeur de se mettre en ligne ? Renvoie le motif lisible, ou null. */
   async blockReason(driverId: string): Promise<string | null> {
     const s = await this.state(driverId);

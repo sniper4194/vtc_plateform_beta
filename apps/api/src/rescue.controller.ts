@@ -37,6 +37,8 @@ export class AdminRescueController {
 
   /** Demande immédiate d'un selfie à un chauffeur (soupçon, contrôle ciblé). */
   @Post("drivers/:id/identity-spot") @AdminOnly() async identitySpot(@Req() req: any, @Param("id") id: string) { const c = await this.identity.requestSpot(id, req.admin.actor); return { id: c.id, dueAt: c.dueAt }; }
+  /** Photo de profil du chauffeur (sa photo de référence), chargée à la demande par le back-office. */
+  @Get("drivers/:id/photo") async driverPhoto(@Param("id") id: string) { return (await this.identity.photo(id)) ?? { photo: null, status: "NONE" }; }
   @Get("identity-checks") identityList(@Query("status") status?: string) { return this.identity.adminList(status); }
   @Post("identity-checks/:id/review") @AdminOnly() identityReview(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
     const b = parse(z.object({ decision: z.enum(["APPROVE", "REJECT"]), reason: z.string().trim().min(3).max(300).optional() }), body);

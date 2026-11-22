@@ -1,6 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useState } from "react";
-import { Modal, Pressable, ScrollView, TextInput, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, TextInput, View } from "react-native";
 import { api } from "./api";
 import { timeOf } from "./format";
 import { c, font } from "./theme";
@@ -57,6 +57,12 @@ export function SpotPrompt({ notify }: { notify: Notify }) {
   );
 }
 
+/** Photo de profil (la photo de référence) ; pastille vide tant qu'il n'y en a pas. Jamais montrée aux clients. */
+export function Avatar({ photo, size = 48 }: { photo?: { photo: string; status: string } | null; size?: number }) {
+  const box = { width: size, height: size, borderRadius: size / 2, borderWidth: 3, borderColor: c.ink, backgroundColor: c.cream, overflow: "hidden" as const, alignItems: "center" as const, justifyContent: "center" as const };
+  return <View style={box} accessibilityLabel="Ma photo de profil">{photo?.photo ? <Image source={{ uri: photo.photo }} style={{ width: size, height: size, opacity: photo.status === "PENDING" ? 0.6 : 1 }} /> : <Cond size={Math.max(10, size / 5)} color={c.muted}>Photo</Cond>}</View>;
+}
+
 /** Mon identité : informations d'exploitant (justificatif de réservation, validation) et selfie de prise de service. */
 export function IdentityScreen({ onClose, notify, onChanged }: { onClose: () => void; notify: Notify; onChanged?: () => void }) {
   const st = useFetch<any>("/driver/identity", 15000);
@@ -101,7 +107,8 @@ export function IdentityScreen({ onClose, notify, onChanged }: { onClose: () => 
           <Display size={34} shadow={c.red}>Mon identité</Display>
 
           <Card color={s?.mustVerify ? c.yel : c.cream}>
-            <Slab size={17} color={c.ink} shadow={null}>Selfie de prise de service</Slab>
+            <Avatar photo={d?.photo} size={96} />
+            <Slab size={17} color={c.ink} shadow={null}>Ma photo et selfie de prise de service</Slab>
             <Cond size={12} color={c.muted}>{selfieLine}</Cond>
             <Cond size={12} color={c.muted}>Il protège votre compte : personne d'autre ne peut rouler à votre place.</Cond>
             <View style={{ marginTop: 10 }}><Btn label={s?.referenceStatus === "VALID" ? "Prendre un selfie" : "Prendre ma photo"} color={c.blue} text={c.cream} onPress={selfie} disabled={busy} /></View>

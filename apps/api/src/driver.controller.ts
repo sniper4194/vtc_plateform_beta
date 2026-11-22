@@ -88,6 +88,7 @@ export class DriverController {
       businessName: d.businessName, siret: d.siret, revtcNumber: d.revtcNumber, proCardNumber: d.proCardNumber,
       missing: await missingIdentifiers(this.prisma, d.id),
       selfie: await this.identityChecks.state(d.id),
+      photo: await this.identityChecks.photo(d.id), // photo de profil : visible par le chauffeur et l'équipe seulement
     };
   }
 

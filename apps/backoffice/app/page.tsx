@@ -31,6 +31,16 @@ function useLoad<T>(path: string, every = 5000) {
   return { data, error, reload };
 }
 
+/** Photo de profil du chauffeur (sa photo de référence), chargée à la demande. */
+function DriverPhoto({ id }: { id: string }) {
+  const [p, setP] = useState<{ photo: string | null; status: string } | null>(null);
+  useEffect(() => { api<{ photo: string | null; status: string }>(`/admin/drivers/${id}/photo`).then(setP).catch(() => setP({ photo: null, status: "NONE" })); }, [id]);
+  const box = { width: 56, height: 56, borderRadius: 28, border: "2px solid #14172b", flex: "none" as const };
+  return p?.photo
+    ? <img src={p.photo} alt="Photo du chauffeur" title={p.status === "PENDING" ? "Photo en attente de validation" : "Photo de profil"} style={{ ...box, objectFit: "cover", opacity: p.status === "PENDING" ? 0.6 : 1 }} />
+    : <div title="Aucune photo" style={{ ...box, display: "grid", placeItems: "center", background: "#eee", fontSize: 12 }} className="muted">—</div>;
+}
+
 function Login({ onOk }: { onOk: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -193,7 +203,7 @@ function Drivers() {
         {drivers.data?.map((d) => (
           <div className="card" key={d.id}>
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <b style={{ fontFamily: "var(--slab)", fontWeight: 400, fontSize: 18 }}>{d.firstName} {d.lastName}</b>
+              <span className="row" style={{ gap: 12 }}><DriverPhoto id={d.id} /><b style={{ fontFamily: "var(--slab)", fontWeight: 400, fontSize: 18 }}>{d.firstName} {d.lastName}</b></span>
               <span className="chips">
                 {d.rescueOptIn && <span className="chip blue">Sauveteur</span>}
                 {d.rescueRevokedAt && <span className="chip bad">Sauveteur retiré</span>}
