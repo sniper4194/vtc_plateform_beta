@@ -25,6 +25,12 @@ describe("security", () => {
     expect(() => checkEnv(ok as any)).not.toThrow();
     expect(() => checkEnv({ ...ok, DRIVER_DEV_OTP: "000000" } as any)).toThrow(/interdit/);
   });
+  it("refuse CORS_ORIGINS=* en production (démonstration locale seulement)", () => {
+    const ok = { NODE_ENV: "production", TOKEN_SECRET: "x".repeat(32) };
+    expect(() => checkEnv({ ...ok, CORS_ORIGINS: "https://a.fr,*" } as any)).toThrow(/CORS_ORIGINS/);
+    expect(() => checkEnv({ ...ok, CORS_ORIGINS: "https://a.fr" } as any)).not.toThrow();
+    expect(() => checkEnv({ NODE_ENV: "development", CORS_ORIGINS: "*" } as any)).not.toThrow();
+  });
   it("refuse de démarrer en production sans secrets", () => {
     expect(() => checkEnv({ NODE_ENV: "production" } as any)).toThrow();
     expect(() => checkEnv({ NODE_ENV: "development" } as any)).not.toThrow();
