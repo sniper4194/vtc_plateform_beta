@@ -35,7 +35,7 @@ Le simulateur crée un partenaire et deux chauffeurs, réserve un CDG → Paris 
 | `apps/api` | API NestJS + schéma Prisma (`prisma/schema.prisma`) |
 | `apps/backoffice` | « Tour de contrôle » Next.js (port 3001) : missions en colonnes, suivi de vol, alertes, performance, chauffeurs, sociétés, partenaires, webhooks. **Espace société** sur `/societe` (clé d'accès) : performance, chauffeurs, véhicules, missions, relevé de paiements + CSV |
 | `apps/driver-app` | App chauffeur Expo : Cap / Radar / Agenda, **mode mission** (carte Google Maps, vol, attente, pancarte), prise par appui maintenu (`pnpm -F @vtc/driver-app start`) |
-| `apps/web-booking` | Site de réservation client — à initialiser (phase 2) |
+| `apps/web-booking` | Page de suivi du voyageur (Next.js, port 3002) : lien reçu par SMS et e-mail, chauffeur, photo si consentie, vol. Le site de réservation client reste à construire (phase 2) |
 | `packages/pricing` | Moteur de tarification pur, testé |
 | `packages/shared` | Schémas Zod, machine à états des courses |
 | `infra` | docker-compose |
