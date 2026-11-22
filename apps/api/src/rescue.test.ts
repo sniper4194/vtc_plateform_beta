@@ -410,7 +410,7 @@ describe("pénalités : restitution, sauveteur, récidive", () => {
 
 describe("critères du véhicule à l'admission et à l'attribution", () => {
   afterEach(() => { process.env.VEHICLE_RULES = "0"; });
-  const goodFacts = { firstRegistrationYear: new Date().getFullYear() - 1, doors: 4, lengthMm: 4800, widthMm: 1850, powerKw: 120 };
+  const goodFacts = { fuel: "THERMAL" as const, firstRegistrationAt: new Date(Date.now() - 365 * 86400_000), doors: 4, lengthMm: 4800, widthMm: 1850, powerKw: 120 };
 
   it("refuse la validation sans carte grise ni véhicule conforme, puis l'accepte", async () => {
     process.env.VEHICLE_RULES = "1";
@@ -418,8 +418,12 @@ describe("critères du véhicule à l'admission et à l'attribution", () => {
     await prisma.document.createMany({ data: ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"].map((type) => ({ driverId: d.id, type: type as any, storageKey: "k", status: "APPROVED" as const })) });
     const a = await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} });
     expect(a.status).toBe(409);
-    expect(a.json.missing).toContain("REGISTRATION_CERT");
+    expect(a.json.missing).toEqual(expect.arrayContaining(["REGISTRATION_CERT", "TECHNICAL_INSPECTION"]));
     await prisma.document.create({ data: { driverId: d.id, type: "REGISTRATION_CERT", storageKey: "k", status: "APPROVED" } });
+    // un contrôle technique sans date d'échéance ne prouve rien : refusé
+    await prisma.document.create({ data: { driverId: d.id, type: "TECHNICAL_INSPECTION", storageKey: "k", status: "APPROVED" } });
+    expect((await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} })).json.missing).toContain("TECHNICAL_INSPECTION");
+    await prisma.document.updateMany({ where: { driverId: d.id, type: "TECHNICAL_INSPECTION" }, data: { expiresAt: new Date(Date.now() + 200 * 86400_000) } });
     const b = await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} });
     expect(b.status).toBe(409);
     expect(b.json.vehicleProblems[0].problems.length).toBeGreaterThan(0);
@@ -434,7 +438,7 @@ describe("critères du véhicule à l'admission et à l'attribution", () => {
     const requester = await mkDriver();
     await prisma.vehicle.updateMany({ data: goodFacts });
     process.env.VEHICLE_RULES = "1";
-    await prisma.vehicle.updateMany({ where: { driverId: d.id }, data: { firstRegistrationYear: new Date().getFullYear() - 9 } }); // trop ancien
+    await prisma.vehicle.updateMany({ where: { driverId: d.id }, data: { firstRegistrationAt: new Date(Date.now() - 9 * 365 * 86400_000) } }); // thermique de 9 ans : trop ancien
     await mkBooking(p);
     expect((await call("/driver/offers", { token: d.token })).json).toHaveLength(0);
     expect((await call("/driver/offers", { token: requester.token })).json).toHaveLength(1);

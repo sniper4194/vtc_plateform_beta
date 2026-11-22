@@ -21,7 +21,8 @@ export const PartnerCreateSchema = z.object({
 });
 /** Caractéristiques contrôlées à l'admission du véhicule (voir vehicle-rules.ts). */
 const vehicleFacts = {
-  firstRegistrationYear: z.number().int().min(1990).max(2100).optional(),
+  firstRegistrationAt: z.coerce.date().min(new Date("1990-01-01")).max(new Date(Date.now() + 86400_000)).optional(),
+  fuel: z.enum(["THERMAL", "HYBRID", "ELECTRIC"]).optional(),
   doors: z.number().int().min(1).max(9).optional(),
   lengthMm: z.number().int().min(1000).max(8000).optional(),
   widthMm: z.number().int().min(1000).max(3000).optional(),

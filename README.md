@@ -146,14 +146,17 @@ Principe : **anticiper doit coûter moins cher que s'y prendre tard, et ne rien 
 
 ## Critères d'admission du véhicule (obligatoires)
 
-Un chauffeur n'est **validé** que si au moins un de ses véhicules actifs respecte les critères, et il ne reçoit **aucune offre** ni attribution (dispatch, attribution manuelle, reprise de sauveteur) avec un véhicule non conforme. L'âge se recalcule chaque année : un véhicule peut donc devenir non conforme avec le temps. Une information absente compte comme un défaut. La carte grise devient un document obligatoire.
+Un chauffeur n'est **validé** que si au moins un de ses véhicules actifs respecte les critères, et il ne reçoit **aucune offre** ni attribution (dispatch, attribution manuelle, reprise de sauveteur) avec un véhicule non conforme. Le contrôle est refait à chaque attribution : un véhicule peut devenir non conforme avec le temps. Une information absente compte comme un défaut.
 
-| Critère | Valeur par défaut | Réglage |
-|---|---|---|
-| Places (chauffeur compris) | 4 à 9 | `VEHICLE_MIN_SEATS`, `VEHICLE_MAX_SEATS` |
-| Âge (année de première mise en circulation) | moins de 6 ans | `VEHICLE_MAX_AGE_YEARS` |
-| Portes | au moins 4 | `VEHICLE_MIN_DOORS` |
-| Longueur / largeur hors tout | ≥ 4 500 mm / ≥ 1 700 mm | `VEHICLE_MIN_LENGTH_MM`, `VEHICLE_MIN_WIDTH_MM` |
-| Puissance nette | strictement supérieure à 88 kW | `VEHICLE_MIN_POWER_KW` |
+| Critère | Thermique | Hybride ou électrique | Réglage |
+|---|---|---|---|
+| Places (chauffeur compris) | 4 à 9 | 4 à 9 | `VEHICLE_MIN_SEATS`, `VEHICLE_MAX_SEATS` |
+| Portes | au moins 4 | au moins 4 | `VEHICLE_MIN_DOORS` |
+| Âge depuis la première mise en circulation (champ B de la carte grise) | moins de 7 ans | exempté | `VEHICLE_MAX_AGE_YEARS` |
+| Longueur / largeur hors tout | ≥ 4 500 mm / ≥ 1 700 mm | exempté | `VEHICLE_MIN_LENGTH_MM`, `VEHICLE_MIN_WIDTH_MM` |
+| Puissance nette | au moins 84 kW | exempté | `VEHICLE_MIN_POWER_KW` |
 
-`VEHICLE_RULES=0` désactive le contrôle (développement uniquement). **Ces valeurs viennent d'une charte de 2012 : elles n'ont pas été revérifiées dans les textes en vigueur et sont à confirmer par un juriste avant le pilote.** Non traités : exemption des véhicules de collection, signalétique (vignette) du véhicule, véhicules à deux ou trois roues, âge calculé à l'année près (et non au jour), contrôle technique.
+Documents ajoutés : **carte grise** et **contrôle technique** (ce dernier doit porter une date d'échéance ; il est annuel pour un VTC d'après la source consultée). `VEHICLE_RULES=0` désactive le contrôle (développement uniquement).
+
+**Source et réserves.** Ces valeurs reprennent un article de blog d'assureur (Orus, septembre 2026), **source secondaire non officielle**. Les pages Légifrance n'ont pas pu être lues (réseau de la session) : **les seuils sont à confirmer dans les textes en vigueur, par un juriste**, avant le pilote. L'ancienne charte Allocab de 2012 donnait d'autres valeurs (moins de 6 ans, plus de 88 kW), ce qui montre que ces seuils évoluent.
+Points à vérifier : la définition légale d'« hybride » (hybrides simples ? rechargeables ? seuils d'émissions ?) ; l'exemption éventuelle des véhicules de collection ; le contrôle technique annuel (le blog le dit, sans référence). **Non traités** : le macaron rouge du registre VTC sur le pare-brise et la lunette arrière (non vérifiable à distance), l'absence de signes distinctifs, les deux ou trois roues, et les critères propres à chaque plateforme (Uber, Bolt…) que la source distingue de la loi : nous n'avons pas à les reprendre.

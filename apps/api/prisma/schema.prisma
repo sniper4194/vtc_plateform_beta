@@ -164,7 +164,8 @@ model Vehicle {
   category  VehicleCategory
   seats     Int             @default(4)
   electric  Boolean         @default(false)
-  firstRegistrationYear Int? // année de première mise en circulation (âge du véhicule)
+  firstRegistrationAt DateTime? // date de première mise en circulation (champ B de la carte grise) : sert à calculer l'âge
+  fuel      VehicleFuel? // thermique, hybride ou électrique : les deux derniers sont exemptés d'âge, de puissance et de dimensions
   doors     Int?
   lengthMm  Int?
   widthMm   Int?
@@ -476,4 +477,10 @@ model DriverPenalty {
   createdAt     DateTime    @default(now())
 
   @@index([driverId, createdAt])
+}
+
+enum VehicleFuel {
+  THERMAL
+  HYBRID
+  ELECTRIC
 }
