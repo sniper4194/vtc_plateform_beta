@@ -1,3 +1,4 @@
+import { minDriverPayCents } from "./ladder";
 import { HttpException, Inject, Injectable } from "@nestjs/common";
 import { Partner } from "@prisma/client";
 import { computeQuote, findFlatRate, FlatRate, PricingConfig, VehicleCategory } from "@vtc/pricing";
@@ -64,13 +65,15 @@ export class QuotesService {
       flat,
     );
     const priceCents = cents(q.total);
-    const commissionCents = cents(q.commission);
+    // Revenu minimal du chauffeur par course (net de commission) : si le prix client est trop bas, la plateforme complète (commission réduite, voire négative).
+    const driverNetCents = Math.max(priceCents - cents(q.commission), minDriverPayCents());
+    const commissionCents = priceCents - driverNetCents;
     const expiresAt = new Date(Date.now() + QUOTE_TTL_MIN * 60_000);
     const saved = await this.prisma.quote.create({
       data: {
         partnerId: partner.id, request: req as any, category: req.category, pickupAt,
         distanceKm, durationMin, priceCents, commissionCents,
-        driverNetCents: priceCents - commissionCents, flatRateId: q.flatRateId, expiresAt,
+        driverNetCents, flatRateId: q.flatRateId, expiresAt,
       },
     });
     return {

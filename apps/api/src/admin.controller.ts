@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, Req, 
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { DispatchService } from "./dispatch.service";
-import { missingDocuments, REQUIRED_DOCS } from "./driver-docs";
+import { missingDocuments, missingIdentifiers, REQUIRED_DOCS } from "./driver-docs";
 import { FlightsService } from "./flights.service";
 import { period } from "./company.controller";
 import { checkVehicle } from "./vehicle-rules";
@@ -81,6 +81,7 @@ export class AdminController {
     return this.prisma.driver.create({
       data: {
         firstName: d.firstName, lastName: d.lastName, phone: d.phone, email: d.email,
+        businessName: d.businessName, siret: d.siret, revtcNumber: d.revtcNumber, proCardNumber: d.proCardNumber,
         vehicles: d.vehicle ? { create: d.vehicle } : undefined,
       },
       include: { vehicles: true },
@@ -109,6 +110,8 @@ export class AdminController {
   async approve(@Param("id") id: string) {
     const missing = await missingDocuments(this.prisma, id);
     if (missing.length) throw new HttpException({ message: "Documents manquants ou expirés", missing }, 409);
+    const unidentified = await missingIdentifiers(this.prisma, id);
+    if (unidentified.length) throw new HttpException({ message: "Identité d'exploitant incomplète", missingIdentifiers: unidentified }, 409);
     // Au moins un véhicule actif doit respecter les critères d'admission.
     const vehicles = await this.prisma.vehicle.findMany({ where: { driverId: id, active: true } });
     if (!vehicles.some((v) => checkVehicle(v).ok)) {

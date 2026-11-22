@@ -6,6 +6,7 @@ import { driverRideView } from "./views";
 import { driverOfferCents } from "./ladder";
 import { effectivePickup } from "./metrics";
 import { checkVehicle } from "./vehicle-rules";
+import { buildJustificatif } from "./justificatif";
 import { haversineKm } from "./zones";
 import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, DriverOtpRequestSchema, LocationUpdateSchema } from "./schemas";
 import { OtpService } from "./otp.service";
@@ -70,6 +71,35 @@ export class DriverController {
       potentialCents: offers.reduce((s, o) => s + this.currentPrice(o.ride, now), 0),
       fortnightEarningsCents: earned._sum.driverNetCents ?? 0,
     };
+  }
+
+  /** Identité d'exploitant : un indépendant la renseigne lui-même ; un chauffeur rattaché à une société ne renseigne que sa carte professionnelle. */
+  @Post("identity")
+  @UseGuards(DriverGuard)
+  async identity(@Req() req: any, @Body() body: unknown) {
+    const b = parse(z.object({
+      businessName: z.string().min(1).max(200).optional(), siret: z.string().regex(/^(\d{9}|\d{14})$/).optional(),
+      revtcNumber: z.string().min(3).max(40).optional(), proCardNumber: z.string().min(3).max(40).optional(),
+    }), body);
+    const d = await this.prisma.driver.findUniqueOrThrow({ where: { id: req.driverId } });
+    const data = d.companyId ? { proCardNumber: b.proCardNumber } : b;
+    const u = await this.prisma.driver.update({ where: { id: d.id }, data });
+    return { businessName: u.businessName, siret: u.siret, revtcNumber: u.revtcNumber, proCardNumber: u.proCardNumber };
+  }
+
+  /** Justificatif de réservation préalable, à présenter en cas de contrôle (papier ou électronique). */
+  @Get("rides/:id/justificatif")
+  @UseGuards(DriverGuard)
+  async justificatif(@Req() req: any, @Param("id") id: string) {
+    const r = await this.prisma.ride.findFirst({ where: { id, driverId: req.driverId }, include: { booking: true, driver: { include: { company: true } } } });
+    if (!r) throw new HttpException("Mission introuvable", 404);
+    const d = r.driver!;
+    return buildJustificatif({
+      operatorName: d.company ? d.company.name : d.businessName ?? `${d.firstName} ${d.lastName}`,
+      revtcNumber: d.company ? d.company.vtcRegistry : d.revtcNumber, siret: d.company ? d.company.siret : d.siret,
+      clientName: `${r.booking.passengerFirstName} ${r.booking.passengerLastName}`, clientPhone: r.booking.passengerPhone,
+      reservedAt: r.booking.createdAt, pickupAt: r.pickupAt, pickupAddress: r.pickupAddress, ref: r.ref,
+    });
   }
 
   @Post("availability")

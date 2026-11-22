@@ -51,3 +51,5 @@
 6. Données et vie privée.
 7. Alerte et éthique.
 8. Acceptation enregistrée (date, version), à chaque changement de version.
+
+> **Mise à jour** : une fiche Service-Public (vérifiée le 12/08/2026) confirme les critères véhicule et ajoute des exigences. Voir `docs/EXIGENCES_REGLEMENTAIRES.md`, qui remplace les valeurs de 2012 citées ci-dessus.

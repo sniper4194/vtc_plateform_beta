@@ -34,15 +34,23 @@ export function ladderFromEnv(env: NodeJS.ProcessEnv = process.env): LadderConfi
   };
 }
 
+/**
+ * Revenu minimal par course pour un chauffeur relié à une plateforme : 9 € net de commission (Service-Public, vérifié le 12/08/2026 ; accords de 2023).
+ * Montant révisé chaque année : réglable (MIN_DRIVER_PAY_CENTS). Les garanties horaire (30 €/h) et kilométrique (1 €/km) citées par la même page ne sont pas appliquées :
+ * leur mode de calcul exact n'est pas connu.
+ */
+export const minDriverPayCents = (env: NodeJS.ProcessEnv = process.env) => Math.max(0, Math.round(num(env.MIN_DRIVER_PAY_CENTS, 900)));
+
 /** Prix proposé au chauffeur à l'instant `now` pour une prise en charge à `pickupAt`. Toujours ≤ plafond, jamais décroissant dans le temps. */
 export function driverOfferCents(capCents: number, pickupAt: Date, now: Date, cfg: LadderConfig = ladderFromEnv()): number {
   if (!cfg.enabled || capCents <= 0) return Math.max(0, capCents);
+  const floor = Math.min(capCents, minDriverPayCents()); // jamais sous le revenu minimal par course
   const minutesLeft = (pickupAt.getTime() - now.getTime()) / 60_000;
   const progress = Math.min(1, Math.max(0, (cfg.rampFromMin - minutesLeft) / (cfg.rampFromMin - cfg.rampToMin)));
   const ratio = cfg.startRatio + (1 - cfg.startRatio) * progress;
   const raw = Math.floor((capCents * ratio) / cfg.stepCents) * cfg.stepCents;
   // Au plafond (ou si le pas dépasse le plafond) : on propose exactement le plafond.
-  return progress >= 1 ? capCents : Math.min(capCents, raw);
+  return progress >= 1 ? capCents : Math.max(floor, Math.min(capCents, raw));
 }
 
 /** Prochaine hausse affichable : l'instant où le prix proposé change, et sa nouvelle valeur (null si déjà au plafond). */

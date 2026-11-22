@@ -424,6 +424,10 @@ describe("critères du véhicule à l'admission et à l'attribution", () => {
     await prisma.document.create({ data: { driverId: d.id, type: "TECHNICAL_INSPECTION", storageKey: "k", status: "APPROVED" } });
     expect((await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} })).json.missing).toContain("TECHNICAL_INSPECTION");
     await prisma.document.updateMany({ where: { driverId: d.id, type: "TECHNICAL_INSPECTION" }, data: { expiresAt: new Date(Date.now() + 200 * 86400_000) } });
+    const ids = await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} });
+    expect(ids.status).toBe(409);
+    expect(ids.json.missingIdentifiers).toHaveLength(3); // carte pro, Siret, numéro de registre
+    expect((await call("/driver/identity", { token: d.token, body: { siret: "12345678901234", revtcNumber: "EVTC-075-0001", proCardNumber: "75-1234567" } })).status).toBe(201);
     const b = await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} });
     expect(b.status).toBe(409);
     expect(b.json.vehicleProblems[0].problems.length).toBeGreaterThan(0);
@@ -446,5 +450,51 @@ describe("critères du véhicule à l'admission et à l'attribution", () => {
     const ride = await prisma.ride.findFirstOrThrow();
     expect((await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: d.id } })).status).toBe(409);
     expect((await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: requester.id } })).status).toBe(201);
+  });
+});
+
+describe("revenu minimal par course et justificatif de réservation préalable", () => {
+  it("le prix client trop bas est complété : le chauffeur touche au moins 9 € net, la commission est réduite", async () => {
+    const p = await mkPartner();
+    const q = await call("/v1/quotes", { token: p.apiKey, body: { pickup: PARIS, dropoff: { address: "12 rue de Rivoli, Paris", lat: 48.857, lng: 2.353 }, pickupAt: inDays(3), category: "BERLINE", passengers: 1, luggage: 0 } });
+    expect(q.status).toBe(201);
+    const row = await prisma.quote.findFirstOrThrow({});
+    expect(row.driverNetCents).toBeGreaterThanOrEqual(900);
+    expect(row.driverNetCents + row.commissionCents).toBe(row.priceCents);
+    const { minDriverPayCents, driverOfferCents } = await import("./ladder");
+    expect(minDriverPayCents()).toBe(900);
+    // le prix proposé de l'échelle ne descend jamais sous le plancher
+    const cfg = { enabled: true, startRatio: 0.5, rampFromMin: 1440, rampToMin: 60, stepCents: 10 };
+    expect(driverOfferCents(1000, new Date(Date.now() + 3 * 86400_000), new Date(), cfg)).toBe(900);
+    expect(driverOfferCents(600, new Date(Date.now() + 3 * 86400_000), new Date(), cfg)).toBe(600); // plafond sous le plancher : le plafond
+  });
+
+  it("le justificatif de réservation préalable reprend les mentions exigées et signale ce qui manque", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { ride } = await assigned(d, p);
+    const before = await call(`/driver/rides/${ride.id}/justificatif`, { token: d.token });
+    expect(before.status).toBe(200);
+    expect(before.json.complete).toBe(false);
+    expect(before.json.missing).toEqual(expect.arrayContaining(["numéro d'inscription au registre des exploitants de VTC", "numéro Siren/Siret"]));
+    await call("/driver/identity", { token: d.token, body: { businessName: "Benali Transport", siret: "12345678901234", revtcNumber: "EVTC-075-0001" } });
+    const j = (await call(`/driver/rides/${ride.id}/justificatif`, { token: d.token })).json;
+    expect(j.complete).toBe(true);
+    const labels = j.lines.map((l: string[]) => l[0]);
+    expect(labels).toEqual(expect.arrayContaining(["Exploitant (VTC)", "N° d'inscription au registre des VTC (REVTC)", "Client", "Téléphone du client", "Réservation effectuée le", "Prise en charge souhaitée le", "Lieu de prise en charge"]));
+    expect(JSON.stringify(j.lines)).toContain("Ana Silva");
+    // le justificatif d'une mission n'est visible que de son chauffeur
+    const other = await mkDriver();
+    expect((await call(`/driver/rides/${ride.id}/justificatif`, { token: other.token })).status).toBe(404);
+  });
+
+  it("une voiture de collection est exemptée de la limite d'âge, pas du reste", async () => {
+    process.env.VEHICLE_RULES = "1";
+    const { checkVehicle } = await import("./vehicle-rules");
+    const old = { seats: 5, fuel: "THERMAL" as const, firstRegistrationAt: new Date("2005-01-01"), doors: 4, lengthMm: 4800, widthMm: 1850, powerKw: 110 };
+    expect(checkVehicle(old).ok).toBe(false);
+    expect(checkVehicle({ ...old, collector: true }).ok).toBe(true);
+    expect(checkVehicle({ ...old, collector: true, doors: 2 }).ok).toBe(false);
+    process.env.VEHICLE_RULES = "0";
   });
 });

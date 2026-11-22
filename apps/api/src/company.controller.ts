@@ -56,7 +56,7 @@ export class CompanyController {
     try {
       return await this.prisma.driver.create({
         data: {
-          firstName: d.firstName, lastName: d.lastName, phone: d.phone, email: d.email, companyId: req.company.id,
+          firstName: d.firstName, lastName: d.lastName, phone: d.phone, email: d.email, companyId: req.company.id, proCardNumber: d.proCardNumber,
           vehicles: d.vehicle ? { create: { ...d.vehicle, companyId: req.company.id } } : undefined,
         },
         include: { vehicles: true },

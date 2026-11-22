@@ -1,7 +1,8 @@
 /**
  * Critères d'admission d'un véhicule.
- * SOURCE : un article de blog d'assureur daté de septembre 2026 (secondaire, NON officielle), qui recoupe de façon incomplète une ancienne charte de 2012.
- * Les textes officiels n'ont pas pu être lus : à confirmer par un juriste avant le pilote. Tout est réglable par l'environnement.
+ * SOURCE : fiche Service-Public « Devenir chauffeur de VTC » (vérifiée le 12/08/2026), qui renvoie à l'arrêté du 26 mars 2015 (ancienneté, dimensions, puissance)
+ * et au Code des transports (art. L3122-1 à L3122-9, R3122-1 à R3122-5-1). Le texte des arrêtés n'a pas été lu directement : confirmation par un juriste avant le pilote.
+ * Tout est réglable par l'environnement.
  * VEHICLE_RULES=0 désactive le contrôle (développement, tests).
  */
 const num = (k: string, d: number) => (process.env[k] !== undefined && process.env[k] !== "" ? Number(process.env[k]) : d);
@@ -19,7 +20,7 @@ export const VEHICLE_RULES = {
 
 export type Fuel = "THERMAL" | "HYBRID" | "ELECTRIC";
 export interface VehicleFacts {
-  seats: number; fuel: Fuel | null; firstRegistrationAt: Date | null; doors: number | null; lengthMm: number | null; widthMm: number | null; powerKw: number | null;
+  seats: number; collector?: boolean; fuel: Fuel | null; firstRegistrationAt: Date | null; doors: number | null; lengthMm: number | null; widthMm: number | null; powerKw: number | null;
 }
 export interface VehicleCheck { ok: boolean; problems: string[] }
 
@@ -27,7 +28,7 @@ const addYears = (d: Date, n: number) => { const x = new Date(d); x.setFullYear(
 
 /**
  * Contrôle un véhicule. Une information absente compte comme un défaut : on ne présume pas de la conformité.
- * Hybrides et électriques : exemptés d'âge, de puissance et de dimensions ; places et portes restent exigées.
+ * Hybrides et électriques : exemptés d'âge, de puissance et de dimensions ; places et portes restent exigées. Collection : exemptée d'âge seulement.
  */
 export function checkVehicle(v: VehicleFacts, now = new Date()): VehicleCheck {
   if (!VEHICLE_RULES.enabled) return { ok: true, problems: [] };
@@ -38,7 +39,8 @@ export function checkVehicle(v: VehicleFacts, now = new Date()): VehicleCheck {
   if (v.fuel == null) { p.push("Motorisation à renseigner (thermique, hybride ou électrique)"); }
   const exempt = v.fuel === "HYBRID" || v.fuel === "ELECTRIC";
   if (!exempt) {
-    if (v.firstRegistrationAt == null) p.push("Date de première mise en circulation à renseigner (champ B de la carte grise)");
+    if (v.collector) { /* voiture de collection : limite d'âge non applicable */ }
+    else if (v.firstRegistrationAt == null) p.push("Date de première mise en circulation à renseigner (champ B de la carte grise)");
     else if (addYears(v.firstRegistrationAt, R.maxAgeYears) <= now) p.push(`Véhicule trop ancien (première mise en circulation le ${v.firstRegistrationAt.toISOString().slice(0, 10)}) : moins de ${R.maxAgeYears} ans`);
     if (v.lengthMm == null) p.push("Longueur hors tout à renseigner");
     else if (v.lengthMm < R.minLengthMm) p.push(`Longueur (${v.lengthMm} mm) : au moins ${R.minLengthMm} mm`);

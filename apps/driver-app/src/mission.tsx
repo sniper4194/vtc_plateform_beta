@@ -6,7 +6,7 @@ import { countdown, eurShort, isCancelled, MISSION_TITLE, NEXT_ACTION, secondsUn
 import { MissionMap, MapPoint } from "./MissionMap";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, HoldButton, Slab, Sticker } from "./ui";
-import { CostNote, RescuePicker } from "./rescue";
+import { CostNote, JustificatifModal, RescuePicker } from "./rescue";
 import { useFetch } from "./useFetch";
 
 type Notify = (text: string, tone?: "ok" | "bad") => void;
@@ -40,6 +40,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
   const [problem, setProblem] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [rescue, setRescue] = useState(false);
+  const [proof, setProof] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 1000); return () => clearInterval(t); }, []);
   useEffect(() => {
@@ -132,6 +133,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
             {r.notes ? <Cond size={13} color={c.red}>Consigne : {r.notes}</Cond> : null}
           </View>
 
+          {!cancelled && !done && <Btn label="Justificatif de réservation (contrôle)" onPress={() => setProof(true)} />}
           {!cancelled && <View style={{ flexDirection: "row", gap: 10 }}>
             <View style={{ flex: 1 }}><Btn label="Appeler" color={c.yel} onPress={() => Linking.openURL(`tel:${r.passenger.phone}`)} /></View>
             <View style={{ flex: 1 }}><Btn label="Guidage" onPress={() => setNav(!nav)} /></View>
@@ -167,6 +169,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
           )}
         </ScrollView>
       </View>
+      {proof && <JustificatifModal rideId={rideId} onClose={() => setProof(false)} />}
       {rescue && <RescuePicker rideId={rideId} notify={notify} onClose={() => { setRescue(false); ride.reload(); }} />}
       {sign && <SignModal text={r.signText} onClose={() => setSign(false)} />}
     </View>

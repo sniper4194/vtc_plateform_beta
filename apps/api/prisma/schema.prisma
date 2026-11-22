@@ -132,6 +132,10 @@ model Driver {
   contractSignedAt DateTime?
   stripeAccountId String?
   suspendedBy   String? // "admin" | "company" : une société ne peut lever que sa propre suspension
+  businessName  String? // exploitant indépendant : raison sociale (sinon celle de la société de rattachement)
+  siret         String? // Siren/Siret de l'exploitant (sinon celui de la société)
+  revtcNumber   String? // numéro d'inscription au registre des exploitants de VTC (sinon celui de la société)
+  proCardNumber String? // numéro de la carte professionnelle VTC
   rescueOptIn   Boolean            @default(false) // accepte de figurer dans la liste des sauveteurs (s'il remplit les critères)
   rescueRevokedAt DateTime? // retrait du statut par l'administration
   suspendedUntil DateTime? // suspension automatique à durée limitée (récidive) ; nul + suspendedBy=auto : à examiner par l'équipe
@@ -164,6 +168,7 @@ model Vehicle {
   category  VehicleCategory
   seats     Int             @default(4)
   electric  Boolean         @default(false)
+  collector Boolean         @default(false) // voiture de collection : exemptée de la limite d'âge
   firstRegistrationAt DateTime? // date de première mise en circulation (champ B de la carte grise) : sert à calculer l'âge
   fuel      VehicleFuel? // thermique, hybride ou électrique : les deux derniers sont exemptés d'âge, de puissance et de dimensions
   doors     Int?

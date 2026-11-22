@@ -159,3 +159,32 @@ export function RescuePicker({ rideId, onClose, notify }: { rideId: string; onCl
     </Modal>
   );
 }
+
+/** Justificatif de réservation préalable, à présenter à un agent en cas de contrôle. */
+export function JustificatifModal({ rideId, onClose }: { rideId: string; onClose: () => void }) {
+  const q = useFetch<any>(`/driver/rides/${rideId}/justificatif`, 60000);
+  const j = q.data;
+  return (
+    <Modal visible animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: c.sky }}>
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }}>
+          <Pressable onPress={onClose} accessibilityLabel="Fermer"><Sticker size={44} color={c.cream}><Slab size={20} color={c.ink} shadow={null}>←</Slab></Sticker></Pressable>
+          <Display size={30} shadow={c.red}>Justificatif de réservation</Display>
+          <Cond size={12} color={c.onSky}>À présenter en cas de contrôle · {j?.reference ?? ""}</Cond>
+          {j && !j.complete && (
+            <Card color={c.red}><Slab size={14} color={c.cream} shadow={null}>Incomplet : {j.missing.join(", ")}.</Slab>
+              <Cond size={12} color={c.cream}>Renseignez ces informations dans votre profil.</Cond></Card>
+          )}
+          <Card>
+            {(j?.lines ?? []).map(([k, v]: string[]) => (
+              <View key={k} style={{ paddingVertical: 6 }}>
+                <Cond size={11} color={c.muted}>{k}</Cond>
+                <Slab size={15} color={c.ink} shadow={null}>{v}</Slab>
+              </View>
+            ))}
+          </Card>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}

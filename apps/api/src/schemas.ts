@@ -21,6 +21,7 @@ export const PartnerCreateSchema = z.object({
 });
 /** Caractéristiques contrôlées à l'admission du véhicule (voir vehicle-rules.ts). */
 const vehicleFacts = {
+  collector: z.boolean().optional(),
   firstRegistrationAt: z.coerce.date().min(new Date("1990-01-01")).max(new Date(Date.now() + 86400_000)).optional(),
   fuel: z.enum(["THERMAL", "HYBRID", "ELECTRIC"]).optional(),
   doors: z.number().int().min(1).max(9).optional(),
@@ -29,6 +30,8 @@ const vehicleFacts = {
   powerKw: z.number().min(10).max(1000).optional(),
 };
 export const DriverCreateSchema = z.object({
+  businessName: z.string().min(1).max(200).optional(), siret: z.string().regex(/^(\d{9}|\d{14})$/).optional(),
+  revtcNumber: z.string().min(3).max(40).optional(), proCardNumber: z.string().min(3).max(40).optional(),
   firstName: z.string().min(1), lastName: z.string().min(1),
   phone: phoneField, email: z.string().email(),
   vehicle: z.object({
