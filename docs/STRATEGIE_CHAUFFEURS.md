@@ -22,6 +22,28 @@ Trois promesses, chacune déjà portée par le produit :
 
 Complété par des protections de terrain : suivi de vol (l'attente et le « client absent » se calculent sur l'heure réelle d'atterrissage), indemnité d'annulation versée au chauffeur, relevé de paiements lisible par société.
 
+## 2 bis. « Conçue par des chauffeurs, pour des chauffeurs » : ce qu'il faut pour que ce soit vrai
+
+C'est notre meilleur argument auprès des chauffeurs, à condition de le **prouver** : un chauffeur repère tout de suite un discours de bureau.
+- **Dire la vérité sur l'équipe** : années de VTC, plateformes pratiquées, par qui. Si l'équipe n'a pas ce vécu, ne pas écrire « conçue par des chauffeurs » ; écrire « conçue avec des chauffeurs » et le montrer.
+- **Les manquements des autres applications** (prix flou, annulations sans indemnité, attente non payée, sanctions brutales) viennent de récits de chauffeurs : **non vérifiés plateforme par plateforme**. Les documenter par des entretiens (citations signées avec accord) avant de les affirmer en public.
+- **Comité de chauffeurs** (à organiser) : 8 à 12 chauffeurs qui testent chaque règle (barème de pénalités, sauveteurs, plancher de rémunération) avant publication. Une règle qu'ils jugent injuste est revue.
+- **Principe de conception : une journée à risque réduit.** Pour chaque risque d'une journée de chauffeur, une réponse ou un écart assumé :
+
+| Risque d'une journée | Couvert aujourd'hui | Écart |
+|---|---|---|
+| Prix incertain | Prix affiché, plafond connu, plancher de 9 € | Garanties horaire et kilométrique à étudier |
+| Annulation tardive | Indemnité d'annulation (barème provisoire) | Barème à valider avec les chauffeurs et les partenaires |
+| Attente, vol retardé, client absent | Suivi de vol, attente sur l'heure réelle, client absent après 15 min | Source de données de vol à brancher (Flightradar24 visé) |
+| Panne, malaise | Sauveteurs | Liste vide au lancement |
+| Contrôle routier | Justificatif de réservation dans l'application | Rappel des échéances (contrôle technique annuel, carte professionnelle, assurance, registre) : **la fiche Service-Public précise qu'aucun rappel n'est envoyé au chauffeur** |
+| Compte suspendu sans comprendre | Barème annoncé, examen humain avant fermeture | Recours organisé, délai de réponse |
+| Client agressif, accident | Rien | **Signalement d'incident et alerte sécurité à concevoir** |
+| Non-paiement, paiement tardif | Relevé de paiements lisible | **Paiements réels et délai de paiement à fixer** (Stripe non branché) |
+| Assurance | Contrôle du document | Couverture d'un relais de mission à définir |
+
+Les deux écarts les plus parlants pour un chauffeur sont probablement le **rappel d'échéances** (peu coûteux, utile tous les jours) et le **signalement d'incident**.
+
 ## 3. Pourquoi les sauveteurs sont un bon levier (et leurs limites)
 
 **Ce que ça résout pour chacun**
