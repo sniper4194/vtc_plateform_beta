@@ -212,3 +212,12 @@ Bouton « Signaler un incident » (onglet Cap, et « Un souci ? » dans une miss
 - **Avant tout, les secours** : l'écran propose d'appeler le 112, 17, 15, 18, et la confirmation rappelle que **notre équipe n'est pas un service d'urgence**. Une panne propose aussi d'appeler un sauveteur ; un contrôle routier rappelle le justificatif de réservation.
 - **Équipe** : carte « Incidents » en tête des alertes du back-office (urgences d'abord, téléphone du chauffeur, lien vers la carte), « Prendre en charge » puis « Clore » avec une résolution visible du chauffeur ; compteur dans l'onglet Alertes. 5 signalements par heure et par chauffeur au maximum.
 - **Limites** : l'alerte n'arrive qu'au tableau de bord (**ni SMS, ni push, ni astreinte** : quelqu'un doit le surveiller ; aucun engagement de réponse 24 h/24 n'existe) ; pas de photo ni de pièce jointe ; pas de partage de position en continu.
+
+## APK de l'application chauffeur (Android)
+
+Aucun `.apk` n'est fourni dans le dépôt : il se construit à la demande, et il n'a **pas encore été construit** (l'environnement de développement n'a pas le SDK Android).
+- **Sans compte Expo** : sur GitHub, onglet *Actions* → *APK chauffeur (Android)* → *Run workflow*, en indiquant l'adresse **HTTPS** de l'API. Le fichier `.apk` est téléchargeable à la fin, dans les artefacts du déroulé. Pour une carte, ajouter le secret `GOOGLE_MAPS_API_KEY`.
+- **Avec un compte Expo (gratuit)** : `cd apps/driver-app && npx eas-cli login && npx eas-cli build -p android --profile apk` (changer d'abord l'adresse de l'API dans `eas.json`) ; un lien de téléchargement est fourni.
+- L'APK est signé avec la clé de débogage : bon pour des essais, pas pour Google Play (il faudra une clé de signature propre).
+- L'application doit joindre une API **publique en HTTPS**. Pour un essai depuis un téléphone sans serveur, exposer l'API locale par un tunnel (par exemple Cloudflare Tunnel ou ngrok) et indiquer son adresse.
+- Connexion : sans fournisseur SMS, utiliser `DRIVER_DEV_OTP=000000` côté API (jamais en production).

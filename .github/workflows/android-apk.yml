@@ -1,0 +1,46 @@
+name: APK chauffeur (Android)
+# Construit un fichier .apk installable pour tester l'application chauffeur.
+# Déclenchement manuel : onglet « Actions » du dépôt GitHub → « APK chauffeur (Android) » → « Run workflow ».
+# L'APK est signé avec la clé de débogage : il s'installe pour des essais, il ne convient PAS à Google Play.
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Adresse HTTPS de l'API que l'application doit joindre (ex. https://api.exemple.fr)"
+        required: true
+        type: string
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vérifier l'adresse de l'API
+        run: |
+          case "${{ inputs.api_url }}" in
+            https://*) ;;
+            *) echo "L'adresse doit commencer par https:// (Android refuse le HTTP simple)"; exit 1 ;;
+          esac
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      # React Native et pnpm : les modules doivent être « hoisted » (à plat) pour que Gradle les trouve.
+      - run: pnpm install --frozen-lockfile --config.node-linker=hoisted
+      - name: Générer le projet Android
+        working-directory: apps/driver-app
+        env:
+          EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: npx expo prebuild --platform android --no-install
+      - name: Compiler l'APK
+        working-directory: apps/driver-app/android
+        env:
+          EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
+        run: ./gradlew assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clicab-chauffeur-apk
+          path: apps/driver-app/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error

@@ -1,12 +1,44 @@
 {
   "expo": {
-    "name": "VTC Chauffeur",
-    "slug": "vtc-driver",
+    "name": "CliCab Chauffeur",
+    "slug": "clicab-driver",
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "plugins": [["expo-location", { "locationWhenInUsePermission": "Votre position sert à vous proposer les courses proches." }]],
-    "ios": { "bundleIdentifier": "com.example.vtcdriver", "supportsTablet": false },
-    "android": { "package": "com.example.vtcdriver" }
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Votre position sert à vous proposer les courses proches."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "La caméra sert à prendre votre selfie de vérification d'identité.",
+          "photosPermission": false,
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "ios": {
+      "bundleIdentifier": "com.clicab.driver",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.clicab.driver",
+      "versionCode": 1,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    }
   }
 }
