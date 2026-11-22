@@ -251,6 +251,7 @@ model Ride {
   cancellationFeeCents    Int    @default(0)
   driverCompensationCents Int    @default(0)
   flightDelayMin   Int       @default(0)
+  flightEarlyMin   Int       @default(0) // vol en avance (affichage et notification ; l'heure de prise en charge contractuelle ne bouge pas)
   flightEstimatedAt DateTime?
   flightStatus     String?
   driverId       String?

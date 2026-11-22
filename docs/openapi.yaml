@@ -191,8 +191,9 @@ components:
           type: object
           properties:
             number: { type: string }
-            status: { type: string, enum: [SCHEDULED, DELAYED, LANDED, CANCELLED] }
+            status: { type: string, enum: [SCHEDULED, DELAYED, EARLY, LANDED, CANCELLED] }
             delayMin: { type: integer }
+            earlyMin: { type: integer, description: "Avance de l'atterrissage estimé (minutes). L'heure de prise en charge convenue ne change pas." }
             estimatedArrivalAt: { type: string, format: date-time, nullable: true }
         total: { type: number }
     WebhookEvent:
@@ -201,6 +202,6 @@ components:
         id: { type: string, format: uuid }
         type:
           type: string
-          enum: [booking.confirmed, driver.assigned, driver.en_route, driver.arrived, ride.started, ride.completed, booking.cancelled, flight.delayed]
+          enum: [booking.confirmed, driver.assigned, driver.en_route, driver.arrived, ride.started, ride.completed, booking.cancelled, flight.delayed, flight.updated]
         createdAt: { type: string, format: date-time }
         data: { $ref: '#/components/schemas/Booking' }

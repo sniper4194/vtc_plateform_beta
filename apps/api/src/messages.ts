@@ -49,6 +49,43 @@ export function acceptanceMessage(ride: RideForMessage, flightNumber: string | n
   return { title: byDispatch ? `Mission R-${ride.ref} attribuée` : `Mission R-${ride.ref} confirmée`, body: lines.join("\n") };
 }
 
+/**
+ * Message au chauffeur à chaque changement d'état du vol (retard, avance, retour à l'heure, atterrissage, annulation).
+ * Fonction pure : testable sans base de données.
+ */
+export interface FlightChange {
+  flightNumber: string; status: string; delayMin: number; earlyMin: number;
+  estimatedArrivalAt: Date | null; scheduledLanding: Date; pickupAt: Date; bufferMin: number;
+}
+export function flightMessage(f: FlightChange) {
+  const pickup = fmtTime(new Date(f.pickupAt.getTime() + f.delayMin * 60_000));
+  const est = f.estimatedArrivalAt ? fmtTime(f.estimatedArrivalAt) : null;
+  if (f.status === "CANCELLED") {
+    return {
+      type: "FLIGHT_CANCELLED", title: `Vol ${f.flightNumber} annulé`,
+      body: "Le vol est annulé : le client ne sera pas à l'arrivée. Ne vous déplacez pas avant d'avoir reçu la consigne de l'équipe ; la mission reste inscrite à votre agenda en attendant la décision du partenaire.",
+    };
+  }
+  if (f.status === "LANDED") {
+    const after = f.bufferMin > 0 ? `, ${f.bufferMin} min après l'atterrissage` : "";
+    return {
+      type: "FLIGHT_LANDED", title: `Vol ${f.flightNumber} atterri`,
+      body: `Le vol est posé${est ? ` (${est})` : ""}. Prise en charge prévue à ${pickup}${after}. Rendez-vous au point convenu.`,
+    };
+  }
+  if (f.delayMin > 0) {
+    return { type: "FLIGHT_UPDATE", title: `Vol ${f.flightNumber} retardé (+${f.delayMin} min)`, body: `Nouvelle prise en charge prévue à ${pickup}.` };
+  }
+  if (f.status === "EARLY" && f.earlyMin > 0) {
+    const landing = est ?? fmtTime(new Date(f.scheduledLanding.getTime() - f.earlyMin * 60_000));
+    return {
+      type: "FLIGHT_EARLY", title: `Vol ${f.flightNumber} en avance (−${f.earlyMin} min)`,
+      body: `Atterrissage estimé à ${landing}. Le client pourrait être disponible plus tôt ; l'heure de prise en charge convenue reste ${pickup}. Soyez sur place un peu avant.`,
+    };
+  }
+  return { type: "FLIGHT_UPDATE", title: `Vol ${f.flightNumber} : de nouveau à l'heure`, body: `La prise en charge est de nouveau prévue à ${pickup}.` };
+}
+
 /** Message adressé au chauffeur quand le partenaire annule une mission qui lui était attribuée. */
 export function cancellationMessage(ride: RideForMessage, flightNumber: string | null, compensationCents: number) {
   const lines = [

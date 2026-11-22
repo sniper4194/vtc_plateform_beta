@@ -69,18 +69,26 @@ function Route({ from, to }: { from: string; to: string }) {
 
 function FlightControl({ ride, onDone, onError }: { ride: any; onDone: () => void; onError: (m: string) => void }) {
   const [min, setMin] = useState("");
+  // Retard positif, avance négative (en minutes par rapport à l'atterrissage prévu). L'atterrissage prévu = prise en charge − délai d'attente.
+  const landingMs = new Date(ride.pickupAt).getTime() - (ride.flightBufferMin ?? 0) * 60_000;
   async function apply() {
     const m = Number(min);
-    if (!Number.isFinite(m) || m < 0) return onError("Retard invalide");
+    if (!Number.isFinite(m)) return onError("Valeur invalide");
     try {
-      await api(`/admin/rides/${ride.id}/flight`, { estimatedArrivalAt: m > 0 ? new Date(new Date(ride.pickupAt).getTime() + m * 60_000).toISOString() : null });
+      await api(`/admin/rides/${ride.id}/flight`, { estimatedArrivalAt: m !== 0 ? new Date(landingMs + m * 60_000).toISOString() : null });
       onError(""); setMin(""); onDone();
     } catch (e: any) { onError(e.message); }
   }
+  async function set(status: "LANDED" | "CANCELLED") {
+    if (status === "CANCELLED" && !window.confirm("Marquer le vol comme annulé ? Le chauffeur est prévenu de ne pas se déplacer ; la mission n'est pas annulée automatiquement.")) return;
+    try { await api(`/admin/rides/${ride.id}/flight`, { status }); onError(""); onDone(); } catch (e: any) { onError(e.message); }
+  }
   return (
     <>
-      <input type="number" min={0} placeholder="Retard (min)" value={min} onChange={(e) => setMin(e.target.value)} aria-label="Retard du vol en minutes" />
+      <input type="number" placeholder="Retard + / avance − (min)" value={min} onChange={(e) => setMin(e.target.value)} aria-label="Retard (positif) ou avance (négatif) du vol en minutes" />
       <button className="btn" disabled={min === ""} onClick={apply}>Vol</button>
+      <button className="btn" onClick={() => set("LANDED")}>Atterri</button>
+      <button className="btn danger" onClick={() => set("CANCELLED")}>Annulé</button>
     </>
   );
 }
@@ -139,7 +147,7 @@ function Board() {
                     )}
                     {r.booking.flightNumber && (
                       <div className="flightrow">
-                        <span className={`chip ${r.flightDelayMin > 0 ? "ok" : ""}`}>✈ {r.booking.flightNumber}{r.flightDelayMin > 0 ? ` +${r.flightDelayMin} min` : ""}</span>
+                        <span className={`chip ${r.flightStatus === "CANCELLED" ? "bad" : r.flightDelayMin > 0 ? "ok" : ""}`}>✈ {r.booking.flightNumber}{r.flightStatus === "CANCELLED" ? " · annulé" : r.flightStatus === "LANDED" ? " · posé" : r.flightDelayMin > 0 ? ` · +${r.flightDelayMin} min` : r.flightStatus === "EARLY" ? ` · −${r.flightEarlyMin} min` : ""}</span>
                         {OPEN_FLIGHT.includes(r.status) && <FlightControl ride={r} onDone={rides.reload} onError={setErr} />}
                       </div>
                     )}
@@ -430,12 +438,12 @@ function AlertsTab() {
     <>
       <h1 className="title">Alertes</h1>
       <div className="card">
-        <h3>Missions restées sans chauffeur après tous les tours de recherche</h3>
+        <h3>Missions sans chauffeur après tous les tours de recherche, et vols annulés</h3>
         {alerts.error && <div className="err">{alerts.error}</div>}
         {alerts.data?.length ? (
           <table>
-            <thead><tr><th>Prise en charge</th><th>Départ</th><th>Partenaire</th></tr></thead>
-            <tbody>{alerts.data.map((a) => <tr key={a.rideId}><td>{dt(a.pickupAt)}</td><td>{a.pickup}</td><td>{a.partner}</td></tr>)}</tbody>
+            <thead><tr><th>Motif</th><th>Prise en charge</th><th>Départ</th><th>Partenaire</th></tr></thead>
+            <tbody>{alerts.data.map((a) => <tr key={`${a.reason}-${a.rideId}`}><td><span className="chip bad">{a.reason === "FLIGHT_CANCELLED" ? `Vol ${a.flight ?? ""} annulé` : "Sans chauffeur"}</span></td><td>{dt(a.pickupAt)}</td><td>{a.pickup}</td><td>{a.partner}</td></tr>)}</tbody>
           </table>
         ) : <p className="muted">Aucune alerte. Vous pouvez attribuer à la main depuis le tableau.</p>}
       </div>

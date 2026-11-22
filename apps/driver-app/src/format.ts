@@ -83,3 +83,12 @@ export const STATUS_LABEL: Record<string, string> = {
 export const isCancelled = (status: string) => status.startsWith("CANCELLED");
 
 export const delayLabel = (min: number) => (min > 0 ? `+${min} min` : "à l'heure");
+
+/** Libellé et ton du statut d'un vol, pour l'affichage chauffeur (même vocabulaire que les notifications). */
+export function flightLabel(f: { status: string; delayMin: number; earlyMin?: number }): { text: string; tone: "ok" | "warn" | "bad" } {
+  if (f.status === "CANCELLED") return { text: "annulé", tone: "bad" };
+  if (f.status === "LANDED") return { text: "posé", tone: "ok" };
+  if (f.delayMin > 0) return { text: `retardé +${f.delayMin} min`, tone: "warn" };
+  if (f.status === "EARLY" && (f.earlyMin ?? 0) > 0) return { text: `en avance −${f.earlyMin} min`, tone: "ok" };
+  return { text: "à l'heure", tone: "ok" };
+}

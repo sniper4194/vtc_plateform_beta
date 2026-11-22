@@ -49,7 +49,7 @@ export const VehicleCreateSchema = z.object({
 export const CompanyCreateSchema = z.object({ name: z.string().min(1), siret: z.string().regex(/^\d{14}$/).optional(), vtcRegistry: z.string().optional() });
 export const FlightUpdateSchema = z.object({
   estimatedArrivalAt: z.string().datetime().nullable().optional(),
-  status: z.enum(["SCHEDULED", "DELAYED", "LANDED", "CANCELLED"]).optional(),
+  status: z.enum(["SCHEDULED", "DELAYED", "EARLY", "LANDED", "CANCELLED"]).optional(),
 });
 export const RatingSchema = z.object({ score: z.number().int().min(1).max(5), comment: z.string().max(500).optional() });
 export const AdminUserCreateSchema = z.object({

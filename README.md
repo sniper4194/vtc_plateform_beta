@@ -66,6 +66,16 @@ Le retard est mesuré par rapport à l'heure d'arrivée prévue (`pickupAt`). `P
 (`FlightsService.provider`, interface `FlightProvider`) passent par le même chemin : webhook `flight.delayed`, notification chauffeur, heure effective,
 et décompte du no-show à partir de l'heure effective. **Aucun fournisseur de données de vol n'est branché pour l'instant.**
 
+### Statuts du vol et notifications (retard, avance, atterri, annulé)
+Cinq statuts : `SCHEDULED` (à l'heure), `DELAYED` (retard à partir de 15 min d'après l'atterrissage prévu), `EARLY` (avance de 10 min ou plus), `LANDED`, `CANCELLED`. À chaque changement de statut, de retard ou d'avance :
+- **Chauffeur** : message dans l'application (Messages) avec le titre du changement : « retardé (+N min) », « en avance (−N min) », « de nouveau à l'heure », « atterri », « annulé » (celui-ci aussi par e-mail). Le statut est visible sur la mission (carte du vol colorée : jaune retard, rouge annulé) et dans l'agenda.
+- **Partenaire** : webhook `flight.updated` (nouveau, couvre tous les changements ; la réservation porte `flight.status`, `delayMin`, `earlyMin`) ; `flight.delayed` est conservé pour la compatibilité. C'est au partenaire de prévenir son client final : nous ne contactons pas les passagers.
+- **Équipe** : saisie dans le tableau (retard +, avance −, boutons « Atterri » et « Annulé ») ou par un fournisseur de données de vol (adaptateur `FlightProvider`, **aucun n'est branché** : tant que ce n'est pas fait, le statut vient de l'opérateur).
+- **Avance** : l'heure de prise en charge convenue **ne change pas** (le chauffeur est invité à arriver un peu avant) ; seul le retard décale l'heure effective et le « client absent ».
+- **Un vol posé ou annulé le reste** : une estimation tardive d'un fournisseur ne le remet pas « en retard ».
+- **Vol annulé** : le chauffeur est prévenu de ne pas se déplacer, une alerte « Vol annulé » apparaît dans l'onglet Alertes, mais **la mission n'est pas annulée automatiquement** : annuler, reporter ou maintenir est une décision commerciale avec le partenaire (frais d'annulation, indemnité du chauffeur).
+**Non fait** : notification push (message dans l'application seulement), notification directe au passager, branchement d'un fournisseur de données de vol réel (coût, contrat, clé API).
+
 ## Comptes du back-office
 
 Le back-office utilise des comptes nominatifs (mot de passe haché scrypt, verrouillage 15 min après 5 échecs, sessions de 8 h révoquées au changement de mot de passe ou à la désactivation, journal d'audit, rôles Administrateur / Régulateur).

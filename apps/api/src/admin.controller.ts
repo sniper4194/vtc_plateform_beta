@@ -190,7 +190,16 @@ export class AdminController {
       include: { booking: { include: { partner: true } } },
       orderBy: { pickupAt: "asc" },
     });
-    return rides.map((r) => ({ rideId: r.id, pickupAt: r.pickupAt, pickup: r.pickupAddress, partner: r.booking.partner?.name }));
+    // Vols annulés : le client ne viendra pas ; l'équipe tranche avec le partenaire (annulation, report). Aucune annulation automatique.
+    const cancelledFlights = await this.prisma.ride.findMany({
+      where: { flightStatus: "CANCELLED", status: { in: ["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"] } },
+      include: { booking: { include: { partner: true } } },
+      orderBy: { pickupAt: "asc" },
+    });
+    return [
+      ...rides.map((r) => ({ reason: "NO_DRIVER", rideId: r.id, ref: r.ref, pickupAt: r.pickupAt, pickup: r.pickupAddress, partner: r.booking.partner?.name })),
+      ...cancelledFlights.map((r) => ({ reason: "FLIGHT_CANCELLED", rideId: r.id, ref: r.ref, pickupAt: r.pickupAt, pickup: r.pickupAddress, partner: r.booking.partner?.name, flight: r.booking.flightNumber })),
+    ];
   }
 
   @Get("webhooks")

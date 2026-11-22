@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdown, delayLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel } from "./format";
+import { countdown, delayLabel, flightLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel } from "./format";
 
 describe("format", () => {
   it("compte à rebours mm:ss", () => {
@@ -48,5 +48,16 @@ describe("format", () => {
     expect(secondsUntil("2026-11-21T09:00:00Z", now)).toBe(0);
     expect(delayLabel(62)).toBe("+62 min");
     expect(delayLabel(0)).toBe("à l'heure");
+  });
+});
+
+describe("flightLabel", () => {
+  it("couvre retard, avance, posé, annulé et à l'heure", () => {
+    expect(flightLabel({ status: "DELAYED", delayMin: 40 })).toEqual({ text: "retardé +40 min", tone: "warn" });
+    expect(flightLabel({ status: "EARLY", delayMin: 0, earlyMin: 25 })).toEqual({ text: "en avance −25 min", tone: "ok" });
+    expect(flightLabel({ status: "LANDED", delayMin: 0 }).text).toBe("posé");
+    expect(flightLabel({ status: "CANCELLED", delayMin: 0 }).tone).toBe("bad");
+    expect(flightLabel({ status: "SCHEDULED", delayMin: 0 }).text).toBe("à l'heure");
+    expect(flightLabel({ status: "LANDED", delayMin: 30 }).text).toBe("posé"); // posé l'emporte sur un ancien retard
   });
 });

@@ -659,3 +659,67 @@ describe("vérifications d'identité aléatoires en cours de service", () => {
     expect(p).toBeLessThan(0.001);
   });
 });
+
+describe("suivi du vol : retard, avance, atterri, annulé", () => {
+  async function rideWithFlight() {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const { ride } = await assigned(d, p);
+    const landing = ride.pickupAt.getTime() - ride.flightBufferMin * 60_000;
+    return { p, d, ride, landing, flights: app.get(FlightsService) };
+  }
+  const types = async (id: string) => (await prisma.notification.findMany({ where: { driverId: id }, orderBy: { createdAt: "asc" } })).map((n) => n.type);
+
+  it("vol en avance : statut, notification, webhook ; la prise en charge convenue ne bouge pas ; petite avance ignorée", async () => {
+    const { p, d, ride, landing, flights } = await rideWithFlight();
+    await flights.update(ride.id, { estimatedArrivalAt: new Date(landing - 5 * 60_000) }, "test"); // 5 min : négligeable
+    expect(await types(d.id)).not.toContain("FLIGHT_EARLY");
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } })).flightStatus).not.toBe("EARLY");
+
+    const r = await flights.update(ride.id, { estimatedArrivalAt: new Date(landing - 25 * 60_000) }, "test");
+    expect(r).toMatchObject({ changed: true, status: "EARLY", earlyMin: 25, delayMin: 0 });
+    const after = await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } });
+    expect(after.flightStatus).toBe("EARLY");
+    expect(after.flightEarlyMin).toBe(25);
+    expect(after.flightDelayMin).toBe(0);
+    const n = (await prisma.notification.findMany({ where: { driverId: d.id, type: "FLIGHT_EARLY" } }))[0];
+    expect(n.title).toContain("en avance (−25 min)");
+    expect(n.body).toContain("reste"); // l'heure convenue reste la même
+    const view = await call("/driver/rides", { token: d.token });
+    expect(view.json[0].flight).toMatchObject({ status: "EARLY", earlyMin: 25 });
+    expect(view.json[0].effectivePickupAt).toBe(ride.pickupAt.toISOString());
+    expect(await prisma.webhookDelivery.count({ where: { eventType: "flight.updated" } })).toBeGreaterThanOrEqual(1);
+    void p;
+  });
+
+  it("retard, retour à l'heure, atterrissage : un message à chaque changement, et un vol posé le reste", async () => {
+    const { d, ride, landing, flights } = await rideWithFlight();
+    await flights.update(ride.id, { estimatedArrivalAt: new Date(landing + 40 * 60_000) }, "test");
+    await flights.update(ride.id, { estimatedArrivalAt: null }, "test");
+    await flights.update(ride.id, { estimatedArrivalAt: new Date(landing + 2 * 60_000), status: "LANDED" }, "test");
+    expect(await types(d.id)).toEqual(expect.arrayContaining(["FLIGHT_UPDATE", "FLIGHT_LANDED"]));
+    const landed = (await prisma.notification.findMany({ where: { driverId: d.id, type: "FLIGHT_LANDED" } }))[0];
+    expect(landed.title).toBe(`Vol AF1234 atterri`);
+    // une estimation tardive du fournisseur ne remet pas un vol posé « en retard »
+    await flights.update(ride.id, { estimatedArrivalAt: new Date(landing + 90 * 60_000) }, "test");
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } })).flightStatus).toBe("LANDED");
+  });
+
+  it("vol annulé : le chauffeur est prévenu (message + e-mail), l'équipe alertée, la mission n'est PAS annulée automatiquement", async () => {
+    const { p, d, ride, flights } = await rideWithFlight();
+    const r = await flights.update(ride.id, { status: "CANCELLED" }, "test");
+    expect(r.status).toBe("CANCELLED");
+    const n = (await prisma.notification.findMany({ where: { driverId: d.id, type: "FLIGHT_CANCELLED" } }))[0];
+    expect(n.title).toBe("Vol AF1234 annulé");
+    expect(n.body).toContain("Ne vous déplacez pas");
+    expect(await prisma.rideEvent.count({ where: { rideId: ride.id, type: "flight.cancelled" } })).toBe(1);
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } })).status).toBe("ASSIGNED"); // décision commerciale : humaine
+    const alerts = (await call("/admin/alerts", { admin: true })).json;
+    expect(alerts.find((a: any) => a.rideId === ride.id)).toMatchObject({ reason: "FLIGHT_CANCELLED", flight: "AF1234" });
+    // le partenaire voit le statut dans la réservation
+    const b = await prisma.booking.findFirstOrThrow({});
+    expect((await call(`/v1/bookings/${b.id}`, { token: p.apiKey })).json.flight.status).toBe("CANCELLED");
+    // idempotent : une seconde annulation ne renotifie pas
+    expect((await flights.update(ride.id, { status: "CANCELLED" }, "test")).changed).toBe(false);
+  });
+});

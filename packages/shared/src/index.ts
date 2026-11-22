@@ -70,5 +70,5 @@ export type BookingRequest = z.infer<typeof BookingRequestSchema>;
 
 export const WEBHOOK_EVENTS = [
   "booking.confirmed", "driver.assigned", "driver.en_route", "driver.arrived",
-  "ride.started", "ride.completed", "booking.cancelled", "flight.delayed",
+  "ride.started", "ride.completed", "booking.cancelled", "flight.delayed", "flight.updated",
 ] as const;

@@ -23,6 +23,7 @@ export function bookingView(r: RideFull) {
           number: r.booking.flightNumber,
           status: r.flightStatus ?? "SCHEDULED",
           delayMin: r.flightDelayMin,
+          earlyMin: r.flightEarlyMin,
           estimatedArrivalAt: r.flightEstimatedAt?.toISOString() ?? null,
           bufferMin: r.flightBufferMin,
           scheduledArrivalAt: new Date(r.pickupAt.getTime() - r.flightBufferMin * 60_000).toISOString(),
@@ -72,7 +73,7 @@ export function driverRideView(r: RideFull & { booking: Booking & { partner?: { 
     notes: r.booking.notes,
     flight: r.booking.flightNumber
       ? {
-          number: r.booking.flightNumber, status: r.flightStatus ?? "SCHEDULED", delayMin: r.flightDelayMin, estimatedArrivalAt: r.flightEstimatedAt,
+          number: r.booking.flightNumber, status: r.flightStatus ?? "SCHEDULED", delayMin: r.flightDelayMin, earlyMin: r.flightEarlyMin, estimatedArrivalAt: r.flightEstimatedAt,
           bufferMin: r.flightBufferMin, scheduledArrivalAt: new Date(r.pickupAt.getTime() - r.flightBufferMin * 60_000),
         }
       : null,

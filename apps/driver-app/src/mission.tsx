@@ -2,7 +2,7 @@ import * as Location from "expo-location";
 import { useEffect, useState } from "react";
 import { Linking, Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { api } from "./api";
-import { countdown, eurShort, isCancelled, MISSION_TITLE, NEXT_ACTION, secondsUntil, timeOf, waitedMin } from "./format";
+import { countdown, eurShort, flightLabel, isCancelled, MISSION_TITLE, NEXT_ACTION, secondsUntil, timeOf, waitedMin } from "./format";
 import { MissionMap, MapPoint } from "./MissionMap";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, HoldButton, Slab, Sticker } from "./ui";
@@ -95,17 +95,28 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
           <Cond size={12} color={c.muted}>{r.reference}</Cond>
           <Slab size={14} color={c.muted} shadow={null}>{place.address}</Slab>
 
-          {r.flight && !cancelled && (
-            <View style={{ backgroundColor: delayed ? c.yel : c.cream, borderWidth: 2.5, borderColor: c.ink, borderRadius: 12, padding: 10 }}>
-              <Cond size={12} color={c.ink}>Vol {r.flight.number} · {r.flight.status === "DELAYED" ? "retardé" : r.flight.status === "LANDED" ? "posé" : r.flight.status === "CANCELLED" ? "annulé" : "à l'heure"}</Cond>
-              <Slab size={16} color={c.ink} shadow={null}>
-                {delayed
-                  ? `Atterrissage ${timeOf(r.flight.scheduledArrivalAt)}  →  ${timeOf(new Date(new Date(r.flight.scheduledArrivalAt).getTime() + r.flight.delayMin * 60_000).toISOString())}  (+${r.flight.delayMin} min)`
-                  : `Atterrissage prévu ${timeOf(r.flight.scheduledArrivalAt)}`}
-              </Slab>
-              <Cond size={12} color={c.ink}>Prise en charge {timeOf(r.effectivePickupAt)}{r.flight.bufferMin > 0 ? ` · ${r.flight.bufferMin} min après l'atterrissage` : ""}</Cond>
-            </View>
-          )}
+          {r.flight && !cancelled && (() => {
+            const fl = flightLabel(r.flight);
+            const early = r.flight.status === "EARLY" && r.flight.earlyMin > 0;
+            const bg = fl.tone === "bad" ? c.red : fl.tone === "warn" ? c.yel : c.cream;
+            const fg = fl.tone === "bad" ? c.cream : c.ink;
+            return (
+              <View style={{ backgroundColor: bg, borderWidth: 2.5, borderColor: c.ink, borderRadius: 12, padding: 10 }}>
+                <Cond size={12} color={fg}>Vol {r.flight.number} · {fl.text}</Cond>
+                {r.flight.status === "CANCELLED" ? (
+                  <Slab size={16} color={fg} shadow={null}>Ne vous déplacez pas : attendez la consigne de l'équipe.</Slab>
+                ) : (
+                  <Slab size={16} color={fg} shadow={null}>
+                    {r.flight.status === "LANDED" ? `Posé${r.flight.estimatedArrivalAt ? ` à ${timeOf(r.flight.estimatedArrivalAt)}` : ""}`
+                      : delayed ? `Atterrissage ${timeOf(r.flight.scheduledArrivalAt)}  →  ${timeOf(new Date(new Date(r.flight.scheduledArrivalAt).getTime() + r.flight.delayMin * 60_000).toISOString())}  (+${r.flight.delayMin} min)`
+                      : early ? `Atterrissage ${timeOf(r.flight.scheduledArrivalAt)}  →  ${timeOf(new Date(new Date(r.flight.scheduledArrivalAt).getTime() - r.flight.earlyMin * 60_000).toISOString())}  (−${r.flight.earlyMin} min)`
+                      : `Atterrissage prévu ${timeOf(r.flight.scheduledArrivalAt)}`}
+                  </Slab>
+                )}
+                {r.flight.status !== "CANCELLED" && <Cond size={12} color={fg}>Prise en charge {timeOf(r.effectivePickupAt)}{r.flight.bufferMin > 0 ? ` · ${r.flight.bufferMin} min après l'atterrissage` : ""}{early ? " · inchangée, soyez en avance" : ""}</Cond>}
+              </View>
+            );
+          })()}
 
           {r.status === "ARRIVED" && (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>

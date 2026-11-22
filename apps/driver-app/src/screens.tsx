@@ -3,7 +3,7 @@ import { CostNote, RescueCard, RescuePicker } from "./rescue";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Text, View } from "react-native";
 import { api, ApiError } from "./api";
-import { countdown, eurShort, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
+import { countdown, eurShort, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker } from "./ui";
 import { useFetch } from "./useFetch";
@@ -308,6 +308,7 @@ function MissionDetail({ r, run, notify, openMission }: { r: any; run: (id: stri
           <Cond size={11} color={c.muted}>Passager</Cond>
           <Slab size={16} color={c.ink} shadow={null}>{r.passenger.name}</Slab>
           <Cond size={12} color={c.muted}>{r.passengers} pers. · {r.luggage} bagage(s){r.flightNumber ? ` · vol ${r.flightNumber}` : ""}</Cond>
+          {r.flight && (() => { const fl = flightLabel(r.flight); return <View style={{ alignSelf: "flex-start", marginTop: 4 }}><Chip label={`✈︎ ${r.flight.number} · ${fl.text}`} color={fl.tone === "bad" ? c.red : fl.tone === "warn" ? c.yel : c.cream} text={fl.tone === "bad" ? c.cream : c.ink} /></View>; })()}
         </View>
         <Btn label="Appeler" onPress={() => Linking.openURL(`tel:${r.passenger.phone}`)} color={c.yel} />
       </View>

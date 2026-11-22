@@ -1,10 +1,12 @@
 import { HttpException, Inject, Injectable, Logger } from "@nestjs/common";
+import { flightMessage } from "./messages";
 import { NotificationsService } from "./notifications";
 import { PrismaService } from "./prisma";
 import { WebhooksService } from "./webhooks.service";
 
-export type FlightStatus = "SCHEDULED" | "DELAYED" | "LANDED" | "CANCELLED";
+export type FlightStatus = "SCHEDULED" | "DELAYED" | "EARLY" | "LANDED" | "CANCELLED";
 export const DELAYED_FROM_MIN = 15;
+export const EARLY_FROM_MIN = 10; // en dessous, l'avance est négligeable : on reste « à l'heure »
 
 /** Branchement d'un fournisseur de données de vol (AeroDataBox, FlightAware…). Aucun n'est configuré par défaut. */
 export interface FlightProvider {
@@ -38,25 +40,35 @@ export class FlightsService {
     const est = hasEst ? input.estimatedArrivalAt ?? null : ride.flightEstimatedAt;
     const scheduledLanding = ride.pickupAt.getTime() - ride.flightBufferMin * 60_000;
     const delay = hasEst ? (est ? Math.max(0, Math.round((est.getTime() - scheduledLanding) / 60_000)) : 0) : ride.flightDelayMin;
-    const status: FlightStatus = input.status ?? (delay >= DELAYED_FROM_MIN ? "DELAYED" : "SCHEDULED");
+    const rawEarly = hasEst ? (est ? Math.max(0, Math.round((scheduledLanding - est.getTime()) / 60_000)) : 0) : ride.flightEarlyMin;
+    const early = rawEarly >= EARLY_FROM_MIN ? rawEarly : 0; // une avance de quelques minutes n'est ni affichée ni notifiée
+    // Un vol posé ou annulé le reste : une estimation tardive du fournisseur ne le « ressuscite » pas.
+    const sticky = ride.flightStatus === "LANDED" || ride.flightStatus === "CANCELLED" ? (ride.flightStatus as FlightStatus) : undefined;
+    const derived: FlightStatus = delay >= DELAYED_FROM_MIN ? "DELAYED" : early >= EARLY_FROM_MIN ? "EARLY" : "SCHEDULED";
+    const status: FlightStatus = input.status ?? sticky ?? derived;
+    const previous = (ride.flightStatus ?? "SCHEDULED") as FlightStatus;
     const delayChanged = delay !== ride.flightDelayMin;
-    if (!delayChanged && status === ride.flightStatus && est?.getTime() === ride.flightEstimatedAt?.getTime()) return { changed: false, delayMin: delay };
+    const earlyChanged = early !== ride.flightEarlyMin;
+    const statusChanged = status !== previous;
+    if (!delayChanged && !earlyChanged && !statusChanged && est?.getTime() === ride.flightEstimatedAt?.getTime()) return { changed: false, delayMin: delay };
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.ride.update({ where: { id: rideId }, data: { flightDelayMin: delay, flightEstimatedAt: est, flightStatus: status } });
-      await tx.rideEvent.create({ data: { rideId, type: "flight.updated", actor, payload: { delayMin: delay, status, estimatedArrivalAt: est } as any } });
+      await tx.ride.update({ where: { id: rideId }, data: { flightDelayMin: delay, flightEarlyMin: early, flightEstimatedAt: est, flightStatus: status } });
+      await tx.rideEvent.create({ data: { rideId, type: "flight.updated", actor, payload: { delayMin: delay, earlyMin: early, status, estimatedArrivalAt: est } as any } });
+      if (statusChanged && status === "CANCELLED") await tx.rideEvent.create({ data: { rideId, type: "flight.cancelled", actor } });
+      // flight.delayed est conservé pour la compatibilité ; flight.updated couvre tous les changements d'état (retard, avance, atterri, annulé).
       if (delayChanged) await this.webhooks.enqueue(tx, rideId, "flight.delayed");
+      if (delayChanged || earlyChanged || statusChanged) await this.webhooks.enqueue(tx, rideId, "flight.updated");
     });
-    if (delayChanged && ride.driverId) {
-      const hm = new Date(ride.pickupAt.getTime() + delay * 60_000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
-      await this.notif.toDriver(ride.driverId, {
-        type: "FLIGHT_UPDATE",
-        title: delay > 0 ? `Vol ${ride.booking.flightNumber} retardé (+${delay} min)` : `Vol ${ride.booking.flightNumber} : de nouveau à l'heure`,
-        body: delay > 0 ? `Nouvelle prise en charge prévue à ${hm}.` : `La prise en charge est de nouveau prévue à ${hm}.`,
-        data: { rideId, delayMin: delay },
+    // Le chauffeur est prévenu à chaque changement significatif (message dans l'application, relais e-mail pour une annulation).
+    if ((delayChanged || earlyChanged || statusChanged) && ride.driverId) {
+      const m = flightMessage({
+        flightNumber: ride.booking.flightNumber, status, delayMin: delay, earlyMin: early, estimatedArrivalAt: est,
+        scheduledLanding: new Date(scheduledLanding), pickupAt: ride.pickupAt, bufferMin: ride.flightBufferMin,
       });
+      await this.notif.toDriver(ride.driverId, { ...m, data: { rideId, delayMin: delay, earlyMin: early, status } }, { email: status === "CANCELLED" });
     }
-    return { changed: true, delayMin: delay, status };
+    return { changed: true, delayMin: delay, earlyMin: early, status };
   }
 
   /** Interroge le fournisseur (si configuré) pour les missions à venir avec un vol. Limité à 1 passage par minute. */
