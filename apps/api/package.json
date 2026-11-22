@@ -13,7 +13,7 @@
     "seed": "tsx scripts/seed.ts",
     "db:deploy": "prisma migrate deploy",
     "admin:create": "tsx src/cli/create-admin.ts",
-    "dev:demo": "cross-env ADMIN_TOKEN=dev-admin-token-dev-admin-token DRIVER_DEV_OTP=000000 VEHICLE_RULES=0 IDENTITY_CHECKS=0 TRACKING_BASE_URL=http://localhost:3002 CORS_ORIGINS=http://localhost:3001,http://localhost:3002 tsx watch src/main.ts",
+    "dev:demo": "cross-env ADMIN_TOKEN=dev-admin-token-dev-admin-token DRIVER_DEV_OTP=000000 VEHICLE_RULES=0 IDENTITY_CHECKS=0 TRACKING_BASE_URL=http://localhost:3002 CORS_ORIGINS=http://localhost:3001,http://localhost:3002,http://localhost:8081,http://localhost:19006 tsx watch src/main.ts",
     "demo:driver": "tsx scripts/demo-driver.ts"
   },
   "dependencies": {
