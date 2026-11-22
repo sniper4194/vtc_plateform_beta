@@ -92,3 +92,6 @@ export function flightLabel(f: { status: string; delayMin: number; earlyMin?: nu
   if (f.status === "EARLY" && (f.earlyMin ?? 0) > 0) return { text: `en avance −${f.earlyMin} min`, tone: "ok" };
   return { text: "à l'heure", tone: "ok" };
 }
+
+export const hoursLabel = (h: number) => { const m = Math.round(h * 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`; };
+export const dayLabel = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit" });

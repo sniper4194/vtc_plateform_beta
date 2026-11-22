@@ -128,7 +128,7 @@ beforeEach(async () => {
   received = [];
   hookStatus = 200;
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "IdentityCheck","DriverPenalty","RescueRequest","Notification","OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
+    'TRUNCATE "Incident","IdentityCheck","DriverPenalty","RescueRequest","Notification","OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE',
   );
 });
 
@@ -788,5 +788,121 @@ describe("rappels d'échéances des documents", () => {
     expect(list.every((x: any) => x.label)).toBe(true);
     const adm = (await call("/admin/expiring?days=30", { admin: true })).json;
     expect(adm.find((x: any) => x.driverId === d.id)).toMatchObject({ type: "DRIVING_LICENSE", daysLeft: 12 });
+  });
+});
+
+describe("revenus du chauffeur", () => {
+  const range = () => `from=${encodeURIComponent(new Date(Date.now() - 86400_000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 10 * 86400_000).toISOString())}`;
+  async function completedRide(d: { id: string; token: string }, p: { apiKey: string }) {
+    const { ride } = await assigned(d, p);
+    for (const a of ["en-route", "arrived", "start", "complete"]) expect((await call(`/driver/rides/${ride.id}/${a}`, { token: d.token, body: {} })).status).toBe(201);
+    return ride;
+  }
+
+  it("courses terminées, indemnité, pénalité, net, net par heure de mission, avenir", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const done = await completedRide(d, p);
+    const e1 = (await call(`/driver/earnings?${range()}`, { token: d.token })).json;
+    expect(e1.period).toBe("custom");
+    expect(e1.totals.rides).toBe(1);
+    expect(e1.totals.ridesCents).toBe(done.driverNetCents);
+    expect(e1.totals.netCents).toBe(done.driverNetCents);
+    expect(e1.totals.missionHours).toBeGreaterThanOrEqual(0); // mise en route et fin quasi simultanées dans le test
+    expect(e1.rides[0]).toMatchObject({ ref: done.ref, netCents: done.driverNetCents });
+    expect(e1.days).toHaveLength(1);
+
+    // une pénalité vient en déduction, une indemnité d'annulation s'ajoute
+    await prisma.driverPenalty.create({ data: { driverId: d.id, rideId: done.id, kind: "GIVE_BACK", amountCents: 1000, minutesBefore: 60 * 72 } });
+    const e2 = (await call(`/driver/earnings?${range()}`, { token: d.token })).json;
+    expect(e2.totals.penaltyCents).toBe(1000);
+    expect(e2.totals.netCents).toBe(done.driverNetCents - 1000);
+    const comp = await prisma.ride.create({ data: {
+      bookingId: (await prisma.booking.findFirstOrThrow({})).id, status: "CANCELLED_BY_PARTNER", pickupAt: new Date(Date.now() + 86400_000), pickupAddress: "A", dropoffAddress: "B",
+      pickupLat: 48.8, pickupLng: 2.3, dropoffLat: 48.9, dropoffLng: 2.4, distanceKm: 10, durationMin: 20, category: "BERLINE", priceCents: 5000, commissionCents: 1000, driverNetCents: 4000,
+      driverId: d.id, cancelledAt: new Date(), driverCompensationCents: 2200,
+    } as any });
+    void comp;
+    const e3 = (await call(`/driver/earnings?${range()}`, { token: d.token })).json;
+    expect(e3.totals.compensationCents).toBe(2200);
+    expect(e3.totals.netCents).toBe(done.driverNetCents + 2200 - 1000);
+  });
+
+  it("un chauffeur ne voit que ses revenus ; périodes nommées ; intervalle invalide refusé ; export CSV", async () => {
+    const p = await mkPartner();
+    const a = await mkDriver(), b = await mkDriver();
+    await completedRide(a, p);
+    expect((await call(`/driver/earnings?${range()}`, { token: b.token })).json.totals.rides).toBe(0);
+    for (const per of ["day", "week", "fortnight", "month"]) expect((await call(`/driver/earnings?period=${per}`, { token: a.token })).status).toBe(200);
+    expect((await call("/driver/earnings?period=semester", { token: a.token })).status).toBe(422);
+    expect((await call("/driver/earnings?from=2026-01-01T00:00:00Z&to=2026-12-31T00:00:00Z", { token: a.token })).status).toBe(422); // > 92 jours
+    const res = await fetch(`${base}/driver/earnings/csv?${range()}`, { headers: { authorization: `Bearer ${a.token}` } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toContain("mes-revenus.csv");
+    const csv = await res.text();
+    expect(csv).toContain("type;date;reference;detail;montant_eur");
+    expect(csv).toContain("COURSE;");
+    expect(csv).toContain("TOTAL;");
+  });
+
+  it("le prix client et la commission n'apparaissent que si le réglage le permet", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    await completedRide(d, p);
+    expect((await call(`/driver/earnings?${range()}`, { token: d.token })).json.rides[0].clientCents).toBeGreaterThan(0);
+    process.env.DRIVER_SEES_CLIENT_PRICE = "0";
+    const hidden = (await call(`/driver/earnings?${range()}`, { token: d.token })).json;
+    delete process.env.DRIVER_SEES_CLIENT_PRICE;
+    expect(hidden.rides[0].clientCents).toBeNull();
+    expect(hidden.rides[0].commissionCents).toBeNull();
+  });
+});
+
+describe("signalement d'incident", () => {
+  it("enregistre avec position et heure, urgent par défaut pour un danger, confirme au chauffeur avec les numéros d'urgence", async () => {
+    const d = await mkDriver({ lat: 48.85, lng: 2.35 });
+    const r = await call("/driver/incidents", { token: d.token, body: { kind: "DANGER", message: "Client menaçant" } });
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ urgent: true, status: "OPEN", located: true });
+    const row = await prisma.incident.findFirstOrThrow({});
+    expect(row.lat).toBeCloseTo(48.85);
+    expect(row.message).toBe("Client menaçant");
+    const n = (await prisma.notification.findMany({ where: { driverId: d.id, type: "INCIDENT_RECEIVED" } }))[0];
+    expect(n.title).toBe("Alerte reçue");
+    expect(n.body).toContain("112");
+    expect(n.body).toContain("ne remplace pas les secours");
+    // une panne n'est pas urgente par défaut et propose un sauveteur ; le chauffeur peut forcer l'urgence
+    expect((await call("/driver/incidents", { token: d.token, body: { kind: "BREAKDOWN" } })).json.urgent).toBe(false);
+    expect((await call("/driver/incidents", { token: d.token, body: { kind: "CLIENT", urgent: true } })).json.urgent).toBe(true);
+    expect((await prisma.notification.findMany({ where: { driverId: d.id, type: "INCIDENT_RECEIVED" } })).some((x) => x.body.includes("sauveteur"))).toBe(true);
+  });
+
+  it("lié à une mission : trace dans les événements ; mission d'un autre refusée ; limite horaire", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver(), other = await mkDriver();
+    const { ride } = await assigned(d, p);
+    expect((await call("/driver/incidents", { token: other.token, body: { kind: "OTHER", rideId: ride.id } })).status).toBe(404);
+    expect((await call("/driver/incidents", { token: d.token, body: { kind: "PAYMENT", rideId: ride.id } })).status).toBe(201);
+    expect(await prisma.rideEvent.count({ where: { rideId: ride.id, type: "driver.incident" } })).toBe(1);
+    for (let i = 0; i < 4; i++) await call("/driver/incidents", { token: d.token, body: { kind: "OTHER" } });
+    expect((await call("/driver/incidents", { token: d.token, body: { kind: "OTHER" } })).status).toBe(429);
+    expect((await call("/driver/incidents", { token: other.token, body: { kind: "NOPE" } })).status).toBe(422);
+  });
+
+  it("l'équipe voit les urgences d'abord avec téléphone et carte, accuse réception puis clôt ; le chauffeur est prévenu", async () => {
+    const d = await mkDriver({ lat: 48.85, lng: 2.35 });
+    await call("/driver/incidents", { token: d.token, body: { kind: "OTHER", message: "Question" } });
+    await call("/driver/incidents", { token: d.token, body: { kind: "ACCIDENT" } });
+    const list = (await call("/admin/incidents", { admin: true })).json;
+    expect(list[0]).toMatchObject({ kind: "ACCIDENT", urgent: true, driver: expect.stringContaining("Chauffeur"), phone: d.phone });
+    expect(list[0].map).toContain("google.com/maps?q=48.85");
+    const id = list[0].id;
+    expect((await call(`/admin/incidents/${id}/ack`, { admin: true, body: {} })).status).toBe(201);
+    expect((await call(`/admin/incidents/${id}/ack`, { admin: true, body: {} })).status).toBe(404); // déjà pris en charge
+    expect((await call(`/admin/incidents/${id}/close`, { admin: true, body: { resolution: "x" } })).status).toBe(422); // motif trop court
+    expect((await call(`/admin/incidents/${id}/close`, { admin: true, body: { resolution: "Dépanneuse envoyée" } })).status).toBe(201);
+    const types = (await prisma.notification.findMany({ where: { driverId: d.id } })).map((n) => n.type);
+    expect(types).toEqual(expect.arrayContaining(["INCIDENT_ACK", "INCIDENT_CLOSED"]));
+    expect((await call("/driver/incidents", { token: d.token })).json.find((x: any) => x.id === id)).toMatchObject({ status: "CLOSED", resolution: "Dépanneuse envoyée" });
   });
 });

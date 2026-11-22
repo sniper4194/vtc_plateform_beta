@@ -19,6 +19,10 @@ import { AdminRescueController, RescueController } from "./rescue.controller";
 import { PenaltiesService } from "./penalties.service";
 import { IdentityService } from "./identity.service";
 import { DeadlinesService } from "./deadlines.service";
+import { EarningsController } from "./earnings.controller";
+import { EarningsService } from "./earnings.service";
+import { AdminIncidentController, IncidentController } from "./incident.controller";
+import { IncidentService } from "./incident.service";
 import { RescueService } from "./rescue.service";
 import { RoutingService } from "./routing";
 import { AdminGuard, CompanyGuard, DriverGuard, PartnerGuard } from "./security";
@@ -65,7 +69,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 }
 
 @Module({
-  controllers: [HealthController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, CompanyController, AuthController],
-  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, IdentityService, DeadlinesService, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
+  controllers: [HealthController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, EarningsController, IncidentController, AdminIncidentController, CompanyController, AuthController],
+  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, IdentityService, DeadlinesService, EarningsService, IncidentService, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
 })
 export class AppModule {}

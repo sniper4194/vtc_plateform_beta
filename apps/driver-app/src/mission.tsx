@@ -6,6 +6,7 @@ import { countdown, eurShort, flightLabel, isCancelled, MISSION_TITLE, NEXT_ACTI
 import { MissionMap, MapPoint } from "./MissionMap";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, HoldButton, Slab, Sticker } from "./ui";
+import { IncidentScreen } from "./incident";
 import { CostNote, JustificatifModal, RescuePicker } from "./rescue";
 import { useFetch } from "./useFetch";
 
@@ -41,6 +42,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
   const [confirm, setConfirm] = useState(false);
   const [rescue, setRescue] = useState(false);
   const [proof, setProof] = useState(false);
+  const [incident, setIncident] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 1000); return () => clearInterval(t); }, []);
   useEffect(() => {
@@ -172,6 +174,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
             <>
               {next && <HoldButton label={next.hold} onComplete={() => run(next.action)} />}
               <Pressable onPress={() => { setProblem(!problem); setConfirm(false); }}><Cond size={13} color={c.blue} style={{ textAlign: "center", textDecorationLine: "underline" }}>Un souci ?</Cond></Pressable>
+              {problem && <Btn label="Signaler un incident" color={c.red} text={c.cream} onPress={() => setIncident(true)} />}
               {problem && r.status === "ARRIVED" && <Btn label={noShowIn > 0 ? `Client absent (dans ${countdown(noShowIn)})` : "Client introuvable (no-show)"} color={c.red} text={c.cream} disabled={noShowIn > 0} onPress={() => run("no-show")} />}
               {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <CostNote rideId={rideId} />}
               {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <Btn label="Appeler un sauveteur" color={c.yel} onPress={() => setRescue(true)} />}
@@ -180,6 +183,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
           )}
         </ScrollView>
       </View>
+      {incident && <IncidentScreen rideId={rideId} notify={notify} onClose={() => setIncident(false)} />}
       {proof && <JustificatifModal rideId={rideId} onClose={() => setProof(false)} />}
       {rescue && <RescuePicker rideId={rideId} notify={notify} onClose={() => { setRescue(false); ride.reload(); }} />}
       {sign && <SignModal text={r.signText} onClose={() => setSign(false)} />}

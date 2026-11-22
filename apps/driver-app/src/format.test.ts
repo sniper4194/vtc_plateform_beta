@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdown, delayLabel, flightLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel } from "./format";
+import { countdown, dayLabel, delayLabel, flightLabel, hoursLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel } from "./format";
 
 describe("format", () => {
   it("compte à rebours mm:ss", () => {
@@ -59,5 +59,17 @@ describe("flightLabel", () => {
     expect(flightLabel({ status: "CANCELLED", delayMin: 0 }).tone).toBe("bad");
     expect(flightLabel({ status: "SCHEDULED", delayMin: 0 }).text).toBe("à l'heure");
     expect(flightLabel({ status: "LANDED", delayMin: 30 }).text).toBe("posé"); // posé l'emporte sur un ancien retard
+  });
+});
+
+describe("revenus (affichage)", () => {
+  it("durées", () => {
+    expect(hoursLabel(0)).toBe("0 min");
+    expect(hoursLabel(0.5)).toBe("30 min");
+    expect(hoursLabel(1.5)).toBe("1 h 30");
+    expect(hoursLabel(2.0833)).toBe("2 h 05");
+  });
+  it("libellé de jour", () => {
+    expect(dayLabel("2026-12-02")).toMatch(/02\/12/);
   });
 });

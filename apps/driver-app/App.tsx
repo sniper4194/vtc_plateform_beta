@@ -10,11 +10,12 @@ import { ActivityIndicator, Pressable, SafeAreaView, TextInput, View } from "rea
 import { api, loadToken, saveToken } from "./src/api";
 import { SpotPrompt } from "./src/identity";
 import { MissionScreen } from "./src/mission";
+import { Earnings } from "./src/earnings";
 import { Agenda, Cap, Messages, Radar } from "./src/screens";
 import { BRAND, c, font } from "./src/theme";
 import { Btn, Card, Cond, Display, Script, Slab, Sticker, useToast } from "./src/ui";
 
-type Tab = "radar" | "cap" | "agenda";
+type Tab = "radar" | "cap" | "revenus" | "agenda";
 
 function Login({ onDone }: { onDone: () => void }) {
   const [phone, setPhone] = useState("");
@@ -88,6 +89,7 @@ function Login({ onDone }: { onDone: () => void }) {
 const TABS: { key: Tab; label: string; glyph: string }[] = [
   { key: "radar", label: "Radar", glyph: "◎" },
   { key: "cap", label: "Cap", glyph: "★" },
+  { key: "revenus", label: "Revenus", glyph: "€" },
   { key: "agenda", label: "Agenda", glyph: "▦" },
 ];
 
@@ -147,6 +149,7 @@ export default function App() {
       <View style={{ flex: 1 }}>
         {tab === "radar" && <Radar notify={toast.show} />}
         {tab === "cap" && <Cap goRadar={() => setTab("radar")} onQuit={async () => { await saveToken(null); setAuthed(false); }} notify={toast.show} openMission={setMissionId} openMessages={() => setShowMessages(true)} />}
+        {tab === "revenus" && <Earnings notify={toast.show} />}
         {tab === "agenda" && <Agenda notify={toast.show} openMission={setMissionId} />}
         {toast.node}
         <SpotPrompt notify={toast.show} />

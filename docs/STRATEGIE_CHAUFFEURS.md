@@ -32,13 +32,13 @@ C'est notre meilleur argument auprès des chauffeurs, à condition de le **prouv
 
 | Risque d'une journée | Couvert aujourd'hui | Écart |
 |---|---|---|
-| Prix incertain | Prix affiché, plafond connu, plancher de 9 € | Garanties horaire et kilométrique à étudier |
+| Prix incertain | Prix affiché, plafond connu, plancher de 9 €, écran Revenus (net, pénalités, rendement par heure de mission, export) | Garanties horaire et kilométrique à étudier |
 | Annulation tardive | Indemnité d'annulation (barème provisoire) | Barème à valider avec les chauffeurs et les partenaires |
 | Attente, vol retardé, client absent | Suivi de vol, attente sur l'heure réelle, client absent après 15 min | Source de données de vol à brancher (Flightradar24 visé) |
 | Panne, malaise | Sauveteurs | Liste vide au lancement |
 | Contrôle routier | Justificatif de réservation, **rappels d'échéances** (30, 14, 7, 1 jours, hors ligne à l'expiration) | Envoi d'un nouveau document depuis l'application, suivi de l'inscription au registre et de l'assurance du véhicule |
 | Compte suspendu sans comprendre | Barème annoncé, examen humain avant fermeture | Recours organisé, délai de réponse |
-| Client agressif, accident | Rien | **Signalement d'incident et alerte sécurité à concevoir** |
+| Client agressif, accident | Signalement d'incident horodaté avec position, renvoi vers les secours, suivi par l'équipe | Alerte SMS/push et astreinte (aujourd'hui, tableau de bord seulement) |
 | Non-paiement, paiement tardif | Relevé de paiements lisible | **Paiements réels et délai de paiement à fixer** (Stripe non branché) |
 | Assurance | Contrôle du document | Couverture d'un relais de mission à définir |
 

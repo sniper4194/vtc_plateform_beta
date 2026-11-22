@@ -421,6 +421,13 @@ function AlertsTab() {
   const alerts = useLoad<any[]>("/admin/alerts");
   const rescues = useLoad<any[]>("/admin/rescues", 8000);
   const pens = useLoad<any[]>("/admin/penalties", 15000);
+  const inc = useLoad<any[]>("/admin/incidents", 6000);
+  async function incAct(id: string, act: "ack" | "close") {
+    let body: any = {};
+    if (act === "close") { const r = window.prompt("Résolution (visible par le chauffeur) : ex. dépanneuse envoyée, client rappelé"); if (!r) return; body = { resolution: r }; }
+    try { await api(`/admin/incidents/${id}/${act}`, body); } catch (e: any) { alert(e.message); }
+    inc.reload();
+  }
   const ids = useLoad<any[]>("/admin/identity-checks", 15000);
   async function reviewId(id: string, approve: boolean) {
     let reason: string | undefined;
@@ -461,6 +468,26 @@ function AlertsTab() {
             ))}</tbody>
           </table>
         ) : <p className="muted">Aucun appel à l'aide.</p>}
+      </div>
+      <div className="card" style={{ marginTop: 16, borderColor: inc.data?.some((x) => x.urgent && x.status === "OPEN") ? "#ee2a14" : undefined }}>
+        <h3>Incidents signalés par les chauffeurs</h3>
+        <p className="muted" style={{ fontSize: 13 }}>Les urgences d'abord. L'équipe n'est pas un service d'urgence : en cas de danger immédiat, le chauffeur est renvoyé vers le 112.</p>
+        {inc.error && <div className="err">{inc.error}</div>}
+        {inc.data?.length ? (
+          <table>
+            <thead><tr><th>Heure</th><th>Chauffeur</th><th>Type</th><th>Mission</th><th>Détail</th><th>État</th><th></th></tr></thead>
+            <tbody>{inc.data.map((x) => (
+              <tr key={x.id}>
+                <td>{dt(x.createdAt)}</td>
+                <td>{x.driver}<br /><a href={`tel:${x.phone}`}>{x.phone}</a>{x.map && <> · <a href={x.map} target="_blank" rel="noreferrer">carte</a></>}</td>
+                <td><span className={`chip ${x.urgent ? "bad" : ""}`}>{x.urgent ? "URGENT · " : ""}{x.label}</span></td>
+                <td>{x.ref ? `R-${x.ref}` : "—"}</td><td>{x.message ?? "—"}</td>
+                <td><span className={`chip ${x.status === "CLOSED" ? "ok" : x.status === "OPEN" ? "bad" : ""}`}>{x.status === "OPEN" ? "À traiter" : x.status === "ACKNOWLEDGED" ? "Pris en charge" : `Clos${x.resolution ? ` : ${x.resolution}` : ""}`}</span></td>
+                <td>{x.status === "OPEN" && <button className="btn primary" onClick={() => incAct(x.id, "ack")}>Prendre en charge</button>}{" "}{x.status !== "CLOSED" && <button className="btn" onClick={() => incAct(x.id, "close")}>Clore</button>}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        ) : <p className="muted">Aucun incident.</p>}
       </div>
       <div className="card" style={{ marginTop: 16 }}>
         <h3>Vérifications d'identité (selfies)</h3>
@@ -514,6 +541,7 @@ export default function Home() {
   const alerts = useLoad<any[]>("/admin/alerts", 8000);
   const rescues = useLoad<any[]>("/admin/rescues?open=1", 8000);
   const pendingIds = useLoad<any[]>("/admin/identity-checks?status=PENDING", 8000);
+  const openInc = useLoad<any[]>("/admin/incidents?status=OPEN", 6000);
   const sync = () => { setAuthed(Boolean(getToken())); setUserState(getUser()); };
   useEffect(() => {
     sync(); setReady(true);
@@ -528,7 +556,7 @@ export default function Home() {
     ["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"],
     ...(isAdmin ? ([["companies", "Sociétés"], ["partners", "Partenaires"], ["team", "Équipe"]] as [Tab, string][]) : []),
   ];
-  const nAlerts = (alerts.data?.length ?? 0) + (rescues.data?.length ?? 0) + (pendingIds.data?.length ?? 0);
+  const nAlerts = (alerts.data?.length ?? 0) + (rescues.data?.length ?? 0) + (pendingIds.data?.length ?? 0) + (openInc.data?.length ?? 0);
   return (
     <>
       <header>

@@ -193,3 +193,18 @@ La fiche Service-Public indique qu'aucun rappel n'est envoyé au chauffeur pour 
 - **À l'expiration d'un document obligatoire** : le chauffeur est mis **hors ligne** (jamais pendant une mission) et ne peut pas se remettre en ligne tant qu'il n'a pas de document valide (`DOCUMENTS_EXPIRED`). Son compte reste actif, la mesure est levée dès que le nouveau document est validé.
 - **Application** : carte « Mes échéances » sur l'onglet Cap (rouge si expiré ou manquant, jaune sous 30 jours) et écran détaillé. **Équipe** : `GET /admin/expiring?days=30`.
 - Passage horaire des rappels (`DeadlinesService.sweep`). **Non fait** : l'envoi d'un nouveau document depuis l'application (le stockage sécurisé des documents n'existe pas encore : le chauffeur contacte l'équipe), la date d'inscription au registre des VTC (5 ans) et l'assurance du véhicule non suivies séparément, notification push.
+
+## Revenus du chauffeur
+
+Onglet **Revenus** de l'application (et `GET /driver/earnings`) : net de la période (jour, semaine du lundi, quinzaine 1–15 / 16–fin, mois, ou un intervalle de 92 jours au plus), à l'heure de Paris.
+- **Détail** : courses terminées, indemnités d'annulation, pénalités (déduites), montant à venir (missions attribuées), par jour, course par course. Le prix client et la commission ne figurent que si `DRIVER_SEES_CLIENT_PRICE` le permet.
+- **Rendement par heure de mission** : (courses + indemnités) ÷ heures de mission, de la mise en route à la fin de la course. **Le temps en ligne sans mission n'est pas mesuré** (aucun journal de connexion) : ce n'est donc pas un « net par heure travaillée » au sens de la garantie de 30 €/h citée par Service-Public, dont le mode de calcul exact reste à établir. Une durée mesurée de moins de 5 minutes (touches enchaînées) est remplacée par la durée estimée du trajet ; plafond de 12 h par course.
+- **Export CSV** (`GET /driver/earnings/csv`, séparateur « ; », virgule décimale) pour le comptable. Ce n'est pas une déclaration fiscale : les informations fiscales (URSSAF, TVA) ne sont pas traitées.
+
+## Signalement d'incident
+
+Bouton « Signaler un incident » (onglet Cap, et « Un souci ? » dans une mission) : danger (agression, menace), accident, panne, comportement d'un client, problème de paiement, contrôle routier, autre.
+- **Trace horodatée avec position** (la position du moment, sinon la dernière connue) ; liée à la mission si elle est choisie (événement `driver.incident`). Danger et accident sont **urgents** par défaut ; le chauffeur peut forcer l'urgence.
+- **Avant tout, les secours** : l'écran propose d'appeler le 112, 17, 15, 18, et la confirmation rappelle que **notre équipe n'est pas un service d'urgence**. Une panne propose aussi d'appeler un sauveteur ; un contrôle routier rappelle le justificatif de réservation.
+- **Équipe** : carte « Incidents » en tête des alertes du back-office (urgences d'abord, téléphone du chauffeur, lien vers la carte), « Prendre en charge » puis « Clore » avec une résolution visible du chauffeur ; compteur dans l'onglet Alertes. 5 signalements par heure et par chauffeur au maximum.
+- **Limites** : l'alerte n'arrive qu'au tableau de bord (**ni SMS, ni push, ni astreinte** : quelqu'un doit le surveiller ; aucun engagement de réponse 24 h/24 n'existe) ; pas de photo ni de pièce jointe ; pas de partage de position en continu.

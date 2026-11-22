@@ -1,5 +1,6 @@
 import { DeadlinesCard, DeadlinesScreen } from "./deadlines";
 import { IdentityScreen } from "./identity";
+import { IncidentCard, IncidentScreen } from "./incident";
 import { CostNote, RescueCard, RescuePicker } from "./rescue";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Text, View } from "react-native";
@@ -44,6 +45,7 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
   const [busy, setBusy] = useState(false);
   const [showId, setShowId] = useState(false);
   const [showDl, setShowDl] = useState(false);
+  const [showInc, setShowInc] = useState(false);
   const deadlines = useFetch<any[]>("/driver/deadlines", 60000);
   const identity = useFetch<any>("/driver/identity", 20000);
   const online = me.data?.availability === "AVAILABLE";
@@ -95,6 +97,8 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
           {!identity.data ? "…" : identity.data.selfie?.mustVerify ? "Selfie de prise de service à faire" : identity.data.missing.length > 0 ? `À compléter : ${identity.data.missing.join(", ")}` : "À jour"} →
         </Cond>
       </Card>
+      <IncidentCard onOpen={() => setShowInc(true)} />
+      {showInc && <IncidentScreen notify={notify} onClose={() => setShowInc(false)} />}
       <DeadlinesCard list={deadlines.data} onOpen={() => setShowDl(true)} />
       {showDl && <DeadlinesScreen onClose={() => setShowDl(false)} />}
       {showId && <IdentityScreen notify={notify} onClose={() => setShowId(false)} onChanged={() => { identity.reload(); me.reload(); }} />}
@@ -304,6 +308,7 @@ function MissionDetail({ r, run, notify, openMission }: { r: any; run: (id: stri
   const [problem, setProblem] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [rescue, setRescue] = useState(false);
+  const [incident, setIncident] = useState(false);
   const target = r.status === "IN_PROGRESS" ? r.dropoff : r.pickup;
   return (
     <View style={{ gap: 10 }}>
@@ -325,6 +330,8 @@ function MissionDetail({ r, run, notify, openMission }: { r: any; run: (id: stri
       {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <CostNote rideId={r.rideId} />}
       {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <Btn label="Appeler un sauveteur" color={c.yel} onPress={() => setRescue(true)} />}
       {rescue && <RescuePicker rideId={r.rideId} notify={notify} onClose={() => setRescue(false)} />}
+      {incident && <IncidentScreen rideId={r.rideId} notify={notify} onClose={() => setIncident(false)} />}
+      {problem && <Btn label="Signaler un incident" color={c.red} text={c.cream} onPress={() => setIncident(true)} />}
       {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && (
         <Btn
           label={confirm ? "Confirmer : je rends la mission" : "Je ne peux plus la faire"}

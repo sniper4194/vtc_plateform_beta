@@ -38,3 +38,11 @@ export async function api<T = any>(path: string, body?: unknown): Promise<T> {
   if (!res.ok) throw new ApiError(json?.message ?? `Erreur ${res.status}`, res.status, json?.code);
   return json as T;
 }
+
+/** Requête GET qui renvoie du texte (export CSV). */
+export async function apiText(path: string): Promise<string> {
+  const res = await fetch(API_URL + path, { headers: token ? { authorization: `Bearer ${token}` } : {} });
+  const text = await res.text();
+  if (!res.ok) { let m = `Erreur ${res.status}`; try { m = JSON.parse(text)?.message ?? m; } catch { /* texte brut */ } throw new ApiError(m, res.status); }
+  return text;
+}

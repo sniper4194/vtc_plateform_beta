@@ -138,6 +138,7 @@ model Driver {
   proCardNumber String? // numéro de la carte professionnelle VTC
   identityVerifiedAt DateTime? // dernière vérification d'identité par selfie valide (prise de service)
   identityChecks IdentityCheck[]
+  incidents     Incident[]
   rescueOptIn   Boolean            @default(false) // accepte de figurer dans la liste des sauveteurs (s'il remplit les critères)
   rescueRevokedAt DateTime? // retrait du statut par l'administration
   suspendedUntil DateTime? // suspension automatique à durée limitée (récidive) ; nul + suspendedBy=auto : à examiner par l'équipe
@@ -540,4 +541,43 @@ model DocumentReminder {
   sentAt     DateTime @default(now())
 
   @@unique([documentId, threshold])
+}
+
+enum IncidentKind {
+  DANGER // agression, menace
+  ACCIDENT
+  BREAKDOWN // panne, véhicule immobilisé
+  CLIENT // comportement d'un client
+  PAYMENT // problème de paiement
+  CONTROL // contrôle routier, verbalisation
+  OTHER
+}
+
+enum IncidentStatus {
+  OPEN
+  ACKNOWLEDGED
+  CLOSED
+}
+
+/// Signalement d'un chauffeur : trace horodatée avec position. L'équipe n'est PAS un service d'urgence : en cas de danger immédiat, le chauffeur est renvoyé vers le 112.
+model Incident {
+  id         String         @id @default(uuid())
+  driverId   String
+  driver     Driver         @relation(fields: [driverId], references: [id])
+  rideId     String?
+  kind       IncidentKind
+  urgent     Boolean        @default(false)
+  message    String?
+  lat        Float?
+  lng        Float?
+  status     IncidentStatus @default(OPEN)
+  createdAt  DateTime       @default(now())
+  ackedAt    DateTime?
+  ackedBy    String?
+  closedAt   DateTime?
+  closedBy   String?
+  resolution String?
+
+  @@index([status, createdAt])
+  @@index([driverId, createdAt])
 }
