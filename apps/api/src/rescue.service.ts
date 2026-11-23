@@ -134,13 +134,21 @@ export class RescueService {
       include: { ride: true, requester: true }, orderBy: { expiresAt: "asc" },
     });
     const now = new Date();
-    return rows.filter((r) => r.targetId === driverId || openTo(r, driverId, now)).map((r) => ({
-      id: r.id, direct: r.targetId === driverId, requester: initials(r.requester), reason: r.reason, expiresAt: r.expiresAt,
-      secondsLeft: Math.max(0, Math.round((r.expiresAt.getTime() - Date.now()) / 1000)),
-      pickupAt: r.ride.pickupAt, category: r.ride.category, pickup: r.ride.pickupAddress, dropoff: r.ride.dropoffAddress,
-      distanceKm: Math.round(r.ride.distanceKm * 10) / 10, durationMin: Math.round(r.ride.durationMin),
-      netCents: r.ride.driverNetCents + r.bonusCents, bonusCents: r.bonusCents,
-    }));
+    // Plusieurs appels ouverts : le plus proche de ma position (jusqu'au lieu de prise en charge) en premier, puis le plus pressé.
+    const me = c.d.lastLat != null && c.d.lastLng != null ? { lat: c.d.lastLat, lng: c.d.lastLng } : null;
+    const km = (r: (typeof rows)[number]) => (me ? haversineKm(me, { lat: r.ride.pickupLat, lng: r.ride.pickupLng }) : null);
+    return rows
+      .filter((r) => r.targetId === driverId || openTo(r, driverId, now))
+      .map((r) => ({ r, away: km(r) }))
+      .sort((a, b) => (a.away ?? 1e9) - (b.away ?? 1e9) || a.r.expiresAt.getTime() - b.r.expiresAt.getTime())
+      .map(({ r, away }) => ({
+        id: r.id, direct: r.targetId === driverId, requester: initials(r.requester), reason: r.reason, expiresAt: r.expiresAt,
+        secondsLeft: Math.max(0, Math.round((r.expiresAt.getTime() - Date.now()) / 1000)),
+        pickupAt: r.ride.pickupAt, category: r.ride.category, pickup: r.ride.pickupAddress, dropoff: r.ride.dropoffAddress,
+        distanceKm: Math.round(r.ride.distanceKm * 10) / 10, durationMin: Math.round(r.ride.durationMin),
+        netCents: r.ride.driverNetCents + r.bonusCents, bonusCents: r.bonusCents,
+        awayKm: away == null ? null : Math.round(away * 10) / 10, // distance entre moi et le lieu de prise en charge
+      }));
   }
 
   async decline(driverId: string, id: string) {

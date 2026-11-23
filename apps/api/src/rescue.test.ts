@@ -291,6 +291,26 @@ describe("sauveteurs : appel à l'aide", () => {
     } finally { process.env.RESCUE_WAVE_SEC = "0"; }
   });
 
+  it("un sauveteur qui reçoit plusieurs appels voit d'abord le plus proche de lui, avec la distance", async () => {
+    const p = await mkPartner();
+    const rescuer = await mkRescuer({ lat: 49.0, lng: 2.54 }); // près de CDG
+    const r1 = await mkDriver(), r2 = await mkDriver();
+    const { ride: far } = await assigned(r1, p);
+    // seconde mission : départ de Paris centre, plus éloigné du sauveteur
+    await mkBooking(p, { pickup: { address: "Gare du Nord, Paris", lat: 48.8809, lng: 2.3553 }, dropoff: { address: "Orly", lat: 48.7262, lng: 2.3652 } });
+    const offers = await call("/driver/offers", { token: r2.token });
+    expect((await call(`/driver/offers/${offers.json[0].offerId}/accept`, { token: r2.token, body: {} })).status).toBe(201);
+    const paris = await prisma.ride.findFirstOrThrow({ where: { driverId: r2.id } });
+    // l'appel de Paris est lancé en premier : sans classement par proximité, il arriverait en tête (expire plus tôt)
+    expect((await call("/driver/rescue/request", { token: r2.token, body: { rideId: paris.id, reason: "Panne" } })).status).toBe(201);
+    expect((await call("/driver/rescue/request", { token: r1.token, body: { rideId: far.id, reason: "Retard important" } })).status).toBe(201);
+    const inc = (await call("/driver/rescue/incoming", { token: rescuer.token })).json;
+    expect(inc).toHaveLength(2);
+    expect(inc[0].pickup).toMatch(/CDG/);
+    expect(inc[0].awayKm).toBeLessThan(inc[1].awayKm);
+    expect(inc[0].awayKm).toBeLessThan(2);
+  });
+
   it("appel ciblé : pas de vagues ; réglage à 0 : tous les sauveteurs sont prévenus en même temps", async () => {
     process.env.RESCUE_WAVE_SEC = "30";
     try {

@@ -30,7 +30,7 @@ export function RescueCard({ notify, onAccepted }: { notify: Notify; onAccepted:
         <Card key={r.id} color={c.red}>
           <Cond size={12} color={c.yel}>Appel à l'aide{r.direct ? " · vous avez été choisi" : ""} · {Math.max(1, Math.ceil(r.secondsLeft / 60))} min</Cond>
           <Slab size={17} color={c.cream} shadow={null}>{r.requester} : « {r.reason} »</Slab>
-          <Cond size={13} color={c.cream}>{timeOf(r.pickupAt)} · {r.pickup}</Cond>
+          <Cond size={13} color={c.cream}>{timeOf(r.pickupAt)} · {r.pickup}{r.awayKm != null ? ` · à ${r.awayKm} km de vous` : ""}</Cond>
           <Cond size={13} color={c.cream}>→ {r.dropoff} · {r.distanceKm} km · {r.durationMin} min</Cond>
           <Display size={34} color={c.cream} shadow={c.dblue}>{eurShort(r.netCents)}</Display>
           <Cond size={12} color={c.cream}>net pour vous{r.bonusCents > 0 ? ` · dont prime sauveteur ${eurShort(r.bonusCents)}` : ""}</Cond>
