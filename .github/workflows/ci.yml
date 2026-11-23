@@ -25,6 +25,8 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F @vtc/api exec prisma migrate deploy
+      # Le client Prisma doit exister avant la compilation (sinon : « no exported member 'Booking' »).
+      - run: pnpm -F @vtc/api exec prisma generate
       - run: pnpm -r build
       - run: pnpm typecheck
       - run: pnpm test
