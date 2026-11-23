@@ -95,3 +95,9 @@ export function flightLabel(f: { status: string; delayMin: number; earlyMin?: nu
 
 export const hoursLabel = (h: number) => { const m = Math.round(h * 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`; };
 export const dayLabel = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit" });
+
+/** Adresse de serveur saisie : http(s)://hôte[:port], sans chemin ni espace ; null si invalide. */
+export function normalizeApiUrl(raw: string): string | null {
+  const u = raw.trim().replace(/\/+$/, "");
+  return /^https?:\/\/[^\s/]+(:\d+)?$/i.test(u) ? u : null;
+}

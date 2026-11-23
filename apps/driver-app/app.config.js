@@ -5,8 +5,11 @@
  */
 module.exports = ({ config }) => {
   const key = process.env.GOOGLE_MAPS_API_KEY;
+  // APK de test : autorise le HTTP simple (serveur d'un PC sur le même Wi-Fi). À ne PAS activer pour une version publiée.
+  const cleartext = process.env.ALLOW_CLEARTEXT === "1";
   return {
     ...config,
+    plugins: [...(config.plugins ?? []), ...(cleartext ? [["expo-build-properties", { android: { usesCleartextTraffic: true } }]] : [])],
     ios: { ...config.ios, config: { ...(config.ios?.config ?? {}), googleMapsApiKey: key } },
     android: { ...config.android, config: { ...(config.android?.config ?? {}), googleMaps: { apiKey: key } } },
   };

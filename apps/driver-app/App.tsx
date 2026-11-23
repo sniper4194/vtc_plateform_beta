@@ -7,7 +7,7 @@ import { KaushanScript_400Regular } from "@expo-google-fonts/kaushan-script";
 import { RozhaOne_400Regular } from "@expo-google-fonts/rozha-one";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, TextInput, View } from "react-native";
-import { api, API_URL, loadToken, saveToken } from "./src/api";
+import { api, getApiUrl, loadApiUrl, loadToken, saveApiUrl, saveToken } from "./src/api";
 import { SpotPrompt } from "./src/identity";
 import { MissionScreen } from "./src/mission";
 import { Earnings } from "./src/earnings";
@@ -24,6 +24,12 @@ function Login({ onDone }: { onDone: () => void }) {
   const [wait, setWait] = useState(0);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [server, setServer] = useState(getApiUrl());
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  async function saveServer() {
+    try { setServer(await saveApiUrl(draft)); setEditing(false); setErr(""); } catch (e: any) { setErr(e.message); }
+  }
 
   // Délai avant de pouvoir redemander un code (le serveur applique aussi sa propre limite).
   useEffect(() => {
@@ -81,7 +87,20 @@ function Login({ onDone }: { onDone: () => void }) {
             </View>
           </>
         )}
-        <Cond size={11} color={c.onSky}>Serveur : {API_URL}</Cond>
+        {editing ? (
+          <Card>
+            <Cond size={12} color={c.muted}>Adresse du serveur</Cond>
+            <TextInput style={input} placeholder="http://192.168.1.20:3000" placeholderTextColor="#9a9ab0" autoCapitalize="none" autoCorrect={false} keyboardType="url" value={draft} onChangeText={setDraft} />
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+              <View style={{ flex: 1 }}><Btn label="Enregistrer" onPress={saveServer} color={c.yel} /></View>
+              <View style={{ flex: 1 }}><Btn label="Annuler" onPress={() => { setEditing(false); setErr(""); }} /></View>
+            </View>
+          </Card>
+        ) : (
+          <Pressable onPress={() => { setDraft(server); setEditing(true); }} accessibilityLabel="Changer le serveur">
+            <Cond size={11} color={c.onSky}>Serveur : {server} (changer)</Cond>
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -103,7 +122,7 @@ export default function App() {
   const [showMessages, setShowMessages] = useState(false);
   const toast = useToast();
 
-  useEffect(() => { loadToken().then((t) => { setAuthed(Boolean(t)); setReady(true); }); }, []);
+  useEffect(() => { loadApiUrl().then(() => loadToken()).then((t) => { setAuthed(Boolean(t)); setReady(true); }); }, []);
 
   // Position envoyée toutes les 30 s pour trier les offres par proximité.
   useEffect(() => {

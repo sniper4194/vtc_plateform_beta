@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdown, dayLabel, delayLabel, flightLabel, hoursLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel } from "./format";
+import { normalizeApiUrl, countdown, dayLabel, delayLabel, flightLabel, hoursLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel } from "./format";
 
 describe("format", () => {
   it("compte à rebours mm:ss", () => {
@@ -71,5 +71,15 @@ describe("revenus (affichage)", () => {
   });
   it("libellé de jour", () => {
     expect(dayLabel("2026-12-02")).toMatch(/02\/12/);
+  });
+});
+
+describe("adresse du serveur", () => {
+  it("accepte http(s)://hôte[:port] et retire l'éventuelle barre finale", () => {
+    expect(normalizeApiUrl(" http://192.168.1.20:3000/ ")).toBe("http://192.168.1.20:3000");
+    expect(normalizeApiUrl("https://api.exemple.fr")).toBe("https://api.exemple.fr");
+  });
+  it("refuse tout le reste", () => {
+    for (const bad of ["", "192.168.1.20:3000", "ftp://x.fr", "http://x.fr/chemin", "http://a b.fr", "javascript:alert(1)"]) expect(normalizeApiUrl(bad)).toBeNull();
   });
 });
