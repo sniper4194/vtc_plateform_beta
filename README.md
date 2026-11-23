@@ -239,4 +239,4 @@ pnpm install
 pnpm db:up
 pnpm demo
 ```
-`pnpm demo` prépare tout (fichiers `.env`, compilation, migrations, données de base), lance l'API (3000), l'application chauffeur dans le navigateur (8081), le back-office (3001) et la page de suivi voyageur (3002), crée le chauffeur de démonstration (`06 00 00 00 01`, code `000000`) et un administrateur (`demo@clicab.local`, mot de passe affiché), puis affiche les adresses. Ctrl+C arrête tout. Le compte et le code fixe sont réservés à la démonstration locale.
+`pnpm demo` prépare tout (fichiers `.env`, compilation, migrations, données de base), lance l'API (3000), l'application chauffeur dans le navigateur (8081), le back-office (3001) et la page de suivi voyageur (3002), crée le chauffeur de démonstration (`06 00 00 00 01`, code `000000`) et un administrateur (`demo@clicab.local`, mot de passe `Bureau-Soleil-2026!`), puis affiche les adresses. Ctrl+C arrête tout. Le compte et le code fixe sont réservés à la démonstration locale.

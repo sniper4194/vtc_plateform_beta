@@ -8,7 +8,7 @@ import net from "node:net";
 const win = process.platform === "win32";
 const API = "http://localhost:3000";
 const ADMIN_EMAIL = "demo@clicab.local";
-const ADMIN_PASSWORD = "demo-clicab-2026!";
+const ADMIN_PASSWORD = "Bureau-Soleil-2026!"; // ne doit pas contenir l'identifiant (règle de sécurité)
 const say = (m) => console.log(m);
 
 const inUse = (port) => new Promise((ok) => {
@@ -68,7 +68,8 @@ say("\n▶ Création du chauffeur de démonstration et du compte administrateur�
 const dd = spawnSync("pnpm", ["-F", "@vtc/api", "demo:driver"], { shell: win, encoding: "utf8" });
 process.stdout.write(dd.stdout ?? ""); process.stderr.write(dd.stderr ?? "");
 const links = (dd.stdout ?? "").match(/http:\/\/localhost:3002\/suivi\/\S+/g) ?? [];
-run("pnpm", ["-F", "@vtc/api", "admin:create", ADMIN_EMAIL, "Démo"], { env: { ...process.env, ADMIN_PASSWORD } });
+const adm = run("pnpm", ["-F", "@vtc/api", "admin:create", ADMIN_EMAIL, "Démo"], { env: { ...process.env, ADMIN_PASSWORD } });
+if (adm.status !== 0) console.error("✗ Le compte administrateur n'a pas pu être créé : le back-office ne sera pas accessible (voir le message ci-dessus).");
 
 start("app", ["-F", "@vtc/driver-app", "exec", "expo", "start", "--web", "--port", "8081", "--clear"], { CI: "1", EXPO_NO_TELEMETRY: "1" });
 start("backoffice", ["-F", "@vtc/backoffice", "dev"]);
