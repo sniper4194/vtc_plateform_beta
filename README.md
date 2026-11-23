@@ -230,3 +230,13 @@ Sur votre ordinateur, avec le téléphone sur le même Wi-Fi :
 3. Terminal B : `pnpm -F @vtc/api demo:driver` (crée le chauffeur `06 00 00 00 01`, validé et en ligne, avec deux missions à prendre).
 4. Créer `apps/driver-app/.env` avec une ligne `EXPO_PUBLIC_API_URL=http://<IP-de-l-ordinateur>:3000`.
 5. Terminal C : `pnpm -F @vtc/driver-app start`, puis scanner le QR code avec Expo Go.
+
+## Démonstration complète en une commande (Windows, Mac, Linux)
+
+Prérequis : Node 20+, pnpm, Docker Desktop (pour la base de données). Dans le dossier du projet :
+```bash
+pnpm install
+pnpm db:up
+pnpm demo
+```
+`pnpm demo` prépare tout (fichiers `.env`, compilation, migrations, données de base), lance l'API (3000), l'application chauffeur dans le navigateur (8081), le back-office (3001) et la page de suivi voyageur (3002), crée le chauffeur de démonstration (`06 00 00 00 01`, code `000000`) et un administrateur (`demo@clicab.local`, mot de passe affiché), puis affiche les adresses. Ctrl+C arrête tout. Le compte et le code fixe sont réservés à la démonstration locale.

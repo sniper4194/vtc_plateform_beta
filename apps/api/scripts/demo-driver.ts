@@ -23,14 +23,9 @@ async function call(path: string, o: { token?: string; admin?: boolean; body?: u
 async function main() {
   try { await call("/health"); } catch { throw new Error(`L'API ne répond pas sur ${API}. Lancez-la d'abord : pnpm -F @vtc/api dev:demo`); }
 
-  let driver: { id: string } | undefined;
-  try {
-    driver = await call("/admin/drivers", { admin: true, body: { firstName: "Démo", lastName: "Chauffeur", phone: PHONE, email: "demo.chauffeur@example.com", vehicle: { plate: "DE-001-MO", make: "Toyota", model: "Camry", category: "BERLINE" } } });
-  } catch {
-    const list = await call("/admin/drivers", { admin: true });
-    driver = list.find((d: any) => d.phone === PHONE);
-    if (!driver) throw new Error("Impossible de créer ni de retrouver le chauffeur de démonstration");
-  }
+  // Chauffeur déjà créé lors d'un lancement précédent ? On le réutilise (évite aussi une erreur de doublon dans les journaux de l'API).
+  const existing = (await call("/admin/drivers", { admin: true })).find((d: any) => d.phone === PHONE);
+  const driver: { id: string } = existing ?? await call("/admin/drivers", { admin: true, body: { firstName: "Démo", lastName: "Chauffeur", phone: PHONE, email: "demo.chauffeur@example.com", vehicle: { plate: "DE-001-MO", make: "Toyota", model: "Camry", category: "BERLINE" } } });
 
   const { token } = await call("/driver/login", { body: { phone: PHONE, code: CODE } });
   const docs = await call("/driver/documents", { token }).catch(() => []);

@@ -12,7 +12,8 @@
     "db:up": "docker compose -f infra/docker-compose.yml up -d",
     "db:down": "docker compose -f infra/docker-compose.yml down",
     "setup:env": "node scripts/setup-env.mjs",
-    "setup:build": "pnpm -F @vtc/pricing -F @vtc/shared build && pnpm -F @vtc/api exec prisma generate"
+    "setup:build": "pnpm -F @vtc/pricing -F @vtc/shared build && pnpm -F @vtc/api exec prisma generate",
+    "demo": "node scripts/demo.mjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
