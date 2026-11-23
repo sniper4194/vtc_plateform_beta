@@ -241,6 +241,74 @@ describe("sauveteurs : appel à l'aide", () => {
     expect((await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } })).driverId).toBe(winner.id);
   });
 
+  it("appel à tous par vagues : le sauveteur le plus proche d'abord, les autres à tour de rôle, et personne ne peut passer avant son tour", async () => {
+    process.env.RESCUE_WAVE_SEC = "30";
+    try {
+      const p = await mkPartner();
+      const requester = await mkDriver();
+      // Lieu de prise en charge : CDG (49.0097 ; 2.5479). Du plus proche au plus éloigné : near, mid, far ; « nowhere » n'a pas de position.
+      const far = await mkRescuer({ lat: 48.5, lng: 2.0 });
+      const mid = await mkRescuer({ lat: 48.95, lng: 2.45 });
+      const near = await mkRescuer({ lat: 49.0, lng: 2.54 });
+      const nowhere = await mkRescuer({ lat: 0, lng: 0 });
+      await prisma.driver.update({ where: { id: nowhere.id }, data: { lastLat: null, lastLng: null } });
+      const { ride } = await assigned(requester, p);
+
+      const req = await call("/driver/rescue/request", { token: requester.token, body: { rideId: ride.id, reason: "Panne de véhicule" } });
+      expect(req.status).toBe(201);
+      expect(req.json).toMatchObject({ notified: 1, candidates: 4, waveSeconds: 30 });
+      const stored = await prisma.rescueRequest.findUniqueOrThrow({ where: { id: req.json.id } });
+      expect(stored.queue).toEqual([near.id, mid.id, far.id, nowhere.id]); // proximité, position inconnue en dernier
+
+      const types = async (id: string) => (await prisma.notification.findMany({ where: { driverId: id, type: "RESCUE_REQUEST" } })).length;
+      const seen = async (d: { token: string }) => (await call("/driver/rescue/incoming", { token: d.token })).json.length;
+      // t = 0 : seul le plus proche est prévenu et voit l'appel
+      expect([await types(near.id), await types(mid.id), await types(far.id)]).toEqual([1, 0, 0]);
+      expect([await seen(near), await seen(mid), await seen(far)]).toEqual([1, 0, 0]);
+      // un sauveteur plus éloigné ne peut pas prendre la mission avant son tour
+      const early = await call(`/driver/rescue/${req.json.id}/accept`, { token: far.token, body: {} });
+      expect(early.status).toBe(403);
+      expect(early.json.message).toMatch(/pas encore ouvert/);
+      expect((await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } })).driverId).toBe(requester.id);
+
+      // t = 31 s : deuxième vague (mid) ; le balayage la prévient une seule fois
+      await prisma.rescueRequest.update({ where: { id: req.json.id }, data: { createdAt: new Date(Date.now() - 31_000) } });
+      await rescue.sweep(); await rescue.sweep();
+      expect([await types(mid.id), await types(far.id)]).toEqual([1, 0]);
+      expect([await seen(mid), await seen(far)]).toEqual([1, 0]);
+      expect((await prisma.rescueRequest.findUniqueOrThrow({ where: { id: req.json.id } })).notifiedWave).toBe(1);
+
+      // t = 125 s : toutes les vagues sont ouvertes, y compris le chauffeur sans position
+      await prisma.rescueRequest.update({ where: { id: req.json.id }, data: { createdAt: new Date(Date.now() - 125_000) } });
+      await rescue.sweep();
+      expect([await types(far.id), await types(nowhere.id)]).toEqual([1, 1]);
+      expect([await seen(far), await seen(nowhere)]).toEqual([1, 1]);
+
+      // le premier qui accepte gagne, quel que soit son rang une fois son tour venu
+      const win = await call(`/driver/rescue/${req.json.id}/accept`, { token: mid.token, body: {} });
+      expect(win.status).toBe(201);
+      expect((await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } })).driverId).toBe(mid.id);
+    } finally { process.env.RESCUE_WAVE_SEC = "0"; }
+  });
+
+  it("appel ciblé : pas de vagues ; réglage à 0 : tous les sauveteurs sont prévenus en même temps", async () => {
+    process.env.RESCUE_WAVE_SEC = "30";
+    try {
+      const p = await mkPartner();
+      const requester = await mkDriver();
+      const a = await mkRescuer({ lat: 49.0, lng: 2.54 }), b = await mkRescuer({ lat: 48.5, lng: 2.0 });
+      const { ride } = await assigned(requester, p);
+      const direct = await call("/driver/rescue/request", { token: requester.token, body: { rideId: ride.id, targetId: b.id, reason: "Retard important" } });
+      expect(direct.json).toMatchObject({ notified: 1, waveSeconds: 0 });
+      expect((await call("/driver/rescue/incoming", { token: b.token })).json).toHaveLength(1); // ciblé : visible tout de suite, même loin
+      await call(`/driver/rescue/${direct.json.id}/cancel`, { token: requester.token, body: {} });
+      process.env.RESCUE_WAVE_SEC = "0";
+      const all = await call("/driver/rescue/request", { token: requester.token, body: { rideId: ride.id, reason: "Retard important" } });
+      expect(all.json).toMatchObject({ notified: 2, waveSeconds: 0 });
+      void a;
+    } finally { process.env.RESCUE_WAVE_SEC = "0"; }
+  });
+
   it("une seule demande ouverte par mission ; annulation possible ; impossible une fois le client sur place", async () => {
     const p = await mkPartner();
     const requester = await mkDriver();

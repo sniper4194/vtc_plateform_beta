@@ -8,6 +8,9 @@ export const RESCUE = {
   get minRides() { return Number(process.env.RESCUE_MIN_RIDES ?? 30); },
   /** Prime versée au sauveteur, prélevée sur la commission de la plateforme (jamais sur le prix client). */
   get bonusCents() { return Number(process.env.RESCUE_BONUS_CENTS ?? 1000); },
+  /** Diffusion par vagues : nombre de sauveteurs sollicités à chaque vague, et délai entre deux vagues (0 = tous en même temps). */
+  get waveSize() { return Math.max(1, Math.floor(Number(process.env.RESCUE_WAVE_SIZE ?? 1)) || 1); },
+  get waveSec() { return Math.max(0, Number(process.env.RESCUE_WAVE_SEC ?? 45) || 0); },
   ttlMaxMin: 30,
   /** Au-delà, la demande est refusée : le chauffeur doit passer par la restitution ordinaire. */
   maxOpenPerMonth: 3,
@@ -56,4 +59,34 @@ export function rescueExpiredToRequester(ref: number) {
     title: `Aucun sauveteur pour R-${ref}`,
     body: `Personne n'a repris la mission R-${ref} à temps. Elle reste la vôtre. Si vous ne pouvez vraiment pas l'assurer, utilisez « Rendre la mission » : le dispatch la propose à tous les chauffeurs.`,
   };
+}
+
+
+/**
+ * Diffusion par vagues : durée entre deux vagues. Plus le nombre de vagues est grand, plus on les resserre pour que le dernier
+ * sauveteur dispose encore de 40 % de la durée de l'appel pour répondre (jamais moins de 5 s entre deux vagues). 0 = tous en même temps.
+ */
+export function planWaveSeconds(candidates: number, ttlSec: number, waveSize: number, maxWaveSec: number): number {
+  const waves = Math.ceil(candidates / Math.max(1, waveSize));
+  if (maxWaveSec <= 0 || waves <= 1) return 0;
+  return Math.max(5, Math.min(maxWaveSec, Math.floor((ttlSec * 0.6) / (waves - 1))));
+}
+
+export interface WaveInput { queue: string[]; waveSize: number; waveSeconds: number; createdAt: Date }
+/** Numéro de vague (0 = la première) d'un sauveteur dans la file, ou null s'il n'y figure pas. */
+export const waveOf = (r: Pick<WaveInput, "queue" | "waveSize">, driverId: string) => {
+  const i = r.queue.indexOf(driverId);
+  return i < 0 ? null : Math.floor(i / Math.max(1, r.waveSize));
+};
+/** Cet appel général est-il ouvert à ce sauveteur à cet instant ? Sans file (appel ancien) ou sans vagues : oui pour tous les sauveteurs listés. */
+export function openTo(r: WaveInput, driverId: string, now: Date): boolean {
+  if (!r.queue.length || r.waveSeconds <= 0) return true;
+  const w = waveOf(r, driverId);
+  return w !== null && now.getTime() >= r.createdAt.getTime() + w * r.waveSeconds * 1000;
+}
+/** Dernière vague ouverte à cet instant (plafonnée au nombre de vagues). */
+export function currentWave(r: WaveInput, now: Date): number {
+  if (!r.queue.length || r.waveSeconds <= 0) return 0;
+  const last = Math.floor((r.queue.length - 1) / Math.max(1, r.waveSize));
+  return Math.min(last, Math.max(0, Math.floor((now.getTime() - r.createdAt.getTime()) / (r.waveSeconds * 1000))));
 }

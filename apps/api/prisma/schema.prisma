@@ -465,6 +465,12 @@ model RescueRequest {
   expiresAt   DateTime
   createdAt   DateTime     @default(now())
   resolvedAt  DateTime?
+  // Diffusion par vagues (appel à tous) : sauveteurs classés du plus proche au plus éloigné du lieu de prise en charge au moment de l'appel,
+  // la mission s'ouvre à `waveSize` d'entre eux toutes les `waveSeconds` secondes. waveSeconds = 0 : tous en même temps.
+  queue        String[]    @default([])
+  waveSize     Int         @default(1)
+  waveSeconds  Int         @default(0)
+  notifiedWave Int         @default(0)
 
   @@index([status, expiresAt])
   @@index([requesterId, createdAt])

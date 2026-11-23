@@ -5,7 +5,7 @@ import { DispatchService } from "./dispatch.service";
 import { NotificationsService } from "./notifications";
 import { minutesBefore, PenaltiesService } from "./penalties.service";
 import { PrismaService } from "./prisma";
-import { eliteCheck, RESCUABLE, RESCUE, rescueAcceptedToRequester, rescueBonusCents, rescueExpiredToRequester, rescueRequestMessage } from "./rescue";
+import { currentWave, eliteCheck, openTo, planWaveSeconds, RESCUABLE, RESCUE, rescueAcceptedToRequester, rescueBonusCents, rescueExpiredToRequester, rescueRequestMessage } from "./rescue";
 import { firstCompliant } from "./vehicle-rules";
 import { haversineKm } from "./zones";
 import { WebhooksService } from "./webhooks.service";
@@ -88,10 +88,15 @@ export class RescueService {
     const eff = effectivePickup(ride.pickupAt, ride.flightDelayMin).getTime();
     const ttlMin = Math.min(RESCUE.ttlMaxMin, Math.max(2, Math.floor((eff - Date.now()) / 60_000 / 2)));
     const bonusCents = rescueBonusCents(ride.commissionCents);
+    // Appel à tous : par vagues, du sauveteur le plus proche du lieu de prise en charge au plus éloigné (`list` est déjà triée par distance ;
+    // les chauffeurs dont la position est inconnue passent en dernier).
+    const waveSize = RESCUE.waveSize;
+    const waveSeconds = input.targetId ? 0 : planWaveSeconds(list.length, ttlMin * 60, waveSize, RESCUE.waveSec);
+    const queue = input.targetId ? [] : list.map((r) => r.driverId);
     let req;
     try {
       req = await this.prisma.$transaction(async (tx) => {
-        const r = await tx.rescueRequest.create({ data: { rideId, requesterId: driverId, targetId: input.targetId ?? null, reason: input.reason, bonusCents, expiresAt: new Date(Date.now() + ttlMin * 60_000) } });
+        const r = await tx.rescueRequest.create({ data: { rideId, requesterId: driverId, targetId: input.targetId ?? null, reason: input.reason, bonusCents, expiresAt: new Date(Date.now() + ttlMin * 60_000), queue, waveSize, waveSeconds } });
         await this.dispatch.event(tx, rideId, "rescue.requested", `driver:${driverId}`, { requestId: r.id, targetId: r.targetId, reason: input.reason });
         return r;
       });
@@ -101,9 +106,9 @@ export class RescueService {
     }
     const me = await this.prisma.driver.findUniqueOrThrow({ where: { id: driverId } });
     const msg = rescueRequestMessage(ride, ride.booking.flightNumber, initials(me), input.reason, bonusCents, !!input.targetId);
-    const recipients = input.targetId ? [input.targetId] : list.map((r) => r.driverId);
+    const recipients = input.targetId ? [input.targetId] : waveSeconds > 0 ? queue.slice(0, waveSize) : queue; // vague 1 seulement ; les suivantes partent au balayage
     for (const id of recipients) await this.notif.toDriver(id, { type: "RESCUE_REQUEST", ...msg, data: { rescueId: req.id, rideId } });
-    return { id: req.id, expiresAt: req.expiresAt, bonusCents, notified: recipients.length };
+    return { id: req.id, expiresAt: req.expiresAt, bonusCents, notified: recipients.length, candidates: list.length, waveSeconds };
   }
 
   async cancel(driverId: string, id: string) {
@@ -128,7 +133,8 @@ export class RescueService {
       where: { status: "OPEN", expiresAt: { gt: new Date() }, requesterId: { not: driverId }, OR: [{ targetId: driverId }, ...(c.listed ? [{ targetId: null }] : [])] },
       include: { ride: true, requester: true }, orderBy: { expiresAt: "asc" },
     });
-    return rows.map((r) => ({
+    const now = new Date();
+    return rows.filter((r) => r.targetId === driverId || openTo(r, driverId, now)).map((r) => ({
       id: r.id, direct: r.targetId === driverId, requester: initials(r.requester), reason: r.reason, expiresAt: r.expiresAt,
       secondsLeft: Math.max(0, Math.round((r.expiresAt.getTime() - Date.now()) / 1000)),
       pickupAt: r.ride.pickupAt, category: r.ride.category, pickup: r.ride.pickupAddress, dropoff: r.ride.dropoffAddress,
@@ -155,6 +161,7 @@ export class RescueService {
       if (!r) throw new HttpException("Appel introuvable", 404);
       if (r.status !== "OPEN" || r.expiresAt <= new Date()) throw new HttpException("Appel expiré ou déjà pris en charge", 409);
       if (r.targetId && r.targetId !== driverId) throw new HttpException("Appel adressé à un autre sauveteur", 403);
+      if (!r.targetId && !openTo(r, driverId, new Date())) throw new HttpException("Cet appel n'est pas encore ouvert à votre position : il passe d'abord par les sauveteurs les plus proches", 403);
       if (r.requesterId === driverId) throw new HttpException("Vous ne pouvez pas reprendre votre propre mission", 403);
       const d = await tx.driver.findUniqueOrThrow({ where: { id: driverId } });
       const completedRides = await tx.ride.count({ where: { driverId, status: "COMPLETED" } });
@@ -185,9 +192,20 @@ export class RescueService {
 
   /** Expire les appels sans réponse (et annule ceux dont la mission a changé de main), puis prévient le demandeur. */
   async sweep(now = new Date()) {
-    const stale = await this.prisma.rescueRequest.findMany({ where: { status: "OPEN" }, include: { ride: true } });
+    const stale = await this.prisma.rescueRequest.findMany({ where: { status: "OPEN" }, include: { ride: { include: { booking: true } }, requester: true } });
     for (const r of stale) {
       const moved = r.ride.driverId !== r.requesterId || !(RESCUABLE as readonly string[]).includes(r.ride.status);
+      // Diffusion par vagues : on prévient la vague suivante de sauveteurs (du plus proche au plus éloigné) quand son tour est venu.
+      if (!moved && r.expiresAt > now && !r.targetId && r.waveSeconds > 0) {
+        const wave = currentWave(r, now);
+        if (wave > r.notifiedWave) {
+          const claimed = await this.prisma.rescueRequest.updateMany({ where: { id: r.id, status: "OPEN", notifiedWave: r.notifiedWave }, data: { notifiedWave: wave } });
+          if (claimed.count === 1) {
+            const msg = rescueRequestMessage(r.ride, r.ride.booking.flightNumber, initials(r.requester), r.reason, r.bonusCents, false);
+            for (const id of r.queue.slice((r.notifiedWave + 1) * r.waveSize, (wave + 1) * r.waveSize)) await this.notif.toDriver(id, { type: "RESCUE_REQUEST", ...msg, data: { rescueId: r.id, rideId: r.rideId } });
+          }
+        }
+      }
       if (!moved && r.expiresAt > now) continue;
       const u = await this.prisma.rescueRequest.updateMany({ where: { id: r.id, status: "OPEN" }, data: { status: moved ? "CANCELLED" : "EXPIRED", resolvedAt: now } });
       if (u.count !== 1 || moved) continue;

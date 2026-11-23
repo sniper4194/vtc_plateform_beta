@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "RescueRequest" ADD COLUMN     "notifiedWave" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "queue" TEXT[] DEFAULT ARRAY[]::TEXT[],
+ADD COLUMN     "waveSeconds" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "waveSize" INTEGER NOT NULL DEFAULT 1;
+

@@ -138,6 +138,7 @@ export function RescuePicker({ rideId, onClose, notify }: { rideId: string; onCl
               ) : (
                 <>
                   <Btn label={`Appeler tous les sauveteurs (${list.data!.length})`} color={c.red} text={c.cream} disabled={busy} onPress={() => send()} />
+                  <Cond size={12} color={c.onSky}>L'appel part d'abord au sauveteur le plus proche du lieu de prise en charge, puis aux suivants à tour de rôle s'il ne répond pas.</Cond>
                   <Cond size={12} color={c.onSky}>Ou choisir un sauveteur</Cond>
                   {list.data!.map((r) => (
                     <Card key={r.driverId} onPress={() => !busy && send(r.driverId)} style={{ paddingVertical: 12 }}>
