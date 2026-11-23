@@ -9,7 +9,11 @@ module.exports = ({ config }) => {
   const cleartext = process.env.ALLOW_CLEARTEXT === "1";
   return {
     ...config,
-    plugins: [...(config.plugins ?? []), ...(cleartext ? [["expo-build-properties", { android: { usesCleartextTraffic: true } }]] : [])],
+    plugins: [
+      ...(config.plugins ?? []),
+      // Kotlin 1.9.25 : le compilateur Compose de expo-modules-core l'exige (Expo SDK 52 fournit 1.9.24 : « requires Kotlin version 1.9.25 »).
+      ["expo-build-properties", { android: { kotlinVersion: "1.9.25", ...(cleartext ? { usesCleartextTraffic: true } : {}) } }],
+    ],
     ios: { ...config.ios, config: { ...(config.ios?.config ?? {}), googleMapsApiKey: key } },
     android: { ...config.android, config: { ...(config.android?.config ?? {}), googleMaps: { apiKey: key } } },
   };
