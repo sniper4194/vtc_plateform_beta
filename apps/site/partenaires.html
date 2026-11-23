@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Partenaires : CliCab</title>
+<meta name="description" content="L’API CliCab pour agences, hôtels et plateformes de réservation : devis à prix fixe, réservation, webhooks signés, suivi du voyageur et de son vol.">
+<link rel="canonical" href="https://clicab.fr/partenaires.html">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Partenaires : CliCab">
+<meta property="og:description" content="L’API CliCab pour agences, hôtels et plateformes de réservation : devis à prix fixe, réservation, webhooks signés, suivi du voyageur et de son vol.">
+<meta property="og:locale" content="fr_FR">
+<meta name="theme-color" content="#0b2a4a">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+<header class="top"><div class="wrap">
+  <a class="logo" href="index.html" aria-label="CliCab, accueil"><i aria-hidden="true">★</i>CliCab</a>
+  <nav aria-label="Navigation principale"><ul>
+    <li><a href="partenaires.html" aria-current="page">Partenaires</a></li>
+    <li><a href="chauffeurs.html">Chauffeurs et sociétés</a></li>
+    <li><a class="cta" href="mailto:contact@clicab.fr">Nous écrire</a></li>
+  </ul></nav>
+</div></header>
+<main id="contenu">
+
+<section class="sky">
+ <div class="wrap">
+  <p class="kicker">Partenaires</p>
+  <h1>Des transferts VTC à prix fixe pour vos voyageurs.</h1>
+  <p class="lead">Une API REST pour agences, hôtels et plateformes de réservation. Vous vendez un prix fixe, nous assurons la prise en charge et vous tenons informé à chaque étape.</p>
+  <div class="btns"><a class="btn primary" href="mailto:contact@clicab.fr?subject=Acc%C3%A8s%20API%20CliCab">Demander un échange</a></div>
+ </div>
+</section>
+
+<section>
+ <div class="wrap">
+  <p class="kicker">Ce que vous obtenez</p>
+  <h2>Tout le parcours, par API.</h2>
+  <div class="grid g3">
+   <div class="card"><h3>Devis à prix fixe</h3><p>Forfaits aéroport et grille de tarifs. Le prix est connu avant la réservation et valable un temps limité.</p></div>
+   <div class="card"><h3>Réservation sûre</h3><p>Clé d’idempotence : rejouer une requête ne crée jamais de doublon. Annulation et notation du trajet incluses.</p></div>
+   <div class="card"><h3>Événements signés</h3><p>Chauffeur attribué, en route, arrivé, course commencée et terminée, vol retardé : webhooks signés et rejoués en cas d’échec.</p></div>
+   <div class="card"><h3>Voyageur informé</h3><p>Chaque réservation fournit un lien de suivi personnel que nous envoyons au voyageur par SMS et par e-mail, ou que vous diffusez vous-même.</p></div>
+   <div class="card"><h3>Suivi de vol</h3><p>L’heure de prise en charge suit le vol : retard, avance, atterrissage. Les clients sont prévenus d’un retard important.</p></div>
+   <div class="card"><h3>Environnement de test</h3><p>Des clés de test vous permettent d’intégrer l’API sans envoyer de vrais messages ni déclencher de vraies courses.</p></div>
+  </div>
+ </div>
+</section>
+
+<section class="mist">
+ <div class="wrap split">
+  <div>
+   <p class="kicker">Un aperçu</p>
+   <h2>Un devis, puis une réservation.</h2>
+   <p>Exemple simplifié : les adresses, champs et réponses exacts figurent dans la spécification de l’API, remise aux partenaires.</p>
+   <ul class="ticks"><li>Authentification par clé d’API</li><li>Prix en euros, TTC, annoncé avant la réservation</li><li>Référence courte commune au voyageur, au partenaire et au chauffeur</li></ul>
+  </div>
+  <pre aria-label="Exemple de requête de devis"><code>POST /v1/quotes
+Authorization: Bearer &lt;votre clé&gt;
+
+{
+  "pickup":  { "address": "Aéroport CDG T2", "lat": 49.0097, "lng": 2.5479 },
+  "dropoff": { "address": "10 rue de Rivoli, Paris", "lat": 48.8566, "lng": 2.3522 },
+  "pickupAt": "2026-12-12T09:30:00Z",
+  "category": "BERLINE",
+  "passengers": 2
+}</code></pre>
+ </div>
+</section>
+
+<section>
+ <div class="wrap">
+  <p class="kicker">Qualité du réseau</p>
+  <h2>Des chauffeurs contrôlés avant de rouler.</h2>
+  <div class="grid g2">
+   <div class="card"><h3>Documents et véhicule</h3><p>Carte professionnelle, permis, assurance, pièce d’identité, carte grise et contrôle technique sont validés avant toute mission, avec des rappels avant échéance. Un document expiré met le chauffeur hors ligne.</p></div>
+   <div class="card"><h3>Identité du conducteur</h3><p>Une photo de référence validée par une personne, un selfie à chaque prise de service et des vérifications aléatoires pour empêcher qu’un compte soit utilisé par quelqu’un d’autre. Aucune reconnaissance faciale automatique.</p></div>
+  </div>
+ </div>
+</section>
+
+<section class="mist">
+ <div class="wrap">
+  <p class="kicker">Conditions de départ</p>
+  <h2>Un point de départ, pas un contrat figé.</h2>
+  <table>
+   <thead><tr><th>Sujet</th><th>Proposition</th></tr></thead>
+   <tbody>
+    <tr><td><strong>Annulation</strong></td><td>Gratuite plus de 24 h avant ; 50 % entre 2 h et 24 h ; 100 % à moins de 2 h. Barème provisoire, négociable pour un grand compte.</td></tr>
+    <tr><td><strong>Paiement</strong></td><td>Sur facture, ou prépayé, selon le partenaire.</td></tr>
+    <tr><td><strong>Commission et tarifs</strong></td><td>À définir ensemble pour le pilote.</td></tr>
+    <tr><td><strong>Engagement de service</strong></td><td>À définir ensemble pour le pilote : nous ne publions pas de taux de réussite tant que nous n’avons pas de mesures réelles.</td></tr>
+   </tbody>
+  </table>
+  <p class="note">Ces conditions sont indicatives et seront précisées dans un contrat de partenariat.</p>
+ </div>
+</section>
+
+<section class="navy">
+ <div class="wrap">
+  <p class="kicker">Le pilote</p>
+  <h2>Commençons petit, mesurons, ajustons.</h2>
+  <p class="lead">Nous proposons un pilote limité : quelques trajets, un périmètre précis, un point régulier avec vous. Parlez-nous de vos volumes, de vos aéroports et de vos contraintes.</p>
+  <div class="btns"><a class="btn yellow" href="mailto:contact@clicab.fr?subject=Pilote%20CliCab">Proposer un pilote</a></div>
+ </div>
+</section>
+
+</main>
+<footer><div class="wrap cols">
+  <div><a class="logo" href="index.html"><i aria-hidden="true">★</i>CliCab</a>
+    <p>Transferts VTC à prix fixe, avec des chauffeurs contrôlés et un suivi de bout en bout.</p></div>
+  <div><strong>Découvrir</strong><br><a href="partenaires.html">Pour les partenaires</a><br><a href="chauffeurs.html">Pour les chauffeurs et sociétés VTC</a></div>
+  <div><strong>Contact</strong><br><a href="mailto:contact@clicab.fr">contact@clicab.fr</a><br><br><a href="mentions-legales.html">Mentions légales</a><br><a href="confidentialite.html">Confidentialité</a></div>
+</div></footer>
+</body>
+</html>

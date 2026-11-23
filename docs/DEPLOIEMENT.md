@@ -7,7 +7,7 @@ Ce guide décrit ce qui a été **vérifié** et ce qui reste à faire. L'API, l
 
 ## Prérequis
 - Un serveur Linux avec Docker + Docker Compose, ports 80 et 443 ouverts.
-- Trois noms de domaine (API, back-office, page de suivi voyageur) pointant vers ce serveur, par exemple `api.`, `admin.` et `suivi.` + votre domaine.
+- Quatre noms pointant vers ce serveur : `api.`, `admin.` et `suivi.` + votre domaine, plus le domaine lui-même (site vitrine, `apps/site`) et son `www.`.
 
 ## Mise en route
 ```bash

@@ -100,8 +100,10 @@ services:
       API_DOMAIN: ${API_DOMAIN}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN}
       TRACK_DOMAIN: ${TRACK_DOMAIN}
+      SITE_DOMAIN: ${SITE_DOMAIN:?SITE_DOMAIN requis}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../apps/site:/srv/site:ro
       - caddy_data:/data
       - caddy_config:/config
 
