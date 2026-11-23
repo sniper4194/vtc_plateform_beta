@@ -84,6 +84,8 @@ say(`
      téléphone 06 00 00 00 01   code 000000
  Back-office           : http://localhost:3001
      e-mail ${ADMIN_EMAIL}   mot de passe ${ADMIN_PASSWORD}
+ Espace société        : http://localhost:3001/societe
+     clé d'accès cmp_demo_clicab_cle_de_demonstration_2026
  Page de suivi voyageur: ${links.length ? links.join("\n                         ") : "(aucun lien affiché plus haut)"}
  API                   : ${API}/health
 

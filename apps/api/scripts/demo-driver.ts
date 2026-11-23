@@ -4,9 +4,13 @@
  * Le chauffeur est validé et en ligne. Connexion dans l'application : numéro affiché + code 000000.
  * Relancer le script réutilise le même chauffeur et ajoute deux nouvelles missions.
  */
+import { PrismaClient } from "@prisma/client";
+import { createHash } from "node:crypto";
+
 const API = process.env.API_URL ?? "http://localhost:3000";
-const ADMIN = process.env.ADMIN_TOKEN ?? "dev-admin-token-dev-admin-token";
-const CODE = process.env.DRIVER_DEV_OTP ?? "000000";
+// Jeton de service de `pnpm -F @vtc/api dev:demo`. On ne lit PAS ADMIN_TOKEN : charger Prisma lit apps/api/.env, dont la valeur d'exemple écraserait celle-ci.
+const ADMIN = process.env.DEMO_ADMIN_TOKEN ?? "dev-admin-token-dev-admin-token";
+const CODE = "000000";
 const PHONE = "+33600000001";
 
 async function call(path: string, o: { token?: string; admin?: boolean; body?: unknown; headers?: Record<string, string> } = {}) {
@@ -18,6 +22,36 @@ async function call(path: string, o: { token?: string; admin?: boolean; body?: u
   const t = await res.text();
   if (!res.ok) throw Object.assign(new Error(`${path} → ${res.status} ${t}`), { status: res.status });
   return t ? JSON.parse(t) : null;
+}
+
+/** Clé d'accès fixe de la société de démonstration (la clé réelle d'une société n'est affichée qu'une fois ; ici elle est connue pour pouvoir se connecter à chaque lancement). */
+export const DEMO_COMPANY_KEY = "cmp_demo_clicab_cle_de_demonstration_2026";
+const COMPANY_PHONE = "+33600000002";
+
+/** Société de démonstration + un chauffeur rattaché (créé par l'API société, validé et en ligne). */
+async function demoCompany(): Promise<void> {
+  const prisma = new PrismaClient();
+  try {
+    const accessKeyHash = createHash("sha256").update(DEMO_COMPANY_KEY).digest("hex");
+    await prisma.company.upsert({
+      where: { siret: "12345678901234" },
+      create: { name: "Taxis Démo SARL", siret: "12345678901234", vtcRegistry: "EVTC075123456", accessKeyHash, accessKeyPrefix: DEMO_COMPANY_KEY.slice(0, 12) },
+      update: { accessKeyHash, accessKeyPrefix: DEMO_COMPANY_KEY.slice(0, 12), active: true },
+    });
+  } finally { await prisma.$disconnect(); }
+  const mine = (await call("/company/drivers", { token: DEMO_COMPANY_KEY })) as any[];
+  let driver = mine.find((d) => d.phone === COMPANY_PHONE);
+  if (!driver) driver = await call("/company/drivers", { token: DEMO_COMPANY_KEY, body: { firstName: "Karim", lastName: "Société", phone: COMPANY_PHONE, email: "karim.societe@example.com", vehicle: { plate: "DE-002-MO", make: "Mercedes", model: "Classe E", category: "BUSINESS" } } });
+  const { token } = await call("/driver/login", { body: { phone: COMPANY_PHONE, code: CODE } });
+  const docs = ((await call("/driver/documents", { token }).catch(() => [])) as any[]).map((d) => d.type);
+  for (const type of ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"]) {
+    if (docs.includes(type)) continue;
+    const doc = await call("/driver/documents", { token, body: { type, storageKey: `demo/${type}` } });
+    await call(`/admin/documents/${doc.id}/review`, { admin: true, body: { status: "APPROVED" } });
+  }
+  await call(`/admin/drivers/${driver.id}/approve`, { admin: true, body: {} }).catch(() => undefined);
+  await call("/driver/availability", { token, body: { availability: "AVAILABLE" } });
+  await call("/driver/location", { token, body: { lat: 48.88, lng: 2.34 } });
 }
 
 async function main() {
@@ -51,11 +85,15 @@ async function main() {
     if (b.trackingUrl) links.push(b.trackingUrl);
   }
 
+  await demoCompany();
+
   console.log(`
 ✓ Chauffeur de démonstration prêt
   Numéro  : ${PHONE}   (saisir « 06 00 00 00 01 »)
   Code    : ${CODE}
   Missions: 2 à prendre dans l'onglet Radar
+  Société de démonstration « Taxis Démo SARL » : http://localhost:3001/societe
+     clé d'accès : ${DEMO_COMPANY_KEY}   (chauffeur rattaché : +33600000002, code ${CODE})
 ${links.length ? "  Lien de suivi voyageur (page web, port 3002) :\n  " + links.join("\n  ") + "\n" : ""}`);
 }
 
