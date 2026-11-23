@@ -139,13 +139,13 @@ export function RescuePicker({ rideId, onClose, notify }: { rideId: string; onCl
                 <>
                   <Btn label={`Appeler tous les sauveteurs (${list.data!.length})`} color={c.red} text={c.cream} disabled={busy} onPress={() => send()} />
                   <Cond size={12} color={c.onSky}>L'appel part d'abord au sauveteur le plus proche du lieu de prise en charge, puis aux suivants à tour de rôle s'il ne répond pas.</Cond>
-                  <Cond size={12} color={c.onSky}>Ou choisir un sauveteur</Cond>
-                  {list.data!.map((r) => (
+                  <Cond size={12} color={c.onSky}>Ou choisir un sauveteur (du plus proche au plus éloigné du lieu de prise en charge)</Cond>
+                  {list.data!.map((r, i) => (
                     <Card key={r.driverId} onPress={() => !busy && send(r.driverId)} style={{ paddingVertical: 12 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                         <View style={{ flex: 1 }}>
-                          <Slab size={17} color={c.ink} shadow={null}>{r.name}</Slab>
-                          <Cond size={12} color={c.muted}>★ {r.rating.toFixed(2)} · {r.completedRides} missions{r.distanceKm != null ? ` · à ${r.distanceKm} km du départ` : ""}</Cond>
+                          <Slab size={17} color={c.ink} shadow={null}>{i + 1}. {r.name}{i === 0 && r.distanceKm != null ? " · le plus proche" : ""}</Slab>
+                          <Cond size={12} color={c.muted}>★ {r.rating.toFixed(2)} · {r.completedRides} missions · {r.distanceKm != null ? `à ${r.distanceKm} km du départ` : "position inconnue"}</Cond>
                         </View>
                         <Chip label="Appeler" color={c.blue} text={c.cream} />
                       </View>
