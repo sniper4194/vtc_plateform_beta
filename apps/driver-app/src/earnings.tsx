@@ -53,6 +53,7 @@ export function Earnings({ notify }: { notify: Notify }) {
           <Card>
             <Row label="Courses" value={eurShort(d.totals.ridesCents)} />
             <Row label="Indemnités d'annulation" value={`+ ${eurShort(d.totals.compensationCents)}`} />
+            {d.totals.referralCents > 0 && <Row label="Primes de parrainage" value={`+ ${eurShort(d.totals.referralCents)}`} />}
             <Row label="Pénalités" value={d.totals.penaltyCents ? `− ${eurShort(d.totals.penaltyCents)}` : eurShort(0)} tone={d.totals.penaltyCents ? "bad" : undefined} />
           </Card>
 

@@ -1,3 +1,4 @@
+import { referralRewardConfig } from "./referral-rewards";
 import { HttpException, Inject, Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "./prisma";
 import { EmailService } from "./email";
@@ -231,7 +232,11 @@ export class RecruitmentService {
     for (const c of rows) codes.push({ code: c.code, revoked: !!c.revokedAt, used: (await this.usesOf(c.id)) >= c.maxUses });
     const live = rows.filter((c) => !c.revokedAt).length;
     const d = await this.prisma.driver.findUniqueOrThrow({ where: { id: driverId }, select: { status: true } });
-    return { codes, remaining: d.status === "ACTIVE" ? Math.max(0, t.codesPerDriver - live) : 0, canCreate: d.status === "ACTIVE" && live < t.codesPerDriver };
+    // Prime de parrainage : règle affichée telle quelle au parrain (transparence), et total déjà reçu.
+    const rr = referralRewardConfig();
+    const earned = await this.prisma.referralReward.aggregate({ _sum: { amountCents: true }, where: { sponsorId: driverId } });
+    const reward = rr.enabled ? { amountCents: rr.amountCents, rides: rr.rides, earnedCents: earned._sum.amountCents ?? 0 } : null;
+    return { codes, remaining: d.status === "ACTIVE" ? Math.max(0, t.codesPerDriver - live) : 0, canCreate: d.status === "ACTIVE" && live < t.codesPerDriver, reward };
   }
 
   async createDriverCode(driverId: string) {

@@ -14,6 +14,7 @@ import { fatigueBlocks, planningConfig, PlannedRide, returnMatch, Slot } from ".
 import { haversineKm } from "./zones";
 import { WEBHOOK_BY_STATUS } from "./views";
 import { WebhooksService } from "./webhooks.service";
+import { grantReferralReward } from "./referral-rewards";
 
 type Tx = Prisma.TransactionClient;
 
@@ -309,6 +310,7 @@ export class DispatchService {
       const res = await tx.ride.updateMany({ where: { id: rideId, status: from, driverId }, data: { status: to, swapOfferedAt: null, version: { increment: 1 } } });
       if (res.count !== 1) throw new HttpException("Conflit, réessayez", 409);
       await this.event(tx, rideId, `ride.${to === "ARRIVED" ? "arrived" : to.toLowerCase()}`, `driver:${driverId}`);
+      if (to === "COMPLETED") await grantReferralReward(tx, rideId, driverId);
       const hook = WEBHOOK_BY_STATUS[to];
       if (hook) await this.webhooks.enqueue(tx, rideId, hook);
     });

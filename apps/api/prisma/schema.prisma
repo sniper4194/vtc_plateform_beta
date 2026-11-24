@@ -757,3 +757,17 @@ model LostItem {
   @@index([status, createdAt])
   @@index([driverId, status])
 }
+
+/// Prime de parrainage : versée au parrain sur les premières courses terminées de son filleul, prise sur la commission
+/// (jamais sur le prix client ni sur le net du filleul). Un seul niveau : le parrain du parrain ne touche rien.
+model ReferralReward {
+  id          String   @id @default(uuid())
+  sponsorId   String
+  filleulId   String
+  rideId      String   @unique
+  amountCents Int
+  createdAt   DateTime @default(now())
+
+  @@index([sponsorId, createdAt])
+  @@index([filleulId])
+}

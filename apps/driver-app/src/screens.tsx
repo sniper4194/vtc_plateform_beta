@@ -5,6 +5,7 @@ import { IncidentCard, IncidentScreen } from "./incident";
 import { CostNote, RescueCard, RescuePicker } from "./rescue";
 import { SwapBoard, SwapControl } from "./swap";
 import { LostItemsCard } from "./lostItems";
+import { ReferralCard } from "./referral";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Text, View } from "react-native";
 import { api, ApiError } from "./api";
@@ -127,6 +128,7 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, 
 
       <LostItemsCard notify={notify} />
       <RescueCard notify={notify} onAccepted={openMission} />
+      <ReferralCard notify={notify} />
 
       <View style={{ flexDirection: "row", justifyContent: "space-around", alignItems: "center" }}>
         <Pressable onPress={goRadar}>

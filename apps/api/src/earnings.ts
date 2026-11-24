@@ -43,11 +43,13 @@ export interface RideLine {
 }
 export interface CompLine { rideId: string; ref: number; at: Date; cents: number }
 export interface PenaltyLine { id: string; ref: number | null; at: Date; cents: number; kind: string }
+/** Prime de parrainage reçue (course d'un filleul). */
+export interface RewardLine { id: string; at: Date; cents: number; filleul: string }
 
 export interface Earnings {
-  totals: { rides: number; ridesCents: number; compensationCents: number; penaltyCents: number; netCents: number; missionHours: number; netPerMissionHourCents: number | null; avgPerRideCents: number | null };
+  totals: { rides: number; ridesCents: number; compensationCents: number; referralCents: number; penaltyCents: number; netCents: number; missionHours: number; netPerMissionHourCents: number | null; avgPerRideCents: number | null };
   days: { day: string; rides: number; cents: number }[];
-  rides: RideLine[]; compensations: CompLine[]; penalties: PenaltyLine[];
+  rides: RideLine[]; compensations: CompLine[]; penalties: PenaltyLine[]; referrals: RewardLine[];
 }
 
 /** Durée de mission d'une course : de la mise en route à la fin ; à défaut, la durée estimée du trajet. */
@@ -60,7 +62,8 @@ export function missionMinutes(startedAt: Date | null, completedAt: Date | null,
   return Math.min(MAX_MISSION_MIN, Math.max(0, estimatedMin));
 }
 
-export function aggregate(rides: RideLine[], compensations: CompLine[], penalties: PenaltyLine[]): Earnings {
+export function aggregate(rides: RideLine[], compensations: CompLine[], penalties: PenaltyLine[], referrals: RewardLine[] = []): Earnings {
+  const referralCents = referrals.reduce((s, r) => s + r.cents, 0);
   const ridesCents = rides.reduce((s, r) => s + r.netCents, 0);
   const compensationCents = compensations.reduce((s, c) => s + c.cents, 0);
   const penaltyCents = penalties.reduce((s, p) => s + p.cents, 0);
@@ -70,15 +73,16 @@ export function aggregate(rides: RideLine[], compensations: CompLine[], penaltie
   for (const r of rides) add(r.at, r.netCents, true);
   for (const c of compensations) add(c.at, c.cents, false);
   for (const p of penalties) add(p.at, -p.cents, false);
+  for (const r of referrals) add(r.at, r.cents, false);
   return {
     totals: {
-      rides: rides.length, ridesCents, compensationCents, penaltyCents, netCents: ridesCents + compensationCents - penaltyCents,
+      rides: rides.length, ridesCents, compensationCents, referralCents, penaltyCents, netCents: ridesCents + compensationCents + referralCents - penaltyCents,
       missionHours: Math.round(hours * 100) / 100,
       netPerMissionHourCents: hours > 0 ? Math.round((ridesCents + compensationCents) / hours) : null, // avant pénalités : mesure le rendement des missions
       avgPerRideCents: rides.length ? Math.round(ridesCents / rides.length) : null,
     },
     days: [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, v]) => ({ day, ...v })),
-    rides: [...rides].sort((a, b) => b.at.getTime() - a.at.getTime()), compensations, penalties,
+    rides: [...rides].sort((a, b) => b.at.getTime() - a.at.getTime()), compensations, penalties, referrals,
   };
 }
 
@@ -89,6 +93,7 @@ export function earningsCsv(e: Earnings): string {
   const lines = ["type;date;reference;detail;montant_eur"];
   for (const r of e.rides) lines.push(["COURSE", dayKey(r.at), `R-${r.ref}`, q(r.route), eur(r.netCents)].join(";"));
   for (const c of e.compensations) lines.push(["INDEMNITE_ANNULATION", dayKey(c.at), `R-${c.ref}`, q("Annulation par le partenaire"), eur(c.cents)].join(";"));
+  for (const r of e.referrals ?? []) lines.push(["PRIME_PARRAINAGE", dayKey(r.at), "", q(`Course de votre filleul ${r.filleul}`), eur(r.cents)].join(";"));
   for (const p of e.penalties) lines.push(["PENALITE", dayKey(p.at), p.ref ? `R-${p.ref}` : "", q(p.kind === "RESCUE" ? "Appel de sauveteur" : "Mission rendue"), eur(-p.cents)].join(";"));
   lines.push(["TOTAL", "", "", q("Net de la période"), eur(e.totals.netCents)].join(";"));
   return lines.join("\n") + "\n";

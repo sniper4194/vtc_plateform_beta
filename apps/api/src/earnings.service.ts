@@ -41,10 +41,15 @@ export class EarningsService {
     const penRides = await this.prisma.ride.findMany({ where: { id: { in: pens.map((p) => p.rideId) } }, select: { id: true, ref: true } });
     const refOf = new Map(penRides.map((r) => [r.id, r.ref]));
     const upcoming = await this.prisma.ride.aggregate({ _sum: { driverNetCents: true }, _count: { _all: true }, where: { driverId, status: { in: [...UPCOMING] }, pickupAt: { gte: new Date() } } });
+    // Primes de parrainage : seulement le prénom et l'initiale du filleul (minimum utile).
+    const rewards = await this.prisma.referralReward.findMany({ where: { sponsorId: driverId, createdAt: { gte: from, lt: to } }, orderBy: { createdAt: "asc" } });
+    const filleuls = await this.prisma.driver.findMany({ where: { id: { in: [...new Set(rewards.map((r) => r.filleulId))] } }, select: { id: true, firstName: true, lastName: true } });
+    const nameOf = new Map(filleuls.map((f) => [f.id, `${f.firstName} ${f.lastName.slice(0, 1)}.`]));
     const e = aggregate(
       lines,
       comps.map((r) => ({ rideId: r.id, ref: r.ref, at: r.cancelledAt!, cents: r.driverCompensationCents })),
       pens.map((p) => ({ id: p.id, ref: refOf.get(p.rideId) ?? null, at: p.createdAt, cents: p.amountCents, kind: p.kind })),
+      rewards.map((r) => ({ id: r.id, at: r.createdAt, cents: r.amountCents, filleul: nameOf.get(r.filleulId) ?? "?" })),
     );
     return { ...e, upcomingCents: upcoming._sum.driverNetCents ?? 0, upcomingRides: upcoming._count._all, showClientPrice: show };
   }
