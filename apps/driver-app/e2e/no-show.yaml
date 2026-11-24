@@ -1,0 +1,40 @@
+# Parcours reproduit sur le téléphone virtuel de la CI : connexion, mode mission, « Client introuvable (no-show) ».
+# Plantage signalé par l'utilisateur (application fermée par Android) après ce geste.
+appId: com.clicab.driver
+---
+- launchApp:
+    clearState: true
+- tapOn: "(?i).*\\(changer\\).*"
+- tapOn: "https://api.clicab.fr"
+- eraseText: 40
+- inputText: "http://10.0.2.2:3000"
+- tapOn: "Enregistrer"
+- tapOn: "06 12 34 56 78"
+- inputText: "0611223355"
+- hideKeyboard
+- tapOn: "Recevoir mon code"
+- tapOn: "••••••"
+- inputText: "000000"
+- hideKeyboard
+- tapOn: "C'est parti"
+- tapOn:
+    text: "(?i)(While using the app|Only this time|Allow|Autoriser.*)"
+    optional: true
+- takeScreenshot: 1-connecte
+- tapOn: "(?i)agenda"
+- tapOn: "(?i)ouvrir le mode mission"
+- tapOn:
+    text: "(?i)(While using the app|Only this time|Allow|Autoriser.*)"
+    optional: true
+- takeScreenshot: 2-mode-mission
+- scrollUntilVisible:
+    element: "(?i)un souci.*"
+    direction: DOWN
+- tapOn: "(?i)un souci.*"
+- scrollUntilVisible:
+    element: "(?i)client introuvable.*"
+    direction: DOWN
+- takeScreenshot: 3-avant-no-show
+- tapOn: "(?i)client introuvable.*"
+- waitForAnimationToEnd
+- takeScreenshot: 4-apres-no-show
