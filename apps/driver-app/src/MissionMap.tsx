@@ -7,8 +7,9 @@ export interface MapPoint { lat: number; lng: number }
 export interface MissionMapProps { pickup: MapPoint; dropoff: MapPoint; driver?: MapPoint | null; target: "pickup" | "dropoff" }
 
 /**
- * Repli sans carte (web / démo) : schéma des points et du trajet restant.
- * Sur mobile, MissionMap.native.tsx affiche la vraie carte Google Maps.
+ * Schéma des points et du trajet restant, sur toutes les plateformes. Il ne demande aucune clé : la carte Google Maps native
+ * (react-native-maps) exige une clé d'API et fait planter l'écran de mission sans elle. Pour la réactiver : créer une clé Google Maps,
+ * la fournir au build (GOOGLE_MAPS_API_KEY) et rétablir un MissionMap.native.tsx. Le guidage passe par Google Maps ou Waze (boutons de la mission).
  */
 export function MissionMap({ pickup, dropoff, driver, target }: MissionMapProps) {
   const [size, setSize] = useState({ w: 0, h: 0 });

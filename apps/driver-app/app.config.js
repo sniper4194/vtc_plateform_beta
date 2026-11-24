@@ -1,7 +1,7 @@
 /**
  * Configuration Expo. La clé Google Maps n'est jamais écrite dans le dépôt :
  *   GOOGLE_MAPS_API_KEY=... npx expo run:android   (ou build EAS avec la variable d'environnement)
- * Sans clé, la carte native s'affiche vide/grise ; le reste de l'app fonctionne.
+ * La carte native n'est plus utilisée (voir MissionMap.tsx) : la clé n'est nécessaire que pour la réactiver.
  */
 module.exports = ({ config }) => {
   const key = process.env.GOOGLE_MAPS_API_KEY;
