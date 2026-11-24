@@ -210,7 +210,7 @@ export class DriverController {
     const list = offers.map((o) => {
       // Prime écologique : annoncée avant l'acceptation, avec le véhicule qui servirait à la mission.
       const price = this.currentPrice(o.ride, now);
-      const fuel = firstCompliant(me?.vehicles ?? [], o.ride.category)?.fuel;
+      const fuel = firstCompliant(me?.vehicles ?? [], o.ride.category, o.ride.needs)?.fuel;
       const eco = ecoBonusCents(fuel, o.ride.priceCents, o.ride.priceCents - price);
       return {
       offerId: o.id,
@@ -227,6 +227,7 @@ export class DriverController {
       priceRising: price < (o.ride.driverCapCents > 0 ? o.ride.driverCapCents : o.ride.driverNetCents),
       netPerHourCents: Math.round((price + eco) / Math.max(o.ride.durationMin / 60, 0.25)),
       flightNumber: o.ride.booking.flightNumber,
+      needs: o.ride.needs,
       returnTrip: returnMatch(planned, { pickupLat: o.ride.pickupLat, pickupLng: o.ride.pickupLng, startAt: this.dispatch.slotOf(o.ride).start }),
     };
     });

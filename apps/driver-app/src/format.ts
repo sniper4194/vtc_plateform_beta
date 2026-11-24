@@ -101,3 +101,7 @@ export function normalizeApiUrl(raw: string): string | null {
   const u = raw.trim().replace(/\/+$/, "");
   return /^https?:\/\/[^\s/]+(:\d+)?$/i.test(u) ? u : null;
 }
+
+/** Besoins particuliers du voyageur, tels qu'affichés au chauffeur. */
+export const NEED_LABEL: Record<string, string> = { CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant", PET: "Animal" };
+export const needLabels = (needs?: string[] | null) => (needs ?? []).map((n) => NEED_LABEL[n] ?? n);

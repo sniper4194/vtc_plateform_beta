@@ -1,3 +1,4 @@
+import { NEEDS } from "@vtc/shared";
 import { z } from "zod";
 import { normalizePhone } from "./phone";
 
@@ -29,6 +30,8 @@ const vehicleFacts = {
   lengthMm: z.number().int().min(1000).max(8000).optional(),
   widthMm: z.number().int().min(1000).max(3000).optional(),
   powerKw: z.number().min(10).max(1000).optional(),
+  /** Équipements pour les besoins particuliers (siège enfant, rehausseur, fauteuil roulant, animal). */
+  features: z.array(z.enum(NEEDS)).max(NEEDS.length).optional(),
 };
 export const DriverCreateSchema = z.object({
   businessName: z.string().min(1).max(200).optional(), siret: z.string().regex(/^(\d{9}|\d{14})$/).optional(),

@@ -186,6 +186,8 @@ model Vehicle {
   lengthMm  Int?
   widthMm   Int?
   powerKw   Float?
+  /// Équipements pour les besoins particuliers : CHILD_SEAT, BOOSTER, WHEELCHAIR, PET
+  features  String[]        @default([])
   active    Boolean         @default(true)
   rides     Ride[]
 }
@@ -230,6 +232,8 @@ model Booking {
 }
 
 model Ride {
+  /// Besoins particuliers du voyageur (voir NEEDS) : seuls les véhicules équipés reçoivent la mission
+  needs         String[]        @default([])
   proofs        RideProof[]
   /// Prime écologique incluse dans driverNetCents (véhicule électrique), prélevée sur la commission
   ecoBonusCents Int @default(0)

@@ -6,7 +6,7 @@ import { CostNote, RescueCard, RescuePicker } from "./rescue";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Text, View } from "react-native";
 import { api, ApiError } from "./api";
-import { countdown, eurShort, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
+import { countdown, eurShort, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker, ThemeToggle } from "./ui";
 import { useFetch } from "./useFetch";
@@ -282,6 +282,7 @@ export function Radar({ notify }: { notify: Notify }) {
             >
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                 <Chip label={`≈ ${eurShort(o.netPerHourCents)}/h`} color={c.yel} />
+                {needLabels(o.needs).map((l) => <Chip key={l} label={`⚠ ${l}`} color={c.red} text={c.cream} />)}
                 {o.returnTrip ? <Chip label={`↩ Retour après R-${o.returnTrip.afterRef} · ${o.returnTrip.gapMin} min · ${o.returnTrip.km} km`} color={c.yel} /> : null}
                 {o.priceRising ? <Chip label="Prix en hausse ↗" color={c.cream} /> : null}
                 {o.ecoBonusCents > 0 ? <Chip label={`⚡ dont ${eurShort(o.ecoBonusCents)} prime électrique`} color="#3ddc84" /> : null}

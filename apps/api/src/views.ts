@@ -18,6 +18,7 @@ export function bookingView(r: RideFull) {
     effectivePickupAt: effectivePickup(r.pickupAt, r.flightDelayMin).toISOString(),
     signText: r.booking.signText ?? `${r.booking.passengerFirstName} ${r.booking.passengerLastName}`,
     notes: r.booking.notes,
+    needs: r.needs,
     flight: r.booking.flightNumber
       ? {
           number: r.booking.flightNumber,
@@ -82,6 +83,7 @@ export function driverRideView(r: RideFull & { booking: Booking & { partner?: { 
         }
       : null,
     durationMin: Math.round(r.durationMin),
+    needs: r.needs,
     passengers: r.passengers, luggage: r.luggage, netCents: r.driverNetCents, ecoBonusCents: r.ecoBonusCents ?? 0,
     vehicle: r.vehicle ? { plate: r.vehicle.plate, model: `${r.vehicle.make} ${r.vehicle.model}` } : null,
     arrivedAt,

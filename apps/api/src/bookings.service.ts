@@ -88,7 +88,7 @@ export class BookingsService {
             pickupAddress: r.pickup.address, pickupLat: r.pickup.lat, pickupLng: r.pickup.lng,
             dropoffAddress: r.dropoff.address, dropoffLat: r.dropoff.lat, dropoffLng: r.dropoff.lng,
             pickupAt: quote.pickupAt, distanceKm: quote.distanceKm, durationMin: quote.durationMin,
-            passengers: r.passengers, luggage: r.luggage ?? 0,
+            passengers: r.passengers, luggage: r.luggage ?? 0, needs: req.needs ?? [],
             priceCents: quote.priceCents, commissionCents: quote.commissionCents,
             driverNetCents: quote.driverNetCents, driverCapCents: quote.driverNetCents, flatRateId: quote.flatRateId, flightBufferMin: r.flightNumber ? req.flightBufferMin ?? 0 : 0,
           },

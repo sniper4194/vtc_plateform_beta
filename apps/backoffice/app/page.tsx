@@ -192,6 +192,7 @@ function Board() {
                     <div className="chips">
                       <span className={`chip ${chipTone(r.status)}`}>{STATUS_LABEL[r.status] ?? r.status}</span>
                       <span className="chip">{r.category}</span>
+                      {(r.needs ?? []).map((n: string) => <span className="chip bad" key={n}>{({ CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant", PET: "Animal" } as Record<string, string>)[n] ?? n}</span>)}
                       <span className="chip">{r.booking.partner?.name ?? "—"}</span>
                       <span className="chip">Client {eur(r.priceCents).replace(",00", "")}</span>
                     </div>

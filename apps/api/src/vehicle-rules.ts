@@ -52,7 +52,10 @@ export function checkVehicle(v: VehicleFacts, now = new Date()): VehicleCheck {
   return { ok: p.length === 0, problems: p };
 }
 
-/** Premier véhicule actif de la catégorie qui respecte les critères. */
-export function firstCompliant<T extends VehicleFacts & { active: boolean; category: string }>(vehicles: T[], category: string): T | undefined {
-  return vehicles.find((v) => v.active && v.category === category && checkVehicle(v).ok);
+/** Le véhicule a-t-il tous les équipements demandés (siège enfant, fauteuil roulant…) ? */
+export const hasNeeds = (v: { features?: string[] | null }, needs: readonly string[] = []) => needs.every((n) => (v.features ?? []).includes(n));
+
+/** Premier véhicule actif de la catégorie qui respecte les critères et porte les équipements demandés. */
+export function firstCompliant<T extends VehicleFacts & { active: boolean; category: string; features?: string[] | null }>(vehicles: T[], category: string, needs: readonly string[] = []): T | undefined {
+  return vehicles.find((v) => v.active && v.category === category && checkVehicle(v).ok && hasNeeds(v, needs));
 }

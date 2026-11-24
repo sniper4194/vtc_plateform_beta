@@ -68,7 +68,7 @@ export class RescueService {
     for (const c of cands) {
       const completedRides = done.get(c.id) ?? 0;
       if (!eliteCheck({ ...c, completedRides }).listed) continue;
-      if (!firstCompliant(c.vehicles, ride.category)) continue;
+      if (!firstCompliant(c.vehicles, ride.category, ride.needs)) continue;
       if (await this.dispatch.hasOverlap(this.prisma, c.id, ride)) continue;
       if (await this.dispatch.fatigueBlocked(this.prisma, c.id, ride)) continue; // garde-fou fatigue
       const km = c.lastLat != null && c.lastLng != null ? haversineKm({ lat: c.lastLat, lng: c.lastLng }, { lat: ride.pickupLat, lng: ride.pickupLng }) : null;
@@ -175,7 +175,7 @@ export class RescueService {
       const d = await tx.driver.findUniqueOrThrow({ where: { id: driverId } });
       const completedRides = await tx.ride.count({ where: { driverId, status: "COMPLETED" } });
       if (!eliteCheck({ ...d, completedRides }).listed) throw new HttpException("Réservé aux sauveteurs", 403);
-      const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: r.ride.category } }), r.ride.category);
+      const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: r.ride.category } }), r.ride.category, r.ride.needs);
       if (!vehicle) throw new HttpException("Aucun véhicule compatible et conforme", 409);
       if (await this.dispatch.hasOverlap(tx, driverId, r.ride)) throw new HttpException("Conflit avec une autre course de votre planning", 409);
       if (await this.dispatch.fatigueBlocked(tx, driverId, r.ride)) throw new HttpException("Repos nécessaire : cette mission vous ferait dépasser le maximum d'heures de mission sur 24 h", 409);

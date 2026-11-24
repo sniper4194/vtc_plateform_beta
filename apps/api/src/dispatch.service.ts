@@ -127,7 +127,7 @@ export class DispatchService {
     });
     const eligible: typeof candidates = [];
     for (const d of candidates) {
-      if (!firstCompliant(d.vehicles, ride.category)) continue; // véhicule non conforme : pas d'offre
+      if (!firstCompliant(d.vehicles, ride.category, ride.needs)) continue; // véhicule non conforme ou non équipé : pas d'offre
       if (!(await this.hasOverlap(this.prisma, d.id, ride))) eligible.push(d);
     }
     const dist = (d: (typeof eligible)[number]) =>
@@ -184,8 +184,8 @@ export class DispatchService {
   }
 
   private async claim(tx: Tx, ride: Ride, driverId: string, actor: string, priceOverride?: number) {
-    const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: ride.category } }), ride.category);
-    if (!vehicle) throw new HttpException("Aucun véhicule compatible et conforme", 409);
+    const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: ride.category } }), ride.category, ride.needs);
+    if (!vehicle) throw new HttpException(ride.needs.length ? "Aucun véhicule compatible, conforme et équipé pour les besoins du voyageur" : "Aucun véhicule compatible et conforme", 409);
     if (await this.hasOverlap(tx, driverId, ride)) throw new HttpException("Conflit avec une autre course de votre planning", 409);
     if (await this.fatigueBlocked(tx, driverId, ride)) throw new HttpException(`Repos nécessaire : avec cette mission, vous dépasseriez ${planningConfig().maxMissionHours} h de mission sur 24 h`, 409);
     // Prix accepté = prix proposé AU MOMENT de l'acceptation, calculé ici (jamais fourni par le client).

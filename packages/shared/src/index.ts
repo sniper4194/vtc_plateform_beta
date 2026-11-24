@@ -49,6 +49,11 @@ export const QuoteRequestSchema = z.object({
 });
 export type QuoteRequest = z.infer<typeof QuoteRequestSchema>;
 
+/** Besoins particuliers du voyageur : la mission n'est proposée qu'aux véhicules équipés en conséquence. */
+export const NEEDS = ["CHILD_SEAT", "BOOSTER", "WHEELCHAIR", "PET"] as const;
+export const NeedSchema = z.enum(NEEDS);
+export type Need = z.infer<typeof NeedSchema>;
+
 export const BookingRequestSchema = z.object({
   quoteId: z.string().uuid(),
   externalReference: z.string().max(100).optional(),
@@ -58,6 +63,8 @@ export const BookingRequestSchema = z.object({
   notes: z.string().max(500).optional(),
   /** Délai (min) entre l'atterrissage prévu et la prise en charge ; le retard de vol se mesure sur l'atterrissage. */
   flightBufferMin: z.number().int().min(0).max(180).optional(),
+  /** Besoins particuliers (siège enfant, rehausseur, fauteuil roulant, animal). */
+  needs: z.array(NeedSchema).max(NEEDS.length).optional(),
   passenger: z.object({
     firstName: z.string().min(1),
     lastName: z.string().min(1),
