@@ -242,3 +242,7 @@ pnpm db:up
 pnpm demo
 ```
 `pnpm demo` prépare tout (fichiers `.env`, compilation, migrations, données de base), lance l'API (3000), l'application chauffeur dans le navigateur (8081), le back-office (3001) et la page de suivi voyageur (3002), crée le chauffeur de démonstration (`06 00 00 00 01`, code `000000`), une **société de démonstration** (« Taxis Démo SARL », espace `http://localhost:3001/societe`, clé d'accès fixe `cmp_demo_clicab_cle_de_demonstration_2026`, avec un chauffeur rattaché `06 00 00 00 02`) et un administrateur (`demo@clicab.local`, mot de passe `Bureau-Soleil-2026!`), puis affiche les adresses. Ctrl+C arrête tout. Le compte et le code fixe sont réservés à la démonstration locale.
+
+## Recrutement des chauffeurs (candidature sur parrainage)
+
+Un chauffeur candidate sur `/candidature` (application `web-booking`) avec un **code de parrainage obligatoire**. L'équipe vérifie la carte pro, le permis (relevé d'information intégral : seul le résultat est noté), fait passer les tests et l'entretien, puis décide dans l'onglet **Recrutement** du back-office. *Accepter* est impossible tant qu'un critère manque. L'arbre de parrainage montre qui a fait entrer qui. Détails, seuils et limites : [docs/RECRUTEMENT.md](docs/RECRUTEMENT.md).

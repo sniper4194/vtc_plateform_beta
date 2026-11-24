@@ -139,6 +139,11 @@ model Driver {
   proCardNumber String? // numéro de la carte professionnelle VTC
   photoConsentAt DateTime? // consentement du chauffeur à montrer sa photo au voyageur pendant la course (révocable : remis à nul)
   identityVerifiedAt DateTime? // dernière vérification d'identité par selfie valide (prise de service)
+  sponsorId     String? // chauffeur parrain (nul : cohorte fondatrice, entrée par un code délivré par l'équipe)
+  sponsor       Driver?  @relation("Sponsorship", fields: [sponsorId], references: [id])
+  sponsored     Driver[] @relation("Sponsorship")
+  referralCodes ReferralCode[]
+  application   Application?
   identityChecks IdentityCheck[]
   incidents     Incident[]
   rescueOptIn   Boolean            @default(false) // accepte de figurer dans la liste des sauveteurs (s'il remplit les critères)
@@ -590,4 +595,69 @@ model Incident {
 
   @@index([status, createdAt])
   @@index([driverId, createdAt])
+}
+
+/// Code de parrainage : obligatoire pour déposer une candidature. Délivré par l'équipe (cohorte fondatrice, sans propriétaire) ou par un chauffeur actif.
+model ReferralCode {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  ownerDriverId String?
+  owner         Driver?  @relation(fields: [ownerDriverId], references: [id])
+  label         String? // code fondateur : à qui il est destiné
+  maxUses       Int      @default(1)
+  issuedBy      String
+  revokedAt     DateTime?
+  createdAt     DateTime @default(now())
+  applications  Application[]
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  IN_REVIEW
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+/// Candidature de chauffeur. Aucune pièce n'est stockée : le relevé de permis (RII) est consulté puis seul le résultat est noté
+/// (seuil atteint oui/non, pas de suspension oui/non, date et auteur de la vérification).
+model Application {
+  id               String            @id @default(uuid())
+  firstName        String
+  lastName         String
+  phone            String
+  email            String
+  yearsExperience  Int
+  /// Déclaratif, à titre indicatif : [{ name, rating? }]. Jamais un critère éliminatoire à lui seul.
+  otherPlatforms   Json?
+  referralCodeId   String
+  referralCode     ReferralCode      @relation(fields: [referralCodeId], references: [id])
+  status           ApplicationStatus @default(SUBMITTED)
+  consentAt        DateTime
+  cardProValidUntil DateTime?
+  licenceCheckedAt DateTime?
+  licenceCheckedBy String?
+  licencePointsOk  Boolean?
+  licenceNoSuspension Boolean?
+  honorStatementAt DateTime?
+  frenchScore      Int?
+  englishLevel     String?
+  ethicsScore      Int?
+  testsBy          String?
+  testsAt          DateTime?
+  interviewNotes   String?
+  interviewAt      DateTime?
+  interviewBy      String?
+  decisionReason   String?
+  decidedBy        String?
+  decidedAt        DateTime?
+  driverId         String?           @unique
+  driver           Driver?           @relation(fields: [driverId], references: [id])
+  anonymizedAt     DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([status])
+  @@index([phone])
+  @@index([email])
 }

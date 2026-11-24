@@ -53,7 +53,7 @@ main { padding: 8px 28px 48px; max-width: 1500px; margin: 0 auto; }
 .chip.ok { background: var(--yel); } .chip.bad { background: var(--red); color: var(--cream); } .chip.blue { background: var(--blue); color: var(--cream); }
 .ride .alertbar { margin-top: 10px; background: var(--red); color: var(--cream); border: 2px solid var(--ink); border-radius: 10px; padding: 6px 10px; font-family: var(--slab); font-size: 13px; }
 
-button.btn, select, input { font-family: var(--slab); font-size: 14px; padding: 8px 14px; border-radius: 12px; border: 2.5px solid var(--ink); background: var(--cream); color: var(--ink); }
+button.btn, select, input, textarea { font-family: var(--slab); font-size: 14px; padding: 8px 14px; border-radius: 12px; border: 2.5px solid var(--ink); background: var(--cream); color: var(--ink); }
 button.btn { cursor: pointer; box-shadow: 3px 3px 0 var(--ink); } button.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
 button.btn.primary { background: var(--yel); } button.btn.danger { background: var(--red); color: var(--cream); } button.btn:disabled { opacity: .45; cursor: not-allowed; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

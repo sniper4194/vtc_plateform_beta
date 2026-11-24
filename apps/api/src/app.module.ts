@@ -25,6 +25,8 @@ import { EarningsService } from "./earnings.service";
 import { AdminIncidentController, IncidentController } from "./incident.controller";
 import { IncidentService } from "./incident.service";
 import { RescueService } from "./rescue.service";
+import { ApplyController, AdminRecruitmentController, DriverReferralController } from "./recruitment.controller";
+import { RecruitmentService } from "./recruitment.service";
 import { RoutingService } from "./routing";
 import { AdminGuard, CompanyGuard, DriverGuard, PartnerGuard } from "./security";
 import { WebhooksService } from "./webhooks.service";
@@ -42,6 +44,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
     @Inject(RescueService) private rescue: RescueService,
     @Inject(IdentityService) private identity: IdentityService,
     @Inject(DeadlinesService) private deadlines: DeadlinesService,
+    @Inject(RecruitmentService) private recruitment: RecruitmentService,
   ) {}
   onModuleInit() {
     if (process.env.DISABLE_WORKERS === "1") return;
@@ -55,6 +58,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
         await this.identity.spotSweep();
         await this.identity.expireSpots();
         await this.deadlines.sweep();
+        await this.recruitment.sweep();
         await this.webhooks.deliverDue();
         await this.flights.poll();
       } catch (e: any) {
@@ -70,7 +74,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 }
 
 @Module({
-  controllers: [HealthController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, EarningsController, IncidentController, AdminIncidentController, CompanyController, TrackingController, AuthController],
-  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, IdentityService, DeadlinesService, EarningsService, IncidentService, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
+  controllers: [HealthController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, EarningsController, IncidentController, AdminIncidentController, CompanyController, TrackingController, AuthController, ApplyController, AdminRecruitmentController, DriverReferralController],
+  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, IdentityService, DeadlinesService, EarningsService, IncidentService, RecruitmentService, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
 })
 export class AppModule {}

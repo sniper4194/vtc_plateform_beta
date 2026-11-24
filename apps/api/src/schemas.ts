@@ -4,7 +4,7 @@ import { normalizePhone } from "./phone";
 export const DriverOtpRequestSchema = z.object({ phone: z.string().min(6).max(30) });
 export const DriverLoginSchema = z.object({ phone: z.string().min(6).max(30), code: z.string().min(4).max(10) });
 /** Numéro normalisé en E.164 (06 12… → +33612…). */
-const phoneField = z.string().min(6).max(30).transform((v, ctx) => { const n = normalizePhone(v); if (!n) ctx.addIssue({ code: "custom", message: "numéro invalide" }); return n ?? v; });
+export const phoneField = z.string().min(6).max(30).transform((v, ctx) => { const n = normalizePhone(v); if (!n) ctx.addIssue({ code: "custom", message: "numéro invalide" }); return n ?? v; });
 export const AvailabilitySchema = z.object({ availability: z.enum(["AVAILABLE", "SUSPENDED"]) });
 export const LocationUpdateSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
 export const DocumentUploadSchema = z.object({
