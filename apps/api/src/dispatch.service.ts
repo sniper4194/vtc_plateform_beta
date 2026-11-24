@@ -158,7 +158,7 @@ export class DispatchService {
     const cap = this.capOf(ride);
     const price = priceOverride ?? driverOfferCents(cap, effectivePickup(ride.pickupAt, ride.flightDelayMin), new Date());
     // Prime écologique : véhicule électrique, prélevée sur la commission restante (jamais sur le prix client).
-    const eco = ecoBonusCents(vehicle.fuel, ride.priceCents - price);
+    const eco = ecoBonusCents(vehicle.fuel, price, ride.priceCents - price);
     const res = await tx.ride.updateMany({
       where: { id: ride.id, status: "DISPATCHING", driverId: null },
       data: { status: "ASSIGNED", driverId, vehicleId: vehicle.id, version: { increment: 1 }, driverCapCents: cap, driverNetCents: price + eco, commissionCents: ride.priceCents - price - eco, ecoBonusCents: eco },

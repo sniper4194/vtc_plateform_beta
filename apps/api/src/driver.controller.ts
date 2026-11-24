@@ -198,7 +198,7 @@ export class DriverController {
       // Prime écologique : annoncée avant l'acceptation, avec le véhicule qui servirait à la mission.
       const price = this.currentPrice(o.ride, now);
       const fuel = firstCompliant(me?.vehicles ?? [], o.ride.category)?.fuel;
-      const eco = ecoBonusCents(fuel, o.ride.priceCents - price);
+      const eco = ecoBonusCents(fuel, price, o.ride.priceCents - price);
       return {
       offerId: o.id,
       expiresAt: o.expiresAt,

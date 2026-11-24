@@ -29,7 +29,7 @@ afterAll(async () => { await app.close(); await prisma.$disconnect(); });
 beforeEach(async () => {
   await prisma.$executeRawUnsafe('TRUNCATE "Incident","IdentityCheck","DriverPenalty","RescueRequest","Notification","OtpCode","AdminUser","WebhookDelivery","Quote","RideEvent","DispatchOffer","Rating","Ride","Booking","ApiKey","Partner","Document","Vehicle","Payout","Driver","Company","AuditLog" CASCADE');
 });
-afterEach(() => { delete process.env.ECO_BONUS_CENTS; });
+afterEach(() => { delete process.env.ECO_BONUS_PERCENT; });
 
 const CDG = { address: "Aéroport CDG T2", lat: 49.0097, lng: 2.5479 };
 const PARIS = { address: "10 rue de Rivoli, Paris", lat: 48.8566, lng: 2.3522 };
@@ -69,15 +69,16 @@ async function accept(d: { token: string }) {
 }
 
 describe("prime écologique : calcul", () => {
-  it("seulement pour un véhicule électrique, plafonnée par la commission restante", () => {
-    expect(ecoBonusCents("ELECTRIC", 1000, {} as any)).toBe(300);
-    expect(ecoBonusCents("ELECTRIC", 120, {} as any)).toBe(120); // jamais plus que la commission restante
-    expect(ecoBonusCents("ELECTRIC", -50, {} as any)).toBe(0); // commission déjà négative : pas de prime
-    expect(ecoBonusCents("HYBRID", 1000, {} as any)).toBe(0);
-    expect(ecoBonusCents("THERMAL", 1000, {} as any)).toBe(0);
-    expect(ecoBonusCents(null, 1000, {} as any)).toBe(0);
-    expect(ecoBonusCents("ELECTRIC", 1000, { ECO_BONUS_CENTS: "500" } as any)).toBe(500);
-    expect(ecoBonusCents("ELECTRIC", 1000, { ECO_BONUS_CENTS: "0" } as any)).toBe(0); // désactivée
+  it("5 % de la rémunération, seulement pour un véhicule électrique, plafonnée par la commission restante", () => {
+    expect(ecoBonusCents("ELECTRIC", 10000, 2000, {} as any)).toBe(500); // 5 % de 100 €
+    expect(ecoBonusCents("ELECTRIC", 4400, 2000, {} as any)).toBe(220);
+    expect(ecoBonusCents("ELECTRIC", 10000, 120, {} as any)).toBe(120); // jamais plus que la commission restante
+    expect(ecoBonusCents("ELECTRIC", 10000, -50, {} as any)).toBe(0); // commission déjà négative : pas de prime
+    expect(ecoBonusCents("HYBRID", 10000, 2000, {} as any)).toBe(0);
+    expect(ecoBonusCents("THERMAL", 10000, 2000, {} as any)).toBe(0);
+    expect(ecoBonusCents(null, 10000, 2000, {} as any)).toBe(0);
+    expect(ecoBonusCents("ELECTRIC", 10000, 2000, { ECO_BONUS_PERCENT: "8" } as any)).toBe(800);
+    expect(ecoBonusCents("ELECTRIC", 10000, 2000, { ECO_BONUS_PERCENT: "0" } as any)).toBe(0); // désactivée
   });
 });
 
@@ -87,9 +88,10 @@ describe("prime écologique : parcours", () => {
     const d = await mkDriver("ELECTRIC");
     await book(p, "BERLINE");
     const offer = await accept(d);
-    expect(offer.ecoBonusCents).toBe(300);
     const ride = await prisma.ride.findFirstOrThrow({ where: { driverId: d.id } });
-    expect(ride.ecoBonusCents).toBe(300);
+    expect(offer.ecoBonusCents).toBeGreaterThan(0);
+    expect(ride.ecoBonusCents).toBe(offer.ecoBonusCents);
+    expect(ride.ecoBonusCents).toBe(Math.round(((ride.driverNetCents - ride.ecoBonusCents) * 5) / 100)); // 5 % du prix proposé
     // le prix client ne bouge pas : net + commission = prix client
     expect(ride.driverNetCents + ride.commissionCents).toBe(ride.priceCents);
     expect(ride.driverNetCents).toBe(offer.netCents); // le prix annoncé est celui qui est payé
@@ -115,11 +117,12 @@ describe("prime écologique : parcours", () => {
     const oe = await accept(e);
     await book(p, "BERLINE"); // le chauffeur électrique est déjà pris sur ce créneau : seule la voiture thermique reçoit l'offre
     const ot = await accept(t);
-    expect(oe.netCents - ot.netCents).toBe(300);
+    expect(oe.ecoBonusCents).toBeGreaterThan(0);
+    expect(oe.netCents - ot.netCents).toBe(oe.ecoBonusCents); // même mission, même prix de base : l'écart est exactement la prime
   });
 
-  it("la prime est plafonnée par la commission restante et se règle (0 = désactivée)", async () => {
-    process.env.ECO_BONUS_CENTS = "100000"; // énorme : seule la commission restante limite
+  it("la prime est plafonnée par la commission restante", async () => {
+    process.env.ECO_BONUS_PERCENT = "100"; // énorme : seule la commission restante limite
     const p = await mkPartner();
     const d = await mkDriver("ELECTRIC");
     await book(p, "BERLINE");
@@ -131,7 +134,7 @@ describe("prime écologique : parcours", () => {
   });
 
   it("désactivée : aucune prime", async () => {
-    process.env.ECO_BONUS_CENTS = "0";
+    process.env.ECO_BONUS_PERCENT = "0";
     const p = await mkPartner();
     const d = await mkDriver("ELECTRIC");
     await book(p, "BERLINE");
