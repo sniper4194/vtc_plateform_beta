@@ -81,6 +81,7 @@ export function driverRideView(r: RideFull & { booking: Booking & { partner?: { 
           bufferMin: r.flightBufferMin, scheduledArrivalAt: new Date(r.pickupAt.getTime() - r.flightBufferMin * 60_000),
         }
       : null,
+    durationMin: Math.round(r.durationMin),
     passengers: r.passengers, luggage: r.luggage, netCents: r.driverNetCents, ecoBonusCents: r.ecoBonusCents ?? 0,
     vehicle: r.vehicle ? { plate: r.vehicle.plate, model: `${r.vehicle.make} ${r.vehicle.model}` } : null,
     arrivedAt,

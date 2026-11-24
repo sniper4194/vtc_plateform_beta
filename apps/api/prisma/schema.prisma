@@ -697,3 +697,29 @@ model RideProof {
 
   @@index([rideId, receivedAt])
 }
+
+enum MeetingPointStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Point de rendez-vous photographié par un chauffeur (porte, pilier, panneau d'un terminal), montré au voyageur une fois validé par l'équipe.
+model MeetingPoint {
+  id          String             @id @default(uuid())
+  label       String
+  note        String?
+  lat         Float
+  lng         Float
+  accuracyM   Float?
+  mime        String
+  image       Bytes
+  imageSha256 String
+  status      MeetingPointStatus @default(PENDING)
+  submittedBy String
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  createdAt   DateTime           @default(now())
+
+  @@index([status])
+}

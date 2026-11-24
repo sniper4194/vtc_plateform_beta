@@ -9,6 +9,7 @@ import { minutesBefore, PenaltiesService } from "./penalties.service";
 import { PrismaService } from "./prisma";
 import { effectivePickup, NO_SHOW_WAIT_MIN } from "./metrics";
 import { firstCompliant } from "./vehicle-rules";
+import { fatigueBlocks, planningConfig, PlannedRide, returnMatch, Slot } from "./planning";
 import { haversineKm } from "./zones";
 import { WEBHOOK_BY_STATUS } from "./views";
 import { WebhooksService } from "./webhooks.service";
@@ -53,6 +54,33 @@ export class DispatchService {
   private window(r: Pick<Ride, "pickupAt" | "durationMin" | "flightDelayMin">) {
     const start = effectivePickup(r.pickupAt, r.flightDelayMin).getTime();
     return { start, end: start + (r.durationMin + DISPATCH.bufferMin) * 60_000 };
+  }
+
+  /** Créneau occupé par une mission (prise en charge effective → arrivée + marge). */
+  slotOf(r: Pick<Ride, "pickupAt" | "durationMin" | "flightDelayMin">): Slot { return this.window(r); }
+
+  /** Missions des chauffeurs autour de celle-ci (± 48 h), terminées comprises : elles comptent dans le temps de travail. */
+  async ridesAround(db: Tx | PrismaService, driverIds: string[], ride: Ride) {
+    const p = ride.pickupAt.getTime();
+    const rows = await db.ride.findMany({
+      where: { driverId: { in: driverIds }, id: { not: ride.id }, status: { in: [...ACTIVE, "COMPLETED"] }, pickupAt: { gte: new Date(p - 48 * 3600_000), lte: new Date(p + 48 * 3600_000) } },
+    });
+    const by = new Map<string, typeof rows>();
+    for (const r of rows) by.set(r.driverId!, [...(by.get(r.driverId!) ?? []), r]);
+    return by;
+  }
+
+  /** Garde-fou fatigue : vrai si cette mission ferait dépasser le maximum d'heures de mission sur 24 h. */
+  async fatigueBlocked(db: Tx | PrismaService, driverId: string, ride: Ride) {
+    const mine = (await this.ridesAround(db, [driverId], ride)).get(driverId) ?? [];
+    return fatigueBlocks(mine.map((r) => this.slotOf(r)), this.slotOf(ride));
+  }
+
+  /** Missions prévues d'un chauffeur, vues comme des points d'arrivée (pour repérer les missions de retour). */
+  planned(rides: Ride[]): PlannedRide[] {
+    return rides.filter((r) => ACTIVE.includes(r.status)).map((r) => ({
+      ref: r.ref, dropLat: r.dropoffLat, dropLng: r.dropoffLng, endAt: effectivePickup(r.pickupAt, r.flightDelayMin).getTime() + r.durationMin * 60_000,
+    }));
   }
 
   async hasOverlap(db: Tx | PrismaService, driverId: string, ride: Ride) {
@@ -104,7 +132,12 @@ export class DispatchService {
     }
     const dist = (d: (typeof eligible)[number]) =>
       d.lastLat != null && d.lastLng != null ? haversineKm({ lat: d.lastLat, lng: d.lastLng }, { lat: ride.pickupLat, lng: ride.pickupLng }) : Infinity;
-    const chosen = eligible.sort((a, b) => dist(a) - dist(b)).slice(0, DISPATCH.maxOffersPerRound);
+    // Garde-fou fatigue (personne au-delà du maximum d'heures sur 24 h), puis priorité aux chauffeurs pour qui c'est une mission de retour.
+    const around = await this.ridesAround(this.prisma, eligible.map((d) => d.id), ride);
+    const newSlot = this.slotOf(ride), start = newSlot.start;
+    const rested = eligible.filter((d) => !fatigueBlocks((around.get(d.id) ?? []).map((r) => this.slotOf(r)), newSlot));
+    const gap = new Map(rested.map((d) => [d.id, returnMatch(this.planned(around.get(d.id) ?? []), { pickupLat: ride.pickupLat, pickupLng: ride.pickupLng, startAt: start })?.gapMin ?? Infinity]));
+    const chosen = rested.sort((a, b) => (gap.get(a.id)! - gap.get(b.id)!) || dist(a) - dist(b)).slice(0, DISPATCH.maxOffersPerRound);
 
     const minutesToPickup = (ride.pickupAt.getTime() - Date.now()) / 60_000;
     const ttl = minutesToPickup <= DISPATCH.urgentWithinMin ? DISPATCH.urgentTtlSec : DISPATCH.normalTtlSec;
@@ -118,7 +151,7 @@ export class DispatchService {
           update: { status: "PENDING", expiresAt },
         });
       }
-      await this.event(tx, rideId, "dispatch.round", "system", { round: done + 1, offered: chosen.length });
+      await this.event(tx, rideId, "dispatch.round", "system", { round: done + 1, offered: chosen.length, rested: eligible.length - rested.length, returnTrips: chosen.filter((d) => gap.get(d.id)! < Infinity).length });
     });
     for (const d of chosen) this.notif.notifyDriver(d.id, `Nouvelle course à prendre (${ride.pickupAddress})`);
     return chosen.length;
@@ -154,6 +187,7 @@ export class DispatchService {
     const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: ride.category } }), ride.category);
     if (!vehicle) throw new HttpException("Aucun véhicule compatible et conforme", 409);
     if (await this.hasOverlap(tx, driverId, ride)) throw new HttpException("Conflit avec une autre course de votre planning", 409);
+    if (await this.fatigueBlocked(tx, driverId, ride)) throw new HttpException(`Repos nécessaire : avec cette mission, vous dépasseriez ${planningConfig().maxMissionHours} h de mission sur 24 h`, 409);
     // Prix accepté = prix proposé AU MOMENT de l'acceptation, calculé ici (jamais fourni par le client).
     const cap = this.capOf(ride);
     const price = priceOverride ?? driverOfferCents(cap, effectivePickup(ride.pickupAt, ride.flightDelayMin), new Date());

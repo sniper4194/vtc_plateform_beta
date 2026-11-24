@@ -5,6 +5,7 @@ import { PrismaService } from "./prisma";
 import { driverRideView } from "./views";
 import { driverOfferCents } from "./ladder";
 import { ecoBonusCents } from "./eco";
+import { lastDayMinutes, planningConfig, returnMatch } from "./planning";
 import { effectivePickup } from "./metrics";
 import { checkVehicle, firstCompliant } from "./vehicle-rules";
 import { DeadlinesService } from "./deadlines.service";
@@ -76,7 +77,16 @@ export class DriverController {
       pendingOffers: offers.length,
       potentialCents: offers.reduce((s, o) => s + this.currentPrice(o.ride, now), 0),
       fortnightEarningsCents: earned._sum.driverNetCents ?? 0,
+      fatigue: await this.fatigue(id, now),
     };
+  }
+
+  /** Temps de mission des dernières 24 h, comparé au maximum du garde-fou (0 : garde-fou désactivé). */
+  private async fatigue(driverId: string, now: Date) {
+    const rides = await this.prisma.ride.findMany({
+      where: { driverId, status: { in: ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS", "COMPLETED"] }, pickupAt: { gte: new Date(now.getTime() - 48 * 3600_000), lte: now } },
+    });
+    return { minutes24h: lastDayMinutes(rides.map((r) => this.dispatch.slotOf(r)), now.getTime()), maxMinutes: planningConfig().maxMissionHours * 60 };
   }
 
   /** Situation d'identité : champs d'exploitant, ce qui manque, et état du selfie de prise de service. */
@@ -194,7 +204,10 @@ export class DriverController {
       include: { ride: { include: { booking: { include: { partner: true } } } } },
       orderBy: { ride: { pickupAt: "asc" } },
     });
-    return offers.map((o) => {
+    // Missions de retour : offres qui partent près de la fin d'une mission déjà prévue, peu après.
+    const mine = await this.prisma.ride.findMany({ where: { driverId: req.driverId, status: { in: ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"] } } });
+    const planned = this.dispatch.planned(mine);
+    const list = offers.map((o) => {
       // Prime écologique : annoncée avant l'acceptation, avec le véhicule qui servirait à la mission.
       const price = this.currentPrice(o.ride, now);
       const fuel = firstCompliant(me?.vehicles ?? [], o.ride.category)?.fuel;
@@ -214,8 +227,10 @@ export class DriverController {
       priceRising: price < (o.ride.driverCapCents > 0 ? o.ride.driverCapCents : o.ride.driverNetCents),
       netPerHourCents: Math.round((price + eco) / Math.max(o.ride.durationMin / 60, 0.25)),
       flightNumber: o.ride.booking.flightNumber,
+      returnTrip: returnMatch(planned, { pickupLat: o.ride.pickupLat, pickupLng: o.ride.pickupLng, startAt: this.dispatch.slotOf(o.ride).start }),
     };
     });
+    return [...list.filter((o) => o.returnTrip), ...list.filter((o) => !o.returnTrip)];
   }
 
   @Post("offers/:id/accept")

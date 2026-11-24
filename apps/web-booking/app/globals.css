@@ -40,3 +40,7 @@ input[aria-invalid=true] { border-color: var(--bad); }
 .primary { margin-top: 14px; width: 100%; font: inherit; font-weight: 800; font-size: 16px; padding: 14px; border-radius: 12px; border: 0; background: var(--navy); color: #fff; cursor: pointer; }
 .primary:disabled { opacity: .6; }
 .link { background: none; border: 0; color: var(--blue); font: inherit; font-size: 14px; padding: 8px 0; cursor: pointer; }
+
+/* Point de rendez-vous photographié */
+.meet img { width: 100%; max-height: 320px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); display: block; margin-bottom: 10px; background: #e9ecf3; }
+.meet b { font-size: 17px; display: block; }

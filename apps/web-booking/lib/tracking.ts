@@ -6,6 +6,7 @@ export interface Tracking {
   pickup: string; dropoff: string; pickupAt: string; signText: string; notes: string | null;
   flight: { number: string; status: string; delayMin: number; earlyMin: number } | null;
   driver: { firstName: string; vehicle: string | null; plate: string | null; photoUrl: string | null } | null;
+  meetingPoint?: { label: string; note: string | null; photoUrl: string } | null;
 }
 
 /** Étapes affichées au voyageur, dans l'ordre. */
@@ -14,6 +15,7 @@ export type Step = (typeof STEPS)[number];
 
 const T = {
   fr: {
+    meetTitle: "Où retrouver votre chauffeur", meetAlt: "Photo du point de rendez-vous",
     title: "Votre trajet", ref: "Référence",
     CONFIRMED: "Réservation confirmée", DISPATCHING: "Réservation confirmée", ASSIGNED: "Chauffeur attribué", EN_ROUTE: "Votre chauffeur est en route", ARRIVED: "Votre chauffeur est arrivé", IN_PROGRESS: "En route vers votre destination", COMPLETED: "Course terminée",
     CANCELLED: "Réservation annulée", NO_SHOW: "Course clôturée (voyageur absent)",
@@ -31,6 +33,7 @@ const T = {
     loading: "Chargement…", updated: "Mis à jour",
   },
   en: {
+    meetTitle: "Where to meet your driver", meetAlt: "Photo of the meeting point",
     title: "Your ride", ref: "Reference",
     CONFIRMED: "Booking confirmed", DISPATCHING: "Booking confirmed", ASSIGNED: "Driver assigned", EN_ROUTE: "Your driver is on the way", ARRIVED: "Your driver has arrived", IN_PROGRESS: "On the way to your destination", COMPLETED: "Ride completed",
     CANCELLED: "Booking cancelled", NO_SHOW: "Ride closed (passenger not found)",

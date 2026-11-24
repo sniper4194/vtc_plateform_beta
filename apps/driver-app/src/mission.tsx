@@ -8,8 +8,9 @@ import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, HoldButton, Slab, Sticker } from "./ui";
 import { IncidentScreen } from "./incident";
 import { CostNote, JustificatifModal, RescuePicker } from "./rescue";
-import { ProofSection } from "./proof";
+import { MeetingPointSection, ProofSection } from "./proof";
 import { useFetch } from "./useFetch";
+import { welcomeCard } from "./welcome";
 
 type Notify = (text: string, tone?: "ok" | "bad") => void;
 
@@ -18,6 +19,25 @@ const navLinks = (p: MapPoint) => [
   { label: "Waze", url: `https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes` },
   ...(Platform.OS === "ios" ? [{ label: "Plans", url: `http://maps.apple.com/?daddr=${p.lat},${p.lng}` }] : []),
 ];
+
+/** Carte de bienvenue : phrases dans la langue du voyageur, en grand, avec la traduction pour le chauffeur en petit. */
+function WelcomeModal({ language, firstName, minutes, onClose }: { language: string; firstName: string; minutes: number; onClose: () => void }) {
+  const w = welcomeCard(language, firstName, minutes);
+  return (
+    <Modal visible animationType="fade" onRequestClose={onClose}>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: c.cream, justifyContent: "center", padding: 28, gap: 22 }}>
+        <Cond size={13} color={c.muted}>{w.languageName}</Cond>
+        {w.lines.map((l, i) => (
+          <View key={i} style={{ gap: 4 }}>
+            <Display size={i === 0 ? 36 : 28} color={c.ink} shadow={i === 0 ? c.yel : null}>{l}</Display>
+            {w.lang !== "fr" && <Cond size={11} color={c.muted}>{w.french[i]}</Cond>}
+          </View>
+        ))}
+        <Cond size={12} color={c.muted}>Toucher pour fermer</Cond>
+      </Pressable>
+    </Modal>
+  );
+}
 
 /** Pancarte plein écran : lisible de loin, à montrer au client dans le hall d'arrivée. */
 function SignModal({ text, onClose }: { text: string; onClose: () => void }) {
@@ -38,6 +58,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
   const [pos, setPos] = useState<MapPoint | null>(null);
   const [, setTick] = useState(0);
   const [sign, setSign] = useState(false);
+  const [welcome, setWelcome] = useState(false);
   const [nav, setNav] = useState(false);
   const [problem, setProblem] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -134,8 +155,12 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
           {(r.status === "EN_ROUTE" || r.status === "ARRIVED" || r.status === "ASSIGNED") && (
             <Btn label="Afficher la pancarte" color={c.blue} text={c.cream} onPress={() => setSign(true)} />
           )}
+          {(r.status === "EN_ROUTE" || r.status === "ARRIVED" || r.status === "ASSIGNED") && r.passenger.language && r.passenger.language !== "fr" && (
+            <Btn label={`Accueil traduit (${welcomeCard(r.passenger.language, "", 1).languageName})`} onPress={() => setWelcome(true)} />
+          )}
 
           <ProofSection rideId={rideId} rideRef={r.reference} status={r.status} notify={notify} />
+          <MeetingPointSection rideRef={r.reference} status={r.status} notify={notify} />
 
           <View style={{ gap: 6 }}>
             <Cond size={11} color={c.muted}>Passager</Cond>
@@ -189,6 +214,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
       {incident && <IncidentScreen rideId={rideId} notify={notify} onClose={() => setIncident(false)} />}
       {proof && <JustificatifModal rideId={rideId} onClose={() => setProof(false)} />}
       {rescue && <RescuePicker rideId={rideId} notify={notify} onClose={() => { setRescue(false); ride.reload(); }} />}
+      {welcome && <WelcomeModal language={r.passenger.language} firstName={String(r.passenger.name).split(" ")[0]} minutes={r.durationMin ?? 30} onClose={() => setWelcome(false)} />}
       {sign && <SignModal text={r.signText} onClose={() => setSign(false)} />}
     </View>
   );

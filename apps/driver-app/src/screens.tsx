@@ -76,6 +76,17 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, 
         </View>
       </View>
 
+      {home.data?.fatigue?.maxMinutes > 0 && home.data.fatigue.minutes24h >= home.data.fatigue.maxMinutes * 0.8 && (
+        <Card color={home.data.fatigue.minutes24h >= home.data.fatigue.maxMinutes ? c.red : c.yel}>
+          <Slab size={16} color={home.data.fatigue.minutes24h >= home.data.fatigue.maxMinutes ? c.cream : c.ink} shadow={null}>
+            {home.data.fatigue.minutes24h >= home.data.fatigue.maxMinutes ? "Temps de repos" : "Pensez au repos"}
+          </Slab>
+          <Cond size={12} color={home.data.fatigue.minutes24h >= home.data.fatigue.maxMinutes ? c.cream : c.ink}>
+            {`${Math.floor(home.data.fatigue.minutes24h / 60)} h ${String(home.data.fatigue.minutes24h % 60).padStart(2, "0")} de mission sur 24 h (maximum ${home.data.fatigue.maxMinutes / 60} h). Au-delà, plus aucune mission ne vous est proposée.`}
+          </Cond>
+        </Card>
+      )}
+
       {home.data?.liveRideId && (
         <Card color={c.red} onPress={() => openMission(home.data.liveRideId)}>
           <Slab size={17} color={c.cream} shadow={null}>Mission en cours</Slab>
@@ -271,6 +282,7 @@ export function Radar({ notify }: { notify: Notify }) {
             >
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                 <Chip label={`≈ ${eurShort(o.netPerHourCents)}/h`} color={c.yel} />
+                {o.returnTrip ? <Chip label={`↩ Retour après R-${o.returnTrip.afterRef} · ${o.returnTrip.gapMin} min · ${o.returnTrip.km} km`} color={c.yel} /> : null}
                 {o.priceRising ? <Chip label="Prix en hausse ↗" color={c.cream} /> : null}
                 {o.ecoBonusCents > 0 ? <Chip label={`⚡ dont ${eurShort(o.ecoBonusCents)} prime électrique`} color="#3ddc84" /> : null}
                 <Chip label={`${o.durationMin} min · ${o.distanceKm} km`} />

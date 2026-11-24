@@ -3,8 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 import { adminBlobUrl, api, AdminSession, clearToken, dt, eur, getToken, getUser, login, setToken, setUser } from "../lib/api";
 import { PerformanceView } from "./perf";
 import { Recruitment } from "./recruitment";
+import { MeetingPoints } from "./meeting-points";
 
-type Tab = "rides" | "alerts" | "perf" | "drivers" | "recruitment" | "companies" | "partners" | "team" | "account";
+type Tab = "rides" | "alerts" | "perf" | "drivers" | "recruitment" | "meeting" | "companies" | "partners" | "team" | "account";
 const OPEN_FLIGHT = ["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
 const COLUMNS: { title: string; statuses: string[]; tone: string }[] = [
   { title: "À attribuer", statuses: ["DISPATCHING"], tone: "yel" },
@@ -610,7 +611,7 @@ export default function Home() {
   const isAdmin = user?.role === "ADMIN";
   const tabs: [Tab, string][] = [
     ["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"],
-    ...(isAdmin ? ([["recruitment", "Recrutement"], ["companies", "Sociétés"], ["partners", "Partenaires"], ["team", "Équipe"]] as [Tab, string][]) : []),
+    ...(isAdmin ? ([["recruitment", "Recrutement"], ["meeting", "Points de RDV"], ["companies", "Sociétés"], ["partners", "Partenaires"], ["team", "Équipe"]] as [Tab, string][]) : []),
   ];
   const nAlerts = (alerts.data?.length ?? 0) + (rescues.data?.length ?? 0) + (pendingIds.data?.length ?? 0) + (openInc.data?.length ?? 0);
   return (
@@ -633,6 +634,7 @@ export default function Home() {
         {tab === "perf" && <AdminPerformance />}
         {tab === "drivers" && <Drivers />}
         {isAdmin && tab === "recruitment" && <Recruitment />}
+        {isAdmin && tab === "meeting" && <MeetingPoints />}
         {isAdmin && tab === "companies" && <Companies />}
         {isAdmin && tab === "partners" && <Partners />}
         {isAdmin && tab === "team" && <Team />}

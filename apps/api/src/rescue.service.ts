@@ -70,6 +70,7 @@ export class RescueService {
       if (!eliteCheck({ ...c, completedRides }).listed) continue;
       if (!firstCompliant(c.vehicles, ride.category)) continue;
       if (await this.dispatch.hasOverlap(this.prisma, c.id, ride)) continue;
+      if (await this.dispatch.fatigueBlocked(this.prisma, c.id, ride)) continue; // garde-fou fatigue
       const km = c.lastLat != null && c.lastLng != null ? haversineKm({ lat: c.lastLat, lng: c.lastLng }, { lat: ride.pickupLat, lng: ride.pickupLng }) : null;
       out.push({ driverId: c.id, name: initials(c), rating: c.rating, completedRides, distanceKm: km == null ? null : Math.round(km * 10) / 10 });
     }
@@ -177,6 +178,7 @@ export class RescueService {
       const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: r.ride.category } }), r.ride.category);
       if (!vehicle) throw new HttpException("Aucun véhicule compatible et conforme", 409);
       if (await this.dispatch.hasOverlap(tx, driverId, r.ride)) throw new HttpException("Conflit avec une autre course de votre planning", 409);
+      if (await this.dispatch.fatigueBlocked(tx, driverId, r.ride)) throw new HttpException("Repos nécessaire : cette mission vous ferait dépasser le maximum d'heures de mission sur 24 h", 409);
       const claimed = await tx.rescueRequest.updateMany({ where: { id, status: "OPEN" }, data: { status: "ACCEPTED", rescuerId: driverId, resolvedAt: new Date() } });
       if (claimed.count !== 1) throw new HttpException("Appel déjà pris en charge", 409);
       const moved = await tx.ride.updateMany({

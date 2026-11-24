@@ -3,8 +3,10 @@ import { SlidingLimiter } from "./hardening";
 import { effectivePickup } from "./metrics";
 import { shareablePhoto } from "./identity.service";
 import { PrismaService } from "./prisma";
+import { MeetingPointService } from "./meeting-points";
 
 const ACTIVE = ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"];
+const MEET_STATUSES = ["CREATED", "CONFIRMED", "DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
 
 /**
  * Suivi voyageur : page publique accessible par un lien secret (jeton de 192 bits, non devinable), sans compte.
@@ -13,7 +15,7 @@ const ACTIVE = ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"];
  */
 @Controller("track")
 export class TrackingController {
-  constructor(@Inject(PrismaService) private prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private prisma: PrismaService, @Inject(MeetingPointService) private points: MeetingPointService) {}
   private limiter = new SlidingLimiter();
 
   /** Les liens de suivi sont publics : limite par adresse IP (la page se rafraîchit toutes les 10 s, soit 6 appels par minute). */
@@ -36,6 +38,8 @@ export class TrackingController {
     const { b, ride } = await this.find(token);
     const active = !!ride.driver && ACTIVE.includes(ride.status);
     const photo = active && ride.driverId ? await shareablePhoto(this.prisma, ride.driverId) : null;
+    // Point de rendez-vous validé près du lieu de prise en charge, tant que le voyageur n'est pas à bord.
+    const meet = MEET_STATUSES.includes(ride.status) ? await this.points.nearestApproved({ lat: ride.pickupLat, lng: ride.pickupLng }) : null;
     return {
       language: ["fr", "en"].includes(b.passengerLanguage) ? b.passengerLanguage : "en",
       reference: `R-${ride.ref}`,
@@ -53,6 +57,7 @@ export class TrackingController {
         plate: ride.vehicle?.plate ?? null,
         photoUrl: photo ? `/track/${token}/photo` : null,
       } : null,
+      meetingPoint: meet ? { label: meet.label, note: meet.note, photoUrl: `/track/${token}/meeting-point/${meet.id}` } : null,
     };
   }
 
@@ -63,5 +68,16 @@ export class TrackingController {
     const photo = ride.driverId && ACTIVE.includes(ride.status) ? await shareablePhoto(this.prisma, ride.driverId) : null;
     if (!photo) throw new HttpException("Photo indisponible", 404);
     res.set({ "Content-Type": photo.mime, "Cache-Control": "private, no-store", "Cross-Origin-Resource-Policy": "cross-origin" }).send(photo.image);
+  }
+
+  /** Photo du point de rendez-vous : seulement un point validé, et seulement celui qui correspond à ce trajet. */
+  @Get(":token/meeting-point/:id")
+  async meetingPhoto(@Param("token") token: string, @Param("id") id: string, @Req() req: any, @Res() res: any) {
+    this.throttle(req);
+    const { ride } = await this.find(token);
+    const meet = MEET_STATUSES.includes(ride.status) ? await this.points.nearestApproved({ lat: ride.pickupLat, lng: ride.pickupLng }) : null;
+    if (!meet || meet.id !== id) throw new HttpException("Photo indisponible", 404);
+    const p = await this.points.photo(id, true);
+    res.set({ "Content-Type": p.mime, "Cache-Control": "private, no-store", "Cross-Origin-Resource-Policy": "cross-origin" }).send(p.image);
   }
 }

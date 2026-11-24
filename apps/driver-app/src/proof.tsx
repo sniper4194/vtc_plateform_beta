@@ -1,7 +1,7 @@
 import { Camera, CameraView } from "expo-camera";
 import * as Location from "expo-location";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, Modal, Text, View } from "react-native";
+import { ActivityIndicator, Image, Modal, Text, TextInput, View } from "react-native";
 import ViewShot from "react-native-view-shot";
 import { api } from "./api";
 import { timeOf } from "./format";
@@ -69,7 +69,17 @@ function Stamp({ lines, header }: { lines: string[]; header: string }) {
 const W = 360, H = 480; // taille de travail de l'image composée ; exportée en 720 × 960
 
 /** Viseur : date, heure, adresse et position en direct par-dessus la caméra, puis le même cachet incrusté dans la photo. */
-export function ProofCamera({ rideId, rideRef, kind, onClose, notify, onSent }: { rideId: string; rideRef: string; kind: Kind; onClose: () => void; notify: Notify; onSent: () => void }) {
+/** Ce que la caméra transmet : l'image avec son cachet incrusté, et la position au moment de la prise de vue. */
+export interface Shot { image: string; lat: number; lng: number; accuracyM?: number; address?: string; capturedAt: string }
+
+/**
+ * Viseur horodaté. Par défaut, envoie une photo-preuve de mission ; avec `onSubmit`, l'image va ailleurs (point de rendez-vous…)
+ * et `onSubmit` renvoie le message à afficher.
+ */
+export function ProofCamera({ rideId, rideRef, kind, onClose, notify, onSent, header: headerText, label, onSubmit }: {
+  rideId?: string; rideRef: string; kind: Kind; onClose: () => void; notify: Notify; onSent: () => void;
+  header?: string; label?: string; onSubmit?: (s: Shot) => Promise<string>;
+}) {
   // Autorisation de la caméra : fonctions directes plutôt que le hook d'expo-camera. Sur certains PC (Windows + pnpm), le hook charge une
   // seconde copie de React et plante (« Cannot read properties of null (reading 'useRef') »).
   const [perm, setPerm] = useState<{ granted: boolean } | null>(null);
@@ -84,7 +94,7 @@ export function ProofCamera({ rideId, rideRef, kind, onClose, notify, onSent }: 
   const [busy, setBusy] = useState(false);
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
-  const header = stampHeader({ ref: rideRef, kind });
+  const header = headerText ?? stampHeader({ ref: rideRef, kind });
   const live = stampLines({ at: now, lat: fix?.lat ?? null, lng: fix?.lng ?? null, accuracyM: fix?.accuracyM, address: fix?.address });
 
   async function snap() {
@@ -104,10 +114,12 @@ export function ProofCamera({ rideId, rideRef, kind, onClose, notify, onSent }: 
     try {
       const image = await shot.current.capture(); // JPEG en base64, cachet incrusté
       if (!image) throw new Error("Image impossible à préparer");
-      const r = await api<any>(`/driver/rides/${rideId}/proofs`, {
-        kind, image, lat: pic.fix.lat, lng: pic.fix.lng, ...(pic.fix.accuracyM != null ? { accuracyM: pic.fix.accuracyM } : {}),
+      const payload: Shot = {
+        image, lat: pic.fix.lat, lng: pic.fix.lng, ...(pic.fix.accuracyM != null ? { accuracyM: pic.fix.accuracyM } : {}),
         ...(pic.fix.address ? { address: pic.fix.address } : {}), capturedAt: pic.at.toISOString(),
-      });
+      };
+      if (onSubmit) { notify(await onSubmit(payload), "ok"); onSent(); onClose(); return; }
+      const r = await api<any>(`/driver/rides/${rideId}/proofs`, { kind, ...payload });
       const warn = r.flags?.length ? ` · ${r.flags[0].label}` : "";
       notify(`Photo enregistrée à ${timeOf(r.receivedAt)} · à ${r.distanceToPickupM} m du lieu de prise en charge${warn}`, r.flags?.length ? "bad" : "ok");
       onSent(); onClose();
@@ -133,7 +145,7 @@ export function ProofCamera({ rideId, rideRef, kind, onClose, notify, onSent }: 
             </ViewShot>
             <View style={{ flexDirection: "row", gap: 12, width: W }}>
               <View style={{ flex: 1 }}><Btn label="Reprendre" onPress={() => setPic(null)} disabled={busy} /></View>
-              <View style={{ flex: 2 }}><Btn label={busy ? "Envoi…" : "Envoyer la preuve"} color={c.yel} onPress={send} disabled={busy || !loaded} /></View>
+              <View style={{ flex: 2 }}><Btn label={busy ? "Envoi…" : onSubmit ? "Envoyer la photo" : "Envoyer la preuve"} color={c.yel} onPress={send} disabled={busy || !loaded} /></View>
             </View>
           </View>
         ) : (
@@ -150,7 +162,7 @@ export function ProofCamera({ rideId, rideRef, kind, onClose, notify, onSent }: 
                 : fix.accuracyM != null && fix.accuracyM > 100 ? <Cond size={12} color={c.yel}>Position imprécise (±{Math.round(fix.accuracyM)} m) : sortez à l'air libre si possible.</Cond> : null}
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <View style={{ width: 110 }}><Btn label="Fermer" onPress={onClose} /></View>
-                <Chip label={PROOF_KIND_LABEL[kind]} color={c.yel} />
+                <Chip label={label ?? PROOF_KIND_LABEL[kind]} color={c.yel} />
                 <View style={{ width: 110 }}><Btn label={busy ? "…" : "Photo"} color={c.red} text={c.cream} onPress={snap} disabled={!fix || busy} /></View>
               </View>
             </View>
@@ -189,6 +201,51 @@ export function ProofSection({ rideId, rideRef, status, notify }: { rideId: stri
         <Modal visible animationType="slide" onRequestClose={() => setKind(null)}>
           <ErrorBoundary label="Photo-preuve" onClose={() => setKind(null)}>
             <ProofCamera rideId={rideId} rideRef={rideRef} kind={kind} onClose={() => setKind(null)} notify={notify} onSent={list.reload} />
+          </ErrorBoundary>
+        </Modal>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Point de rendez-vous : le chauffeur photographie l'endroit exact où il attend (porte, pilier, panneau). Une fois validé par
+ * l'équipe, la photo est montrée aux voyageurs dont la prise en charge est proche, sur leur lien de suivi.
+ */
+export function MeetingPointSection({ rideRef, status, notify }: { rideRef: string; status: string; notify: Notify }) {
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+  const [note, setNote] = useState("");
+  const [camera, setCamera] = useState(false);
+  if (!["EN_ROUTE", "ARRIVED"].includes(status)) return null;
+  const input = { fontFamily: font.slab, fontSize: 15, color: c.ink, paddingVertical: 6, borderBottomWidth: 2, borderColor: c.ink } as const;
+  return (
+    <View style={{ gap: 8 }}>
+      <Cond size={11} color={c.muted}>Point de rendez-vous</Cond>
+      {!open ? (
+        <Btn label="Photographier le point de rendez-vous" onPress={() => setOpen(true)} />
+      ) : (
+        <Card color={c.cream} style={{ gap: 8 }}>
+          <Cond size={12} color={c.muted}>Photographiez l'endroit exact où vous attendez : une fois validée par l'équipe, la photo aidera les voyageurs à vous trouver.</Cond>
+          <TextInput style={input} value={label} onChangeText={setLabel} placeholder="Ex. : Terminal 2E, porte 8" placeholderTextColor="#9a9ab0" maxLength={80} />
+          <TextInput style={input} value={note} onChangeText={setNote} placeholder="Indication (facultatif) : à droite du café…" placeholderTextColor="#9a9ab0" maxLength={300} />
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flex: 1 }}><Btn label="Annuler" onPress={() => setOpen(false)} /></View>
+            <View style={{ flex: 2 }}><Btn label="Prendre la photo" color={c.yel} disabled={label.trim().length < 3} onPress={() => setCamera(true)} /></View>
+          </View>
+        </Card>
+      )}
+      {camera && (
+        <Modal visible animationType="slide" onRequestClose={() => setCamera(false)}>
+          <ErrorBoundary label="Point de rendez-vous" onClose={() => setCamera(false)}>
+            <ProofCamera
+              rideRef={rideRef} kind="OTHER" header={`CliCab · Point de rendez-vous · ${label.trim()}`} label="Point de rendez-vous"
+              onClose={() => setCamera(false)} notify={notify} onSent={() => { setOpen(false); setLabel(""); setNote(""); }}
+              onSubmit={async (s) => {
+                await api("/driver/meeting-points", { label: label.trim(), ...(note.trim() ? { note: note.trim() } : {}), image: s.image, lat: s.lat, lng: s.lng, ...(s.accuracyM != null ? { accuracyM: s.accuracyM } : {}) });
+                return "Merci ! Le point sera montré aux voyageurs après validation par l'équipe.";
+              }}
+            />
           </ErrorBoundary>
         </Modal>
       )}

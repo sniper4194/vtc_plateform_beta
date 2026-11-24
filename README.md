@@ -263,3 +263,10 @@ Consultation : le partenaire (`GET /v1/bookings/{id}/proofs`, événement `ride.
 ## Mise en ligne, essai réel et surveillance
 
 Guide pas à pas : [docs/MISE_EN_LIGNE.md](docs/MISE_EN_LIGNE.md). Le script `scripts/golive.mjs` fait l'essai réel (serveur, vrai SMS, chauffeur, missions). Surveillance : alertes (`ERROR_WEBHOOK_URL`) pour les erreurs 5xx, les tâches de fond et les plantages de l'application chauffeur ; contrôle hebdomadaire de restauration des sauvegardes (`infra/backup-check.sh`, `infra/restore-drill.sh`).
+
+## Idées terrain (lot 1)
+
+- **Point de rendez-vous photographié** : depuis une mission (en route ou sur place), le chauffeur photographie l'endroit exact où il attend, avec un libellé (« Terminal 2E, porte 8 ») et une indication. L'équipe valide dans l'onglet **Points de RDV** ; la photo apparaît ensuite sur le lien de suivi des voyageurs dont la prise en charge est à moins de 500 m (`MEETING_POINT_RADIUS_M`).
+- **Accueil traduit** : dans la mission, une carte de bienvenue dans la langue du voyageur (anglais, espagnol, allemand, italien, portugais, néerlandais ; anglais à défaut), avec la traduction française en petit pour le chauffeur.
+- **Garde-fou fatigue** : au-delà de `FATIGUE_MAX_MISSION_HOURS` (10 h par défaut, à confirmer) de mission sur n'importe quelle période de 24 h, plus aucune offre n'est proposée ni attribuée, y compris en sauveteur. L'écran d'accueil prévient à partir de 80 %. Le temps compté est une estimation (trajet + marge entre deux courses), pas un relevé de conduite.
+- **Missions de retour** : une offre qui part à moins de 3 km (`RETURN_RADIUS_KM`) de l'arrivée d'une mission prévue, dans les 2 h (`RETURN_WINDOW_MIN`), est signalée « ↩ Retour » et passe en tête ; le dispatch sert ces chauffeurs en priorité.

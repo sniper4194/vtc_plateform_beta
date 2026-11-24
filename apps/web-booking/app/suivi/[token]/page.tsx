@@ -70,6 +70,15 @@ export default function Suivi({ params }: { params: Promise<{ token: string }> }
         </section>
       )}
 
+      {data.meetingPoint && (
+        <section className="card meet">
+          <h2>{t.meetTitle}</h2>
+          <img src={`${API_URL}${data.meetingPoint.photoUrl}`} alt={`${t.meetAlt} : ${data.meetingPoint.label}`} />
+          <b>{data.meetingPoint.label}</b>
+          {data.meetingPoint.note && <p className="small">{data.meetingPoint.note}</p>}
+        </section>
+      )}
+
       {f && (
         <section className={`card flight ${f.status === "CANCELLED" ? "bad" : ""}`}>
           <h2>{t.flight} {f.number}</h2>
