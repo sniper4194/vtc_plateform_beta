@@ -12,6 +12,7 @@ export default defineConfig({
       VEHICLE_RULES: "0", // les tests de parcours créent des véhicules sans caractéristiques ; le contrôle est testé explicitement
       PRICE_LADDER: "0", // les tests de parcours supposent un prix stable ; l'échelle est testée explicitement
       RESCUE_WAVE_SEC: "0", // les tests d'appel à tous supposent une diffusion simultanée ; les vagues par proximité sont testées explicitement
+      TRACK_IP_PER_MIN: "100000", // la limite par IP des liens de suivi est testée explicitement
       DRIVER_DEV_OTP: "000000", // les tests de parcours se connectent avec le code de dév ; les tests OTP le retirent
     },
     fileParallelism: false,

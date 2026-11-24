@@ -807,6 +807,17 @@ describe("vérification d'identité par selfie", () => {
     }
   });
 
+  it("les liens de suivi publics sont limités par adresse IP", async () => {
+    const unknown = `${base}/track/${"a".repeat(32)}`;
+    expect((await fetch(unknown)).status).toBe(404); // limite très haute dans les tests : passe
+    process.env.TRACK_IP_PER_MIN = "1";
+    try {
+      const r = await fetch(unknown);
+      expect(r.status).toBe(429);
+      expect((await r.json()).message).toMatch(/Trop de requêtes/);
+    } finally { process.env.TRACK_IP_PER_MIN = "100000"; }
+  });
+
   it("un selfie qui ne correspond pas à la référence suspend le compte (prêt de compte) ; refuse un fichier qui n'est pas une image", async () => {
     const d = await mkDriver();
     on();

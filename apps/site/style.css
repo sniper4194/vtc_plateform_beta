@@ -145,3 +145,8 @@ details.dev[open] summary::before{content:"− "}
 details.dev summary:focus-visible{outline:3px solid var(--dblue);outline-offset:3px}
 details.dev pre{margin-top:20px}
 @media (max-width:960px){.flow{grid-template-columns:1fr;gap:34px}.flow li:not(:last-child)::after{content:"↓";right:auto;left:50%;top:auto;bottom:-34px;transform:translateX(-50%)}}
+
+/* Utilitaires (remplacent les styles écrits dans les pages, pour une politique de sécurité du contenu stricte) */
+.tc{text-align:center}
+.mt12{margin-top:12px}.mt20{margin-top:20px}.mt28{margin-top:28px}.mt34{margin-top:34px}
+.stage.tall{min-height:560px}

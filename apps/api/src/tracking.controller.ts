@@ -1,4 +1,5 @@
-import { Controller, Get, HttpException, Inject, Param, Res } from "@nestjs/common";
+import { Controller, Get, HttpException, Inject, Param, Req, Res } from "@nestjs/common";
+import { SlidingLimiter } from "./hardening";
 import { effectivePickup } from "./metrics";
 import { shareablePhoto } from "./identity.service";
 import { PrismaService } from "./prisma";
@@ -13,6 +14,13 @@ const ACTIVE = ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"];
 @Controller("track")
 export class TrackingController {
   constructor(@Inject(PrismaService) private prisma: PrismaService) {}
+  private limiter = new SlidingLimiter();
+
+  /** Les liens de suivi sont publics : limite par adresse IP (la page se rafraîchit toutes les 10 s, soit 6 appels par minute). */
+  private throttle(req: any) {
+    const max = Number(process.env.TRACK_IP_PER_MIN) || 60;
+    if (!this.limiter.allow(req.ip ?? "?", max)) throw new HttpException("Trop de requêtes, réessayez dans une minute", 429);
+  }
 
   private async find(token: string) {
     if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) throw new HttpException("Lien de suivi introuvable", 404);
@@ -23,7 +31,8 @@ export class TrackingController {
   }
 
   @Get(":token")
-  async get(@Param("token") token: string) {
+  async get(@Param("token") token: string, @Req() req: any) {
+    this.throttle(req);
     const { b, ride } = await this.find(token);
     const active = !!ride.driver && ACTIVE.includes(ride.status);
     const photo = active && ride.driverId ? await shareablePhoto(this.prisma, ride.driverId) : null;
@@ -48,7 +57,8 @@ export class TrackingController {
   }
 
   @Get(":token/photo")
-  async photo(@Param("token") token: string, @Res() res: any) {
+  async photo(@Param("token") token: string, @Req() req: any, @Res() res: any) {
+    this.throttle(req);
     const { ride } = await this.find(token);
     const photo = ride.driverId && ACTIVE.includes(ride.status) ? await shareablePhoto(this.prisma, ride.driverId) : null;
     if (!photo) throw new HttpException("Photo indisponible", 404);

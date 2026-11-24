@@ -55,6 +55,11 @@ async function demoCompany(): Promise<void> {
 }
 
 async function main() {
+  // Garde-fou : ce script crée des comptes de démonstration avec des codes et une clé connus. Jamais contre un vrai serveur.
+  const host = new URL(API).hostname;
+  if (!["localhost", "127.0.0.1", "::1"].includes(host) && process.env.ALLOW_REMOTE_DEMO !== "1") {
+    throw new Error(`Refusé : ${host} n'est pas un serveur local. Ce script crée des comptes de démonstration (code 000000, clé connue) et ne doit jamais viser un serveur réel.`);
+  }
   try { await call("/health"); } catch { throw new Error(`L'API ne répond pas sur ${API}. Lancez-la d'abord : pnpm -F @vtc/api dev:demo`); }
 
   // Chauffeur déjà créé lors d'un lancement précédent ? On le réutilise (évite aussi une erreur de doublon dans les journaux de l'API).

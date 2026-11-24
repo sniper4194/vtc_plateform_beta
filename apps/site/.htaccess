@@ -1,0 +1,48 @@
+# Sécurité du site CliCab (Apache / LiteSpeed).
+# Chaque bloc est conditionné à la présence de son module : si un module manque, le bloc est ignoré et le site continue de fonctionner.
+
+Options -Indexes -MultiViews
+ErrorDocument 404 /404.html
+ErrorDocument 403 /404.html
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+# 1. HTTPS obligatoire (sans boucle si le certificat est géré en amont : on lit aussi X-Forwarded-Proto)
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# 2. www.clicab.fr redirige vers clicab.fr
+RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+# 3. Aucun accès aux fichiers et dossiers cachés (sauf .well-known, pour security.txt)
+RewriteRule (^|/)\.(?!well-known/) - [F,L]
+</IfModule>
+
+# Fichiers qui n'ont rien à faire sur un site public : archives de déploiement, sauvegardes, configuration, journaux.
+<IfModule mod_authz_core.c>
+<FilesMatch "\.(zip|tar|gz|tgz|sql|bak|old|orig|swp|env|ini|log|md|lock|yml|yaml)$">
+Require all denied
+</FilesMatch>
+</IfModule>
+
+<IfModule mod_headers.c>
+# HSTS : 1 jour pour commencer. Une fois HTTPS vérifié sur tout le site, passer à 31536000 (1 an).
+Header always set Strict-Transport-Security "max-age=86400"
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "DENY"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+Header always set Cross-Origin-Opener-Policy "same-origin"
+Header always set Cross-Origin-Resource-Policy "same-origin"
+# Politique de sécurité du contenu : le site n'utilise que ses propres fichiers (aucun script, aucune ressource externe).
+Header always set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests"
+Header always unset X-Powered-By
+</IfModule>
+
+<IfModule mod_expires.c>
+ExpiresActive On
+ExpiresByType font/woff2 "access plus 1 year"
+ExpiresByType application/font-woff2 "access plus 1 year"
+ExpiresByType image/jpeg "access plus 1 week"
+ExpiresByType text/css "access plus 1 week"
+</IfModule>

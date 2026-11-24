@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
+import { securityHeaders } from "./hardening";
 
 export function checkEnv(env = process.env) {
   if (env.NODE_ENV === "production") {
@@ -21,6 +22,8 @@ async function bootstrap() {
   if (process.env.TRUST_PROXY) (app as any).set("trust proxy", Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
   // Les selfies de vérification d'identité sont envoyés en base64 (400 Ko max décodés) : la limite par défaut (100 Ko) est trop basse.
   (app as any).useBodyParser("json", { limit: "1mb" });
+  (app as any).disable?.("x-powered-by"); // ne pas annoncer la technologie du serveur
+  app.use(securityHeaders());
   app.enableShutdownHooks();
   await app.listen(Number(process.env.PORT ?? 3000));
 }

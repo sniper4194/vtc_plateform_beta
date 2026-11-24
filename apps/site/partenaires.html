@@ -12,7 +12,7 @@
 <meta property="og:description" content="L’API CliCab pour agences, hôtels et plateformes de réservation : devis à prix fixe, réservation, webhooks signés, suivi du voyageur et de son vol.">
 <meta property="og:locale" content="fr_FR">
 <meta name="theme-color" content="#0b2a4a">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <a class="skip" href="#contenu">Aller au contenu</a>
@@ -55,12 +55,12 @@
   <p class="kicker">Un aperçu</p>
   <h2>Un devis, puis une réservation.</h2>
   <p class="lead">Trois étapes, toutes accessibles par API. Les adresses, champs et réponses exacts figurent dans la spécification, remise aux partenaires.</p>
-  <ol class="flow" style="margin-top:34px">
+  <ol class="flow mt34">
    <li class="card"><span class="num">1</span><h3>Vous demandez un devis</h3><p>Votre système envoie le trajet, l’heure et le nombre de passagers.</p></li>
    <li class="card"><span class="num">2</span><h3>Vous recevez un prix fixe</h3><p>Un prix en euros, TTC, annoncé avant la réservation. Vous confirmez : la réservation est créée.</p></li>
    <li class="card"><span class="num">3</span><h3>Vous suivez le trajet</h3><p>Chauffeur attribué, en route, arrivé, course terminée : vous recevez chaque étape, et le voyageur aussi.</p></li>
   </ol>
-  <ul class="ticks" style="margin-top:28px"><li>Authentification par clé d’API</li><li>Référence courte commune au voyageur, au partenaire et au chauffeur</li></ul>
+  <ul class="ticks mt28"><li>Authentification par clé d’API</li><li>Référence courte commune au voyageur, au partenaire et au chauffeur</li></ul>
   <details class="dev">
    <summary>Pour les développeurs : voir un exemple de requête</summary>
    <pre aria-label="Exemple de requête de devis"><code>POST /v1/quotes
