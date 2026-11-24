@@ -10,6 +10,8 @@ const indent = (text) => text.replace(/\s+$/, "").split("\n").map((l) => (l ? " 
 const literal = (text) => text.replace(/\$/g, "$$$$");
 const out = readFileSync(join(dir, "docker-compose.vps.template.yml"), "utf8")
   .replace("__CADDYFILE__", () => indent(literal(readFileSync(join(dir, "Caddyfile.vps"), "utf8"))))
-  .replace("__BACKUP__", () => indent(literal(readFileSync(join(dir, "backup.sh"), "utf8"))));
+  .replace("__BACKUP__", () => indent(literal(readFileSync(join(dir, "backup.sh"), "utf8"))))
+  .replace("__CHECK__", () => indent(literal(readFileSync(join(dir, "backup-check.sh"), "utf8"))))
+  .replace("__RESTORE__", () => indent(literal(readFileSync(join(dir, "restore-drill.sh"), "utf8"))));
 writeFileSync(join(dir, "docker-compose.vps.yml"), out);
 console.log("infra/docker-compose.vps.yml écrit");

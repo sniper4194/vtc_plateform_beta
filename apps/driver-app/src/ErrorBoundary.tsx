@@ -1,5 +1,6 @@
 import { Component, ReactNode } from "react";
 import { ScrollView, Text, View } from "react-native";
+import { reportCrash } from "./crashReport";
 import { c, font } from "./theme";
 import { Btn, Card, Display } from "./ui";
 
@@ -10,7 +11,7 @@ import { Btn, Card, Display } from "./ui";
 export class ErrorBoundary extends Component<{ children: ReactNode; onClose?: () => void; label?: string }, { error: Error | null }> {
   state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) { return { error }; }
-  componentDidCatch(error: Error) { console.warn(`[${this.props.label ?? "app"}]`, error?.message); }
+  componentDidCatch(error: Error) { console.warn(`[${this.props.label ?? "app"}]`, error?.message); reportCrash(error, this.props.label, true); }
   render() {
     const e = this.state.error;
     if (!e) return this.props.children;

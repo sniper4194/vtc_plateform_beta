@@ -51,6 +51,7 @@ services:
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
       PRICE_LADDER: ${PRICE_LADDER:-1}
       ECO_BONUS_PERCENT: ${ECO_BONUS_PERCENT:-}
+      ERROR_WEBHOOK_URL: ${ERROR_WEBHOOK_URL:-}
       LADDER_START_RATIO: ${LADDER_START_RATIO:-0.85}
       LADDER_FROM_MIN: ${LADDER_FROM_MIN:-1440}
       LADDER_TO_MIN: ${LADDER_TO_MIN:-60}
@@ -104,6 +105,26 @@ services:
     volumes:
       - ./backup.sh:/backup.sh:ro
       - backups:/backups
+
+  # Contrôle hebdomadaire des sauvegardes : restaure la plus récente dans une base temporaire et alerte (ERROR_WEBHOOK_URL) en cas d'échec.
+  backup-check:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGHOST: db
+      PGUSER: vtc
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: vtc
+      ERROR_WEBHOOK_URL: ${ERROR_WEBHOOK_URL:-}
+      BACKUP_CHECK_INTERVAL_HOURS: ${BACKUP_CHECK_INTERVAL_HOURS:-168}
+    entrypoint: ["sh", "/backup-check.sh"]
+    volumes:
+      - ./backup-check.sh:/backup-check.sh:ro
+      - ./restore-drill.sh:/restore-drill.sh:ro
+      - backups:/backups:ro
 
   caddy:
     image: caddy:2-alpine

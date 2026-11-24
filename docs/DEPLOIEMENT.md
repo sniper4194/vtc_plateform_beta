@@ -28,6 +28,8 @@ Le service `backup` du compose sauvegarde la base toutes les 24 h (`BACKUP_INTER
 ```bash
 docker compose -f infra/docker-compose.prod.yml cp backup:/backups ./sauvegardes-$(date +%F)
 ```
+Le service `backup-check` restaure automatiquement la dernière sauvegarde dans une base temporaire chaque semaine et alerte en cas d'échec (voir [MISE_EN_LIGNE.md](MISE_EN_LIGNE.md)).
+
 Restauration (à **tester** avant tout trafic réel) :
 ```bash
 docker compose -f infra/docker-compose.prod.yml stop api

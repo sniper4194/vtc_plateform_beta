@@ -8,6 +8,7 @@ import { RozhaOne_400Regular } from "@expo-google-fonts/rozha-one";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, TextInput, View } from "react-native";
 import { api, getApiUrl, loadApiUrl, loadToken, saveApiUrl, saveToken } from "./src/api";
+import { reportCrash } from "./src/crashReport";
 import { ErrorBoundary } from "./src/ErrorBoundary";
 import { SpotPrompt } from "./src/identity";
 import { MissionScreen } from "./src/mission";
@@ -196,6 +197,13 @@ function Root() {
       </View>
     </SafeAreaView>
   );
+}
+
+// Erreurs JavaScript hors affichage (événements, promesses…) : signalées à l'équipe avant de laisser le comportement habituel.
+const errorUtils = (globalThis as any).ErrorUtils;
+if (errorUtils?.setGlobalHandler) {
+  const previous = errorUtils.getGlobalHandler?.();
+  errorUtils.setGlobalHandler((e: unknown, isFatal?: boolean) => { reportCrash(e, "global", Boolean(isFatal)); previous?.(e, isFatal); });
 }
 
 export default function App() {

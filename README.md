@@ -259,3 +259,7 @@ Certaines plateformes ne paient un client absent ou un excédent de bagages que 
 Le serveur enregistre en plus, sans que le téléphone puisse les modifier : l'**heure de réception** (qui fait foi), la position, la **distance au lieu de prise en charge** et l'**empreinte SHA-256** de l'image. La preuve n'est pas refusée si la position est éloignée (> 300 m) ou imprécise (> 100 m), ou si l'heure du téléphone diffère de plus de 5 min de celle du serveur : elle est **signalée**, et le partenaire en juge. Réglages : `PROOF_MAX_DISTANCE_M`, `PROOF_MAX_ACCURACY_M`, `PROOF_CLOCK_TOLERANCE_SEC`, `PROOF_MAX_PER_RIDE` (10), `PROOF_MAX_BYTES`.
 
 Consultation : le partenaire (`GET /v1/bookings/{id}/proofs`, événement `ride.proof_added`), l'équipe (bouton « Preuves du chauffeur » sur la mission du back-office). Limites : l'adresse est lue par le téléphone (service de géocodage du système, absent sur le web) ; une preuve ne remplace pas l'accord du partenaire sur ce qu'il accepte comme justificatif. Nécessite l'APK reconstruit (nouveaux modules caméra et capture d'écran).
+
+## Mise en ligne, essai réel et surveillance
+
+Guide pas à pas : [docs/MISE_EN_LIGNE.md](docs/MISE_EN_LIGNE.md). Le script `scripts/golive.mjs` fait l'essai réel (serveur, vrai SMS, chauffeur, missions). Surveillance : alertes (`ERROR_WEBHOOK_URL`) pour les erreurs 5xx, les tâches de fond et les plantages de l'application chauffeur ; contrôle hebdomadaire de restauration des sauvegardes (`infra/backup-check.sh`, `infra/restore-drill.sh`).

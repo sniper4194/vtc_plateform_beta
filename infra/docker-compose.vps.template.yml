@@ -55,6 +55,7 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:-}
       PRICE_LADDER: ${PRICE_LADDER:-1}
       ECO_BONUS_PERCENT: ${ECO_BONUS_PERCENT:-}
+      ERROR_WEBHOOK_URL: ${ERROR_WEBHOOK_URL:-}
       IDENTITY_CHECKS: ${IDENTITY_CHECKS:-1}
       IDENTITY_SPOT: ${IDENTITY_SPOT:-1}
       VEHICLE_RULES: ${VEHICLE_RULES:-1}
@@ -103,6 +104,27 @@ services:
         target: /backup.sh
     volumes: [backups:/backups]
 
+  backup-check:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGHOST: db
+      PGUSER: vtc
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: vtc
+      ERROR_WEBHOOK_URL: ${ERROR_WEBHOOK_URL:-}
+      BACKUP_CHECK_INTERVAL_HOURS: ${BACKUP_CHECK_INTERVAL_HOURS:-168}
+    entrypoint: ["sh", "/backup-check.sh"]
+    configs:
+      - source: backup_check_sh
+        target: /backup-check.sh
+      - source: restore_drill_sh
+        target: /restore-drill.sh
+    volumes: [backups:/backups:ro]
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -125,6 +147,12 @@ __CADDYFILE__
   backup_sh:
     content: |
 __BACKUP__
+  backup_check_sh:
+    content: |
+__CHECK__
+  restore_drill_sh:
+    content: |
+__RESTORE__
 
 volumes:
   dbdata:
