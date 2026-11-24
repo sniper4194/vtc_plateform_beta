@@ -11,7 +11,7 @@ FIRST="${BACKUP_CHECK_FIRST_DELAY_MIN:-60}"
 DRILL="${RESTORE_DRILL:-/restore-drill.sh}" # emplacement du script de restauration (dans le conteneur : /restore-drill.sh)
 alert() {
   [ -n "${ERROR_WEBHOOK_URL:-}" ] || return 0
-  wget -q -T 10 -O /dev/null --header='Content-Type: application/json' --post-data="{\"text\":\"$1\"}" "$ERROR_WEBHOOK_URL" || echo "alerte non envoyée"
+  wget -q -T 10 -O /dev/null --header='Content-Type: application/json' --post-data="{\"text\":\"$1\",\"content\":\"$1\"}" "$ERROR_WEBHOOK_URL" || echo "alerte non envoyée"
 }
 sleep "$((FIRST * 60))"
 while true; do

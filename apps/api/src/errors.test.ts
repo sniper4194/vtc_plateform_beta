@@ -27,6 +27,7 @@ describe("rapport d'erreur", () => {
     expect(await r.report({ source: "api", message: "a" }, 1000)).toBe(true);
     expect(f.mock.calls[0][0]).toBe("https://hooks.example/abc");
     expect(JSON.parse(f.mock.calls[0][1].body).text).toContain("[api] a");
+    expect(JSON.parse(f.mock.calls[0][1].body).content).toBe(JSON.parse(f.mock.calls[0][1].body).text); // Discord
     expect(await r.report({ source: "api", message: "a" }, 2000)).toBe(false); // doublon
     expect(await r.report({ source: "api", message: "b" }, 2000)).toBe(true); // autre message
     expect(await r.report({ source: "api", message: "a" }, 1000 + 11 * 60_000)).toBe(true); // fenêtre écoulée

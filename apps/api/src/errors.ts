@@ -3,11 +3,14 @@ import { BaseExceptionFilter } from "@nestjs/core";
 
 /**
  * Suivi des erreurs sans service tiers : chaque erreur grave est écrite dans les journaux et, si ERROR_WEBHOOK_URL est définie,
- * envoyée à ce lien (Slack, Discord ou Mattermost : le message est un simple `{ "text": "…" }`).
+ * envoyée à ce lien (Slack, Discord ou Mattermost : le message porte `text` pour Slack et Mattermost, `content` pour Discord).
  * Un même message n'est envoyé qu'une fois par fenêtre (ERROR_DEDUPE_MIN, 10 minutes par défaut) pour ne pas noyer l'équipe.
  * Aucun contenu de requête, jeton ni donnée personnelle n'est transmis : source, message, trace courte, et le contexte fourni.
  */
 export interface ErrorReport { source: string; message: string; stack?: string; context?: Record<string, string | number | null | undefined> }
+
+/** Slack et Mattermost lisent `text`, Discord lit `content` (et refuse un message sans) : on envoie les deux. */
+export const alertBody = (text: string) => ({ text, content: text });
 
 export function formatReport(r: ErrorReport): string {
   const ctx = Object.entries(r.context ?? {}).filter(([, v]) => v != null && v !== "").map(([k, v]) => `${k}=${v}`).join(" · ");
@@ -35,7 +38,7 @@ export class ErrorReporter {
     this.seen.set(key, now);
     if (this.seen.size > 500) for (const [k, t] of this.seen) if (now - t > windowMs) this.seen.delete(k);
     try {
-      const res = await this.fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: formatReport(r) }), signal: AbortSignal.timeout(5000) });
+      const res = await this.fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(alertBody(formatReport(r))), signal: AbortSignal.timeout(5000) });
       return res.ok;
     } catch { return false; } // le suivi ne doit jamais faire tomber l'application
   }
