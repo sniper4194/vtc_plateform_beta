@@ -714,7 +714,10 @@ describe("vérification d'identité par selfie", () => {
       expect(sent.mail).toHaveLength(1);
       expect(sent.mail[0]).toMatchObject({ to: "ana@exemple.fr" });
       expect(sent.mail[0].text).toContain(res.json.trackingUrl);
-      expect((await prisma.booking.findUniqueOrThrow({ where: { id: res.json.id } })).trackingSentAt).not.toBeNull();
+      // La date d'envoi est écrite APRÈS l'envoi (tâche de fond) : l'attendre au lieu de la lire tout de suite (échec intermittent en CI).
+      let sentAt: Date | null = null;
+      for (let i = 0; i < 40 && !sentAt; i++) { sentAt = (await prisma.booking.findUniqueOrThrow({ where: { id: res.json.id } })).trackingSentAt; if (!sentAt) await new Promise((r) => setTimeout(r, 50)); }
+      expect(sentAt).not.toBeNull();
       // rejeu idempotent de la même réservation : pas de second envoi
       await mkBooking(p, {}, "trk-1", { passenger: pass });
       await new Promise((r) => setTimeout(r, 200));
