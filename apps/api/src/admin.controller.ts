@@ -78,14 +78,20 @@ export class AdminController {
   @AdminOnly()
   async createDriver(@Body() body: unknown) {
     const d = parse(DriverCreateSchema, body);
-    return this.prisma.driver.create({
-      data: {
-        firstName: d.firstName, lastName: d.lastName, phone: d.phone, email: d.email,
-        businessName: d.businessName, siret: d.siret, revtcNumber: d.revtcNumber, proCardNumber: d.proCardNumber,
-        vehicles: d.vehicle ? { create: d.vehicle } : undefined,
-      },
-      include: { vehicles: true },
-    });
+    try {
+      return await this.prisma.driver.create({
+        data: {
+          firstName: d.firstName, lastName: d.lastName, phone: d.phone, email: d.email,
+          businessName: d.businessName, siret: d.siret, revtcNumber: d.revtcNumber, proCardNumber: d.proCardNumber,
+          vehicles: d.vehicle ? { create: d.vehicle } : undefined,
+        },
+        include: { vehicles: true },
+      });
+    } catch (e) {
+      // Doublon (téléphone, e-mail ou plaque) : réponse claire au lieu d'une erreur 500.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new HttpException(`Déjà utilisé : ${([] as string[]).concat((e.meta?.target as any) ?? []).join(", ") || "téléphone, e-mail ou plaque"}`, 409);
+      throw e;
+    }
   }
 
   @Get("drivers")

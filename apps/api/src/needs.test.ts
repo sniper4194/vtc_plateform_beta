@@ -93,3 +93,14 @@ describe("besoins particuliers", () => {
     expect(r.status).toBe(422);
   });
 });
+
+describe("création d'un chauffeur en double", () => {
+  it("répond 409 (et non 500) si le téléphone est déjà utilisé", async () => {
+    const body = { firstName: "Ines", lastName: "Varga", phone: "+33600099001", email: "ines.varga@test.fr" };
+    expect((await call("/admin/drivers", { admin: true, body })).status).toBe(201);
+    const again = await call("/admin/drivers", { admin: true, body: { ...body, email: "autre@test.fr" } });
+    expect(again.status).toBe(409);
+    expect(again.json.message).toMatch(/Déjà utilisé/);
+  });
+});
+

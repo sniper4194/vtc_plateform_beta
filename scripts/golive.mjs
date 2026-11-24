@@ -20,10 +20,11 @@ process.on("uncaughtException", (e) => {
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 const ok = (m) => console.log(`✔ ${m}`);
 
-async function call(path, { method, token, body, headers } = {}) {
+// Le jeton de service n'est envoyé qu'aux routes d'administration : jamais à /health ou /ready (il finirait dans les journaux du proxy en cas de panne).
+async function call(path, { method, token, body, headers, anonymous } = {}) {
   const res = await fetch(API + path, {
     method: method ?? (body !== undefined ? "POST" : "GET"),
-    headers: { "content-type": "application/json", ...headers, ...(token ? { authorization: `Bearer ${token}` } : { "x-admin-token": ADMIN_TOKEN }) },
+    headers: { "content-type": "application/json", ...headers, ...(token ? { authorization: `Bearer ${token}` } : anonymous ? {} : { "x-admin-token": ADMIN_TOKEN }) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -34,9 +35,9 @@ async function call(path, { method, token, body, headers } = {}) {
 const inDays = (d) => new Date(Date.now() + d * 86400_000).toISOString();
 
 // 1. Serveur joignable et base connectée
-const health = await call("/health").catch((e) => { console.error(`✗ Serveur injoignable : ${e.message}`); process.exit(1); });
+const health = await call("/health", { anonymous: true }).catch((e) => { console.error(`✗ Serveur injoignable : ${e.message}`); process.exit(1); });
 ok(`serveur joignable (${JSON.stringify(health)})`);
-const ready = await call("/ready").catch(() => null);
+const ready = await call("/ready", { anonymous: true }).catch(() => null);
 ok(ready ? "base de données connectée" : "⚠ /ready ne répond pas : vérifiez la base de données");
 
 // 2. Compte administrateur
@@ -47,13 +48,17 @@ catch (e) { if (e.status === 409) ok(`compte administrateur déjà présent : ${
 const partner = await call("/admin/partners", { body: { name: "Partenaire de test" } });
 ok("partenaire de test créé");
 
-// 4. Chauffeur à votre numéro
+// 4. Chauffeur à votre numéro (repris s'il existe déjà : le script peut être relancé après un échec)
 const stamp = String(Date.now()).slice(-5);
-let driver;
-try {
-  driver = await call("/admin/drivers", { body: { firstName: "Testeur", lastName: "CliCab", phone: PHONE, email: `testeur${stamp}@example.com`, vehicle: { plate: `TS-${stamp.slice(0, 3)}-AB`, make: "Toyota", model: "Camry", category: "BERLINE" } } });
-  ok(`chauffeur créé pour ${driver.phone}`);
-} catch (e) { console.error(`✗ Création du chauffeur : ${e.message}\n  (numéro déjà utilisé ? relancez avec un autre GOLIVE_PHONE)`); process.exit(1); }
+const e164 = (p) => { const d = p.replace(/[\s.()-]/g, ""); return d.startsWith("+") ? d : d.startsWith("00") ? "+" + d.slice(2) : /^0\d{9}$/.test(d) ? "+33" + d.slice(1) : d; };
+let driver = (await call("/admin/drivers")).find((d) => d.phone === e164(PHONE));
+if (driver) ok(`chauffeur déjà présent pour ${driver.phone} : on le reprend`);
+else {
+  try {
+    driver = await call("/admin/drivers", { body: { firstName: "Testeur", lastName: "CliCab", phone: PHONE, email: `testeur${stamp}@example.com`, vehicle: { plate: `TS-${stamp.slice(0, 3)}-AB`, make: "Toyota", model: "Camry", category: "BERLINE" } } });
+    ok(`chauffeur créé pour ${driver.phone}`);
+  } catch (e) { console.error(`✗ Création du chauffeur : ${e.message}`); process.exit(1); }
+}
 
 // 5. VRAI SMS : le chauffeur se connecte comme dans l'application
 console.log(`\n▶ Envoi d'un SMS au ${driver.phone}…`);
@@ -68,7 +73,7 @@ for (const type of ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"]) {
   const d = await call("/driver/documents", { token: login.token, body: { type, storageKey: `golive/${type}` } });
   await call(`/admin/documents/${d.id}/review`, { body: { status: "APPROVED" } });
 }
-await call(`/admin/drivers/${driver.id}/approve`, { body: {} }).catch((e) => { console.error(`✗ Validation du chauffeur : ${e.message}`); process.exit(1); });
+if (driver.status !== "ACTIVE") await call(`/admin/drivers/${driver.id}/approve`, { body: {} }).catch((e) => { console.error(`✗ Validation du chauffeur : ${e.message}`); process.exit(1); });
 ok("chauffeur validé (documents de test)");
 
 // 7. Deux missions à prendre
