@@ -38,7 +38,7 @@ Démo : chauffeur `06 00 00 00 01` code `000000` ; admin `demo@clicab.local` / `
 
 ## Avant de dire « c'est fait »
 1. `pnpm -F @vtc/api test`, `pnpm -F @vtc/driver-app test`, `pnpm -F @vtc/web-booking test`, `pnpm -r typecheck` : tous verts.
-2. **Chaîner avec `&&`, jamais `;`** : ne pas commiter après un test en échec.
+2. **Chaîner avec `&&`, jamais `;`** : ne pas commiter après un test en échec. **Attention aux tubes** : `pnpm test | grep …` renvoie le code de `grep`, pas celui des tests ; commencer par `set -o pipefail` (un commit a été fait par erreur avec un test rouge).
 3. **Après chaque envoi, vérifier la CI GitHub** (workflow « CI » et « APK chauffeur ») et corriger si elle est rouge. Une CI rouge est restée inaperçue pendant des heures.
 4. Un changement d'interface se vérifie dans un vrai navigateur (Playwright) avec le vrai serveur, pas seulement par typecheck.
 5. L'utilisateur est sous **Windows** : ce qui marche sous Linux peut casser là-bas. Dire explicitement ce qui n'a pas été essayé sur son environnement.
@@ -49,6 +49,7 @@ Démo : chauffeur `06 00 00 00 01` code `000000` ; admin `demo@clicab.local` / `
 - **React 19 (Next) et React 18 (Expo)** cohabitent : l'app chauffeur importe ses types React explicitement (`import type { ReactNode } from "react"`) et fixe `typeRoots`. Ne pas utiliser `React.ReactNode` global.
 - **Pas de hooks fournis par les modules Expo** (ex. `useCameraPermissions`) : sous Windows + pnpm ils chargent une seconde copie de React et plantent (`reading 'useRef'`). Utiliser les fonctions directes (`Camera.requestCameraPermissionsAsync`).
 - **Ordre des contrôleurs Nest** : `driver/rides/:id/proofs` doit être enregistré avant la route générique `driver/rides/:id/:action`.
+- Une table sans clé étrangère vers `Ride`/`Driver` n'est pas vidée par `TRUNCATE … CASCADE` des tests : relier les tables ou les ajouter à la liste.
 - Les tests qui simulent un filtre ou un service doivent **restaurer** la simulation (`mockRestore`), sinon la suite suivante se bloque.
 - Corps de requête limité à 1 Mo (photos : 650 Ko décodés au plus). `prisma generate` avant `pnpm -r build`.
 - `docker-compose.vps.yml` est **généré** : modifier `docker-compose.vps.template.yml` puis `node infra/make-vps-compose.mjs`.

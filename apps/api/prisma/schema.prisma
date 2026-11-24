@@ -143,6 +143,8 @@ model Driver {
   sponsor       Driver?  @relation("Sponsorship", fields: [sponsorId], references: [id])
   sponsored     Driver[] @relation("Sponsorship")
   referralCodes ReferralCode[]
+  rewardsAsSponsor ReferralReward[] @relation("RewardSponsor")
+  rewardsAsFilleul ReferralReward[] @relation("RewardFilleul")
   application   Application?
   identityChecks IdentityCheck[]
   proofs        RideProof[]
@@ -235,6 +237,7 @@ model Ride {
   /// Besoins particuliers du voyageur (voir NEEDS) : seuls les véhicules équipés reçoivent la mission
   needs         String[]        @default([])
   lostItems     LostItem[]
+  referralReward ReferralReward?
   /// Bourse d'échange : le chauffeur affecté propose la mission à un collègue (sans pénalité, assez tôt). Null = pas à l'échange.
   swapOfferedAt DateTime?
   proofs        RideProof[]
@@ -763,8 +766,11 @@ model LostItem {
 model ReferralReward {
   id          String   @id @default(uuid())
   sponsorId   String
+  sponsor     Driver   @relation("RewardSponsor", fields: [sponsorId], references: [id])
   filleulId   String
+  filleul     Driver   @relation("RewardFilleul", fields: [filleulId], references: [id])
   rideId      String   @unique
+  ride        Ride     @relation(fields: [rideId], references: [id])
   amountCents Int
   createdAt   DateTime @default(now())
 
