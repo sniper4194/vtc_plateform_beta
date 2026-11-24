@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
-/** Clés des alertes qui méritent l'alarme : course sans chauffeur après tous les tours (en souffrance), vol annulé. */
+/** Clés des alertes qui méritent l'alarme : course à risque (sans chauffeur, prise en charge proche), sans chauffeur après tous les tours, vol annulé. */
 export const alarmKeys = (alerts: { reason: string; rideId: string }[]) =>
-  alerts.filter((a) => a.reason === "NO_DRIVER" || a.reason === "FLIGHT_CANCELLED").map((a) => `${a.reason}:${a.rideId}`);
+  alerts.filter((a) => a.reason === "NO_DRIVER" || a.reason === "AT_RISK" || a.reason === "FLIGHT_CANCELLED").map((a) => `${a.reason}:${a.rideId}`);
 
 const KEY = "clicab_alarme_coupee";
 

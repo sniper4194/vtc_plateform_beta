@@ -9,6 +9,7 @@ import { minutesBefore, PenaltiesService } from "./penalties.service";
 import { PrismaService } from "./prisma";
 import { effectivePickup, NO_SHOW_WAIT_MIN } from "./metrics";
 import { firstCompliant } from "./vehicle-rules";
+import { isAtRisk } from "./guarantee";
 import { fatigueBlocks, planningConfig, PlannedRide, returnMatch, Slot } from "./planning";
 import { haversineKm } from "./zones";
 import { WEBHOOK_BY_STATUS } from "./views";
@@ -174,6 +175,24 @@ export class DispatchService {
       const last = await this.prisma.rideEvent.findFirst({ where: { rideId: ride.id, type: "dispatch.round" }, orderBy: { createdAt: "desc" } });
       if (last && now.getTime() - last.createdAt.getTime() < DISPATCH.retryDelaySec * 1000) continue;
       await this.round(ride.id);
+    }
+    await this.guarantee(now);
+  }
+
+  /**
+   * Garantie de prise en charge : une mission encore sans chauffeur à l'approche de la prise en charge est relancée auprès de tous
+   * (si elle n'a pas déjà épuisé ses tours), le partenaire est averti (webhook « booking.at_risk ») et la tour de contrôle alertée. Une seule fois.
+   */
+  private async guarantee(now: Date) {
+    const open = await this.prisma.ride.findMany({ where: { status: "DISPATCHING", events: { none: { type: "dispatch.at_risk" } } } });
+    for (const ride of open) {
+      if (!isAtRisk(effectivePickup(ride.pickupAt, ride.flightDelayMin), now)) continue;
+      const exhausted = await this.prisma.rideEvent.findFirst({ where: { rideId: ride.id, type: "dispatch.exhausted" }, select: { id: true } });
+      await this.prisma.$transaction(async (tx) => {
+        await this.event(tx, ride.id, "dispatch.at_risk", "system", { relaunched: !exhausted });
+        if (!exhausted) await this.event(tx, ride.id, "dispatch.reset", "system", { reason: "garantie de prise en charge" });
+        await this.webhooks.enqueue(tx, ride.id, "booking.at_risk");
+      });
     }
   }
 

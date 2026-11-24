@@ -99,6 +99,19 @@ paths:
         '201': { description: Note enregistrée (remplace la précédente) }
         '409': { description: Course non terminée }
         '422': { $ref: '#/components/responses/ValidationError' }
+  /reliability:
+    get:
+      summary: Fiabilité mesurée de vos courses sur la période (garantie de prise en charge, ponctualité)
+      description: |
+        Calculée uniquement à partir de vos courses dont la prise en charge est passée. Chaque taux est donné avec son numérateur et son
+        dénominateur ; il vaut `null` quand il n'y a rien à compter. Vos annulations et celles de vos clients ne sont pas comptées.
+        Une course encore sans chauffeur à l'approche de la prise en charge déclenche le webhook `booking.at_risk` et une relance des offres.
+      parameters:
+        - in: query
+          name: days
+          schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+      responses:
+        '200': { description: Indicateurs (missions, assignedEarly, arrivedOnTime, atRisk, neverAssigned, completed, noShow, givenBack, cancelledByCustomer) }
   /bookings/{id}/proofs:
     get:
       summary: Photos-preuves prises sur place par le chauffeur (client absent, bagages en excès)
@@ -206,6 +219,10 @@ components:
     Quote:
       type: object
       properties:
+        needs:
+          type: array
+          description: "Besoins particuliers : seuls les véhicules équipés reçoivent la mission"
+          items: { type: string, enum: [CHILD_SEAT, BOOSTER, WHEELCHAIR, PET] }
         quoteId: { type: string, format: uuid }
         total: { type: number, example: 55.0 }
         currency: { type: string, example: EUR }
@@ -270,6 +287,6 @@ components:
         id: { type: string, format: uuid }
         type:
           type: string
-          enum: [booking.confirmed, driver.assigned, driver.en_route, driver.arrived, ride.started, ride.completed, booking.cancelled, flight.delayed, flight.updated, ride.proof_added]
+          enum: [booking.confirmed, driver.assigned, driver.en_route, driver.arrived, ride.started, ride.completed, booking.cancelled, flight.delayed, flight.updated, booking.at_risk, ride.proof_added]
         createdAt: { type: string, format: date-time }
         data: { $ref: '#/components/schemas/Booking' }

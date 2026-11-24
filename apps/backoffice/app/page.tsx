@@ -5,6 +5,7 @@ import { PerformanceView } from "./perf";
 import { Recruitment } from "./recruitment";
 import { MeetingPoints } from "./meeting-points";
 import { AlarmButton, useAlarm } from "./alarm";
+import { Reliability } from "./reliability";
 
 type Tab = "rides" | "alerts" | "perf" | "drivers" | "recruitment" | "meeting" | "companies" | "partners" | "team" | "account";
 const OPEN_FLIGHT = ["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
@@ -470,6 +471,7 @@ function Partners() {
           </tbody>
         </table>
       </div>
+      <Reliability />
     </>
   );
 }
@@ -529,7 +531,7 @@ function AlertsTab() {
         {alerts.data?.length ? (
           <table>
             <thead><tr><th>Motif</th><th>Prise en charge</th><th>Départ</th><th>Partenaire</th></tr></thead>
-            <tbody>{alerts.data.map((a) => <tr key={`${a.reason}-${a.rideId}`}><td><span className="chip bad">{a.reason === "FLIGHT_CANCELLED" ? `Vol ${a.flight ?? ""} annulé` : "Sans chauffeur"}</span></td><td>{dt(a.pickupAt)}</td><td>{a.pickup}</td><td>{a.partner}</td></tr>)}</tbody>
+            <tbody>{alerts.data.map((a) => <tr key={`${a.reason}-${a.rideId}`}><td><span className="chip bad">{a.reason === "FLIGHT_CANCELLED" ? `Vol ${a.flight ?? ""} annulé` : a.reason === "AT_RISK" ? "À risque : sans chauffeur, prise en charge proche" : "Sans chauffeur"}</span></td><td>{dt(a.pickupAt)}</td><td>{a.pickup}</td><td>{a.partner}</td></tr>)}</tbody>
           </table>
         ) : <p className="muted">Aucune alerte. Vous pouvez attribuer à la main depuis le tableau.</p>}
       </div>

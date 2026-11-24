@@ -196,7 +196,14 @@ export class AdminController {
       include: { booking: { include: { partner: true } } },
       orderBy: { pickupAt: "asc" },
     });
+    // Missions à risque : sans chauffeur à l'approche de la prise en charge (et pas encore épuisées : sinon déjà listées ci-dessus).
+    const atRisk = await this.prisma.ride.findMany({
+      where: { status: "DISPATCHING", AND: [{ events: { some: { type: "dispatch.at_risk" } } }, { events: { none: { type: "dispatch.exhausted" } } }] },
+      include: { booking: { include: { partner: true } } },
+      orderBy: { pickupAt: "asc" },
+    });
     return [
+      ...atRisk.map((r) => ({ reason: "AT_RISK", rideId: r.id, ref: r.ref, pickupAt: r.pickupAt, pickup: r.pickupAddress, partner: r.booking.partner?.name })),
       ...rides.map((r) => ({ reason: "NO_DRIVER", rideId: r.id, ref: r.ref, pickupAt: r.pickupAt, pickup: r.pickupAddress, partner: r.booking.partner?.name })),
       ...cancelledFlights.map((r) => ({ reason: "FLIGHT_CANCELLED", rideId: r.id, ref: r.ref, pickupAt: r.pickupAt, pickup: r.pickupAddress, partner: r.booking.partner?.name, flight: r.booking.flightNumber })),
     ];
