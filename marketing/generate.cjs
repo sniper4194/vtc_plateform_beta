@@ -56,8 +56,8 @@ const visuals = {
     <div class="script" style="position:absolute;left:70px;top:130px;font-size:60px">pour les voyageurs</div>
     <div class="rozha" style="position:absolute;left:70px;top:215px;font-size:112px;line-height:1;text-shadow:5px 5px 0 var(--cream)">Sachez qui vient vous chercher.</div>
     <div class="card" style="position:absolute;left:70px;top:640px;width:940px;padding:30px 40px;display:flex;gap:34px;align-items:center">
-      <div style="width:130px;height:130px;border-radius:50%;border:5px solid var(--ink);background:var(--yel);display:flex;align-items:center;justify-content:center;font:60px Alfa">K</div>
-      <div style="font-size:34px;line-height:1.4"><div class="alfa" style="font-size:44px">Karim · Berline</div>
+      <div style="width:130px;height:130px;border-radius:50%;border:5px solid var(--ink);background:var(--yel);display:flex;align-items:center;justify-content:center;font:60px Alfa">T</div>
+      <div style="font-size:34px;line-height:1.4"><div class="alfa" style="font-size:44px">Thomas · Berline</div>
         <div>Plaque <b>AB-123-CD</b> · Vol AF1234 à l'heure</div><div class="caps" style="font-size:26px;opacity:.7">Exemple fictif · lien reçu par SMS ou e-mail</div></div></div>
     <div class="foot" style="height:110px;padding:0 70px;font-size:34px"><span class="caps">Photo, véhicule, plaque, état du vol</span><span class="alfa" style="color:var(--yel)">clicab.fr</span></div>`],
   // 4. Story chauffeurs

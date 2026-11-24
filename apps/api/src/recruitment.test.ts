@@ -37,7 +37,7 @@ const founderCode = async (label = "Fondateur test", count = 1, maxUses = 1) => 
 let seq = 0;
 const candidate = (code: string, over: Record<string, unknown> = {}) => {
   const n = ++seq;
-  return { firstName: "Karim", lastName: "Benali", phone: `+3361111${String(n).padStart(4, "0")}`, email: `k${n}@test.fr`, yearsExperience: 6, otherPlatforms: [{ name: "Autre plateforme", rating: 4.9 }], referralCode: code, consent: true, ...over };
+  return { firstName: "Luis", lastName: "Fernandes", phone: `+3361111${String(n).padStart(4, "0")}`, email: `k${n}@test.fr`, yearsExperience: 6, otherPlatforms: [{ name: "Autre plateforme", rating: 4.9 }], referralCode: code, consent: true, ...over };
 };
 const inDays = (d: number) => new Date(Date.now() + d * 86400_000).toISOString();
 
@@ -200,7 +200,7 @@ describe("vérifications et décision", () => {
 
 describe("parrainage", () => {
   async function activeDriver() {
-    const [c] = await founderCode("Fondateur Karim");
+    const [c] = await founderCode("Fondateur Sophie");
     await call("/apply", { body: candidate(c.code) });
     const id = (await prisma.application.findFirstOrThrow()).id;
     await fullReview(id);
@@ -226,12 +226,12 @@ describe("parrainage", () => {
     const d = await prisma.driver.findUniqueOrThrow({ where: { id: acc.json.driverId } });
     expect(d.sponsorId).toBe(parrain.id);
     const detail = await call(`/admin/applications/${filleul}`, { admin: true });
-    expect(detail.json.sponsor).toMatchObject({ founder: false, driver: { id: parrain.id, name: "Karim Benali" } });
+    expect(detail.json.sponsor).toMatchObject({ founder: false, driver: { id: parrain.id, name: "Luis Fernandes" } });
 
     const tree = (await call("/admin/applications/tree", { admin: true })).json;
     expect(tree).toHaveLength(2);
     expect(tree.find((t: any) => t.id === acc.json.driverId)).toMatchObject({ sponsorId: parrain.id, founder: false });
-    expect(tree.find((t: any) => t.id === parrain.id)).toMatchObject({ sponsorId: null, founder: true, founderLabel: "Fondateur Karim" });
+    expect(tree.find((t: any) => t.id === parrain.id)).toMatchObject({ sponsorId: null, founder: true, founderLabel: "Fondateur Sophie" });
   });
 
   it("un chauffeur non actif ne peut pas créer de codes", async () => {
@@ -257,7 +257,7 @@ describe("conservation des données", () => {
     expect(gone.email).toMatch(/@anonyme\.invalid$/);
     expect(gone.anonymizedAt).not.toBeNull();
     const kept = await prisma.application.findUniqueOrThrow({ where: { id: y.id } });
-    expect(kept.firstName).toBe("Karim");
+    expect(kept.firstName).toBe("Luis");
     // l'effacement à la demande est refusé si un compte chauffeur y est lié
     await fullReviewAndAccept(y.id);
     expect((await call(`/admin/applications/${y.id}/anonymize`, { admin: true, body: {} })).status).toBe(409);

@@ -567,7 +567,7 @@ describe("revenu minimal par course et justificatif de réservation préalable",
     expect(before.status).toBe(200);
     expect(before.json.complete).toBe(false);
     expect(before.json.missing).toEqual(expect.arrayContaining(["numéro d'inscription au registre des exploitants de VTC", "numéro Siren/Siret"]));
-    await call("/driver/identity", { token: d.token, body: { businessName: "Benali Transport", siret: "12345678901234", revtcNumber: "EVTC-075-0001" } });
+    await call("/driver/identity", { token: d.token, body: { businessName: "Girard Transport", siret: "12345678901234", revtcNumber: "EVTC-075-0001" } });
     const j = (await call(`/driver/rides/${ride.id}/justificatif`, { token: d.token })).json;
     expect(j.complete).toBe(true);
     const labels = j.lines.map((l: string[]) => l[0]);

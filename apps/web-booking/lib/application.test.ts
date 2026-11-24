@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyForm, toPayload, validate, type Form } from "./application";
 
-const ok: Form = { ...emptyForm, firstName: "Karim", lastName: "Benali", phone: "06 12 34 56 78", email: "k@test.fr", years: "6", code: "CLI-ABCD-EFGH", consent: true };
+const ok: Form = { ...emptyForm, firstName: "Sophie", lastName: "Moreau", phone: "06 12 34 56 78", email: "k@test.fr", years: "6", code: "CLI-ABCD-EFGH", consent: true };
 
 describe("formulaire de candidature", () => {
   it("accepte un dossier complet", () => { expect(validate(ok)).toEqual({}); });
@@ -17,7 +17,7 @@ describe("formulaire de candidature", () => {
   });
   it("prépare le corps de la requête", () => {
     expect(toPayload({ ...ok, platforms: [{ name: " Y ", rating: "4,5" }, { name: "", rating: "" }] })).toEqual({
-      firstName: "Karim", lastName: "Benali", phone: "06 12 34 56 78", email: "k@test.fr", yearsExperience: 6,
+      firstName: "Sophie", lastName: "Moreau", phone: "06 12 34 56 78", email: "k@test.fr", yearsExperience: 6,
       otherPlatforms: [{ name: "Y", rating: 4.5 }], referralCode: "CLI-ABCD-EFGH", consent: true,
     });
   });

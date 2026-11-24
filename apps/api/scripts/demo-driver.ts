@@ -41,7 +41,7 @@ async function demoCompany(): Promise<void> {
   } finally { await prisma.$disconnect(); }
   const mine = (await call("/company/drivers", { token: DEMO_COMPANY_KEY })) as any[];
   let driver = mine.find((d) => d.phone === COMPANY_PHONE);
-  if (!driver) driver = await call("/company/drivers", { token: DEMO_COMPANY_KEY, body: { firstName: "Karim", lastName: "Société", phone: COMPANY_PHONE, email: "karim.societe@example.com", vehicle: { plate: "DE-002-MO", make: "Mercedes", model: "Classe E", category: "BUSINESS" } } });
+  if (!driver) driver = await call("/company/drivers", { token: DEMO_COMPANY_KEY, body: { firstName: "Camille", lastName: "Société", phone: COMPANY_PHONE, email: "karim.societe@example.com", vehicle: { plate: "DE-002-MO", make: "Mercedes", model: "Classe E", category: "BUSINESS" } } });
   const { token } = await call("/driver/login", { body: { phone: COMPANY_PHONE, code: CODE } });
   const docs = ((await call("/driver/documents", { token }).catch(() => [])) as any[]).map((d) => d.type);
   for (const type of ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"]) {

@@ -167,7 +167,7 @@ function Codes() {
         <h3>Créer des codes fondateurs</h3>
         <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Pour la première cohorte de chauffeurs. Ils passent la même vérification que les autres : le parrainage ne dispense de rien.</div>
         <div className="row">
-          <input placeholder="Destinataire ou lot (ex. Karim)" value={label} onChange={(e) => setLabel(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
+          <input placeholder="Destinataire ou lot (ex. Thomas)" value={label} onChange={(e) => setLabel(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
           <input type="number" min={1} max={50} value={count} onChange={(e) => setCount(e.target.value)} style={{ width: 80 }} title="Nombre de codes" />
           <input type="number" min={1} max={20} value={max} onChange={(e) => setMax(e.target.value)} style={{ width: 80 }} title="Utilisations par code" />
           <button className="btn primary" disabled={label.trim().length < 2} onClick={() => act("/admin/applications/codes", { label, count: Number(count), maxUses: Number(max) })}>Créer</button>
