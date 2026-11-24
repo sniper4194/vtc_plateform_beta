@@ -271,6 +271,10 @@ Guide pas à pas : [docs/MISE_EN_LIGNE.md](docs/MISE_EN_LIGNE.md). Le script `sc
 - **Garde-fou fatigue** : au-delà de `FATIGUE_MAX_MISSION_HOURS` (10 h par défaut, à confirmer) de mission sur n'importe quelle période de 24 h, plus aucune offre n'est proposée ni attribuée, y compris en sauveteur. L'écran d'accueil prévient à partir de 80 %. Le temps compté est une estimation (trajet + marge entre deux courses), pas un relevé de conduite.
 - **Missions de retour** : une offre qui part à moins de 3 km (`RETURN_RADIUS_KM`) de l'arrivée d'une mission prévue, dans les 2 h (`RETURN_WINDOW_MIN`), est signalée « ↩ Retour » et passe en tête ; le dispatch sert ces chauffeurs en priorité.
 
-## Son d'atterrissage
+## Sons
 
-Quand le vol d'une mission se pose (message « Vol … atterri » envoyé par le suivi de vol), l'application chauffeur affiche une bulle et joue le son d'atterrissage (`apps/driver-app/assets/sounds/atterrissage.mp3`). Vérification toutes les 15 s, **application ouverte uniquement** : application fermée, il faudra les notifications push (point 2 de la feuille de route), qui pourront reprendre ce son.
+- **Nouvelle course** (application chauffeur) : bulle « 🚖 Nouvelle course : départ → arrivée · prix » et son `assets/sounds/nouvelle-course.mp3`.
+- **Atterrissage** (application chauffeur) : quand le vol d'une mission se pose, bulle « ✈ Vol … atterri » et son `assets/sounds/atterrissage.mp3`.
+- **Alarme de la tour de contrôle** (back-office) : quand une course reste sans chauffeur après tous les tours de dispatch (en souffrance) ou qu'un vol est annulé, l'alarme `public/sounds/alarme.mp3` sonne une fois par alerte. Bouton « 🔔 Alarme » pour la couper (choix retenu par le navigateur) et « Tester ». Les navigateurs n'autorisent le son qu'après un premier clic sur la page.
+
+Vérification toutes les 10 s, **application ouverte uniquement** : application fermée, il faudra les notifications push (point 2 de la feuille de route), qui pourront reprendre ces sons. Les fichiers fournis étaient en « MPEG Layer II », peu lu par les navigateurs et Android : ils ont été convertis en MP3 classique, sans changement du son.

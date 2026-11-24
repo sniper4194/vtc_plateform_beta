@@ -4,6 +4,7 @@ import { adminBlobUrl, api, AdminSession, clearToken, dt, eur, getToken, getUser
 import { PerformanceView } from "./perf";
 import { Recruitment } from "./recruitment";
 import { MeetingPoints } from "./meeting-points";
+import { AlarmButton, useAlarm } from "./alarm";
 
 type Tab = "rides" | "alerts" | "perf" | "drivers" | "recruitment" | "meeting" | "companies" | "partners" | "team" | "account";
 const OPEN_FLIGHT = ["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
@@ -599,6 +600,7 @@ export default function Home() {
   const rescues = useLoad<any[]>("/admin/rescues?open=1", 8000);
   const pendingIds = useLoad<any[]>("/admin/identity-checks?status=PENDING", 8000);
   const openInc = useLoad<any[]>("/admin/incidents?status=OPEN", 6000);
+  const alarm = useAlarm(alerts.data, authed);
   const sync = () => { setAuthed(Boolean(getToken())); setUserState(getUser()); };
   useEffect(() => {
     sync(); setReady(true);
@@ -625,7 +627,8 @@ export default function Home() {
             </button>
           ))}
         </nav>
-        <button className={`btn ${tab === "account" ? "primary" : ""}`} style={{ marginLeft: "auto", whiteSpace: "nowrap" }} onClick={() => setTab("account")} title="Mon compte">{user?.name}</button>
+        <span style={{ marginLeft: "auto" }}><AlarmButton alarm={alarm} /></span>
+        <button className={`btn ${tab === "account" ? "primary" : ""}`} style={{ whiteSpace: "nowrap" }} onClick={() => setTab("account")} title="Mon compte">{user?.name}</button>
         <button className="btn" onClick={() => { clearToken(); sync(); }}>Quitter</button>
       </header>
       <main>
