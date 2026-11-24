@@ -1,6 +1,7 @@
 import { Booking, Driver, Ride, Vehicle } from "@prisma/client";
 import { euros } from "./http";
 import { effectivePickup, NO_SHOW_WAIT_MIN } from "./metrics";
+import { swapMinHours } from "./swap-rules";
 
 export type RideFull = Ride & { booking: Booking; driver: Driver | null; vehicle: Vehicle | null };
 
@@ -84,6 +85,9 @@ export function driverRideView(r: RideFull & { booking: Booking & { partner?: { 
       : null,
     durationMin: Math.round(r.durationMin),
     needs: r.needs,
+    swapOfferedAt: r.swapOfferedAt,
+    // Limite pour mettre la mission à l'échange (sans pénalité) ; au-delà, rendre ou appeler un sauveteur.
+    swapDeadline: new Date(effectivePickup(r.pickupAt, r.flightDelayMin).getTime() - swapMinHours() * 3600_000),
     passengers: r.passengers, luggage: r.luggage, netCents: r.driverNetCents, ecoBonusCents: r.ecoBonusCents ?? 0,
     vehicle: r.vehicle ? { plate: r.vehicle.plate, model: `${r.vehicle.make} ${r.vehicle.model}` } : null,
     arrivedAt,

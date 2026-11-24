@@ -183,7 +183,7 @@ export class RescueService {
       if (claimed.count !== 1) throw new HttpException("Appel déjà pris en charge", 409);
       const moved = await tx.ride.updateMany({
         where: { id: r.rideId, driverId: r.requesterId, status: { in: [...RESCUABLE] } },
-        data: { status: "ASSIGNED", driverId, vehicleId: vehicle.id, version: { increment: 1 }, driverNetCents: r.ride.driverNetCents + r.bonusCents, commissionCents: r.ride.commissionCents - r.bonusCents },
+        data: { status: "ASSIGNED", driverId, vehicleId: vehicle.id, swapOfferedAt: null, version: { increment: 1 }, driverNetCents: r.ride.driverNetCents + r.bonusCents, commissionCents: r.ride.commissionCents - r.bonusCents },
       });
       if (moved.count !== 1) throw new HttpException("La mission a changé entre-temps", 409);
       // Le délai se mesure à la DEMANDE (moment où le chauffeur a su qu'il ne pourrait pas), pas à l'acceptation : attendre ne réduit pas la pénalité.

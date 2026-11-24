@@ -50,11 +50,11 @@ export class ApiError extends Error {
 /** Échec réseau (serveur éteint, mauvaise adresse, pare-feu, CORS) : on dit quelle adresse a été tentée, pour que l'on puisse diagnostiquer. */
 export const unreachableMessage = () => `Serveur injoignable (${apiUrl}). Vérifiez que l'API tourne et que l'adresse est la bonne.`;
 
-export async function api<T = any>(path: string, body?: unknown): Promise<T> {
+export async function api<T = any>(path: string, body?: unknown, method?: "DELETE"): Promise<T> {
   let res: Response;
   try {
     res = await fetch(apiUrl + path, {
-      method: body === undefined ? "GET" : "POST",
+      method: method ?? (body === undefined ? "GET" : "POST"),
       headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });

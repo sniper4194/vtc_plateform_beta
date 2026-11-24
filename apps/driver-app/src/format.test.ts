@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeApiUrl, countdown, dayLabel, delayLabel, flightLabel, hoursLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel } from "./format";
+import { normalizeApiUrl, countdown, dayLabel, delayLabel, flightLabel, hoursLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel, swapState } from "./format";
 
 describe("format", () => {
   it("compte à rebours mm:ss", () => {
@@ -81,5 +81,15 @@ describe("adresse du serveur", () => {
   });
   it("refuse tout le reste", () => {
     for (const bad of ["", "192.168.1.20:3000", "ftp://x.fr", "http://x.fr/chemin", "http://a b.fr", "javascript:alert(1)"]) expect(normalizeApiUrl(bad)).toBeNull();
+  });
+});
+
+describe("bourse d'échange", () => {
+  const now = new Date("2026-06-01T10:00:00Z");
+  it("ouverte avant la limite, fermée après ou une fois la mission commencée", () => {
+    expect(swapState({ status: "ASSIGNED", swapDeadline: "2026-06-02T10:00:00Z" }, now)).toBe("open");
+    expect(swapState({ status: "ASSIGNED", swapDeadline: "2026-06-02T10:00:00Z", swapOfferedAt: "2026-06-01T09:00:00Z" }, now)).toBe("offered");
+    expect(swapState({ status: "ASSIGNED", swapDeadline: "2026-06-01T09:00:00Z" }, now)).toBe("closed");
+    expect(swapState({ status: "EN_ROUTE", swapDeadline: "2026-06-02T10:00:00Z" }, now)).toBe("closed");
   });
 });

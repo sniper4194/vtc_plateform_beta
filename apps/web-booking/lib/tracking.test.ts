@@ -19,3 +19,13 @@ describe("suivi voyageur", () => {
     expect(text("de" as any).title).toBe("Votre trajet");
   });
 });
+
+describe("objet oublié", () => {
+  it("chaque état du signalement a un texte en français et en anglais", () => {
+    for (const s of ["OPEN", "FOUND", "NOT_FOUND", "RETURNED", "CLOSED"]) {
+      expect(text("fr").lostStatus[s]).toBeTruthy();
+      expect(text("en").lostStatus[s]).toBeTruthy();
+    }
+    expect(text("fr").lostHint(7)).toMatch(/7 jours/);
+  });
+});

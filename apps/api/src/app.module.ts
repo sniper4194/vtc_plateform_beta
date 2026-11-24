@@ -33,6 +33,8 @@ import { APP_FILTER } from "@nestjs/core";
 import { AllExceptionsFilter, ErrorReporter } from "./errors";
 import { ClientErrorController } from "./client-errors.controller";
 import { AdminReliabilityController, PartnerReliabilityController, ReliabilityService } from "./reliability";
+import { DriverSwapController, SwapService } from "./swap";
+import { AdminLostItemController, DriverLostItemController, LostItemService, TrackLostItemController } from "./lost-items";
 import { AdminMeetingPointController, DriverMeetingPointController, MeetingPointService } from "./meeting-points";
 import { RoutingService } from "./routing";
 import { AdminGuard, CompanyGuard, DriverGuard, PartnerGuard } from "./security";
@@ -84,7 +86,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 
 @Module({
   // Ordre : les routes de preuves (driver/rides/:id/proofs) passent avant la route générique des actions de mission (driver/rides/:id/:action).
-  controllers: [HealthController, PartnerProofController, PartnerReliabilityController, DriverProofController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, EarningsController, IncidentController, AdminIncidentController, CompanyController, TrackingController, AuthController, ApplyController, AdminRecruitmentController, DriverReferralController, AdminProofController, ClientErrorController, DriverMeetingPointController, AdminMeetingPointController, AdminReliabilityController],
-  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, IdentityService, DeadlinesService, EarningsService, IncidentService, RecruitmentService, ProofService, MeetingPointService, ReliabilityService, ErrorReporter, { provide: APP_FILTER, useClass: AllExceptionsFilter }, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
+  controllers: [HealthController, DriverSwapController, TrackLostItemController, DriverLostItemController, AdminLostItemController, PartnerProofController, PartnerReliabilityController, DriverProofController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, EarningsController, IncidentController, AdminIncidentController, CompanyController, TrackingController, AuthController, ApplyController, AdminRecruitmentController, DriverReferralController, AdminProofController, ClientErrorController, DriverMeetingPointController, AdminMeetingPointController, AdminReliabilityController],
+  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, IdentityService, DeadlinesService, EarningsService, IncidentService, RecruitmentService, ProofService, MeetingPointService, ReliabilityService, SwapService, LostItemService, ErrorReporter, { provide: APP_FILTER, useClass: AllExceptionsFilter }, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
 })
 export class AppModule {}

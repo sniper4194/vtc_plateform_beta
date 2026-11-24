@@ -214,7 +214,7 @@ export class DispatchService {
     const eco = ecoBonusCents(vehicle.fuel, ride.priceCents, ride.priceCents - price);
     const res = await tx.ride.updateMany({
       where: { id: ride.id, status: "DISPATCHING", driverId: null },
-      data: { status: "ASSIGNED", driverId, vehicleId: vehicle.id, version: { increment: 1 }, driverCapCents: cap, driverNetCents: price + eco, commissionCents: ride.priceCents - price - eco, ecoBonusCents: eco },
+      data: { status: "ASSIGNED", driverId, vehicleId: vehicle.id, swapOfferedAt: null, version: { increment: 1 }, driverCapCents: cap, driverNetCents: price + eco, commissionCents: ride.priceCents - price - eco, ecoBonusCents: eco },
     });
     if (res.count !== 1) throw new HttpException("Course déjà attribuée", 409);
     await tx.dispatchOffer.updateMany({ where: { rideId: ride.id, driverId }, data: { status: "ACCEPTED" } });
@@ -278,7 +278,7 @@ export class DispatchService {
       applied = await this.penalties.apply(tx, driverId, ride, "GIVE_BACK", minutesBefore(ride));
       const res = await tx.ride.updateMany({
         where: { id: rideId, status: ride.status, driverId },
-        data: { status: "DISPATCHING", driverId: null, vehicleId: null, version: { increment: 1 } },
+        data: { status: "DISPATCHING", driverId: null, vehicleId: null, swapOfferedAt: null, version: { increment: 1 } },
       });
       if (res.count !== 1) throw new HttpException("Conflit, réessayez", 409);
       const d = await tx.driver.findUniqueOrThrow({ where: { id: driverId } });
@@ -306,7 +306,7 @@ export class DispatchService {
           throw new HttpException(`Client absent déclarable à partir de ${hm}`, 409);
         }
       }
-      const res = await tx.ride.updateMany({ where: { id: rideId, status: from, driverId }, data: { status: to, version: { increment: 1 } } });
+      const res = await tx.ride.updateMany({ where: { id: rideId, status: from, driverId }, data: { status: to, swapOfferedAt: null, version: { increment: 1 } } });
       if (res.count !== 1) throw new HttpException("Conflit, réessayez", 409);
       await this.event(tx, rideId, `ride.${to === "ARRIVED" ? "arrived" : to.toLowerCase()}`, `driver:${driverId}`);
       const hook = WEBHOOK_BY_STATUS[to];

@@ -234,6 +234,9 @@ model Booking {
 model Ride {
   /// Besoins particuliers du voyageur (voir NEEDS) : seuls les véhicules équipés reçoivent la mission
   needs         String[]        @default([])
+  lostItems     LostItem[]
+  /// Bourse d'échange : le chauffeur affecté propose la mission à un collègue (sans pénalité, assez tôt). Null = pas à l'échange.
+  swapOfferedAt DateTime?
   proofs        RideProof[]
   /// Prime écologique incluse dans driverNetCents (véhicule électrique), prélevée sur la commission
   ecoBonusCents Int @default(0)
@@ -726,4 +729,31 @@ model MeetingPoint {
   createdAt   DateTime           @default(now())
 
   @@index([status])
+}
+
+enum LostItemStatus {
+  OPEN      // signalé par le voyageur, en attente de la réponse du chauffeur
+  FOUND     // le chauffeur l'a retrouvé : l'équipe organise la restitution
+  NOT_FOUND // le chauffeur ne l'a pas trouvé
+  RETURNED  // rendu au voyageur (clôture par l'équipe)
+  CLOSED    // clos sans restitution (clôture par l'équipe)
+}
+
+/// Objet oublié signalé par le voyageur depuis sa page de suivi. Ni téléphone ni adresse ne sont échangés directement :
+/// l'équipe coordonne la restitution.
+model LostItem {
+  id          String         @id @default(uuid())
+  rideId      String
+  ride        Ride           @relation(fields: [rideId], references: [id])
+  driverId    String?
+  description String
+  status      LostItemStatus @default(OPEN)
+  driverNote  String?
+  answeredAt  DateTime?
+  closedBy    String?
+  closedAt    DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([status, createdAt])
+  @@index([driverId, status])
 }

@@ -4,6 +4,7 @@ import { effectivePickup } from "./metrics";
 import { shareablePhoto } from "./identity.service";
 import { PrismaService } from "./prisma";
 import { MeetingPointService } from "./meeting-points";
+import { lostItemDays, lostItemOpen, LostItemService, travelerView } from "./lost-items";
 
 const ACTIVE = ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"];
 const MEET_STATUSES = ["CREATED", "CONFIRMED", "DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
@@ -15,7 +16,7 @@ const MEET_STATUSES = ["CREATED", "CONFIRMED", "DISPATCHING", "ASSIGNED", "EN_RO
  */
 @Controller("track")
 export class TrackingController {
-  constructor(@Inject(PrismaService) private prisma: PrismaService, @Inject(MeetingPointService) private points: MeetingPointService) {}
+  constructor(@Inject(PrismaService) private prisma: PrismaService, @Inject(MeetingPointService) private points: MeetingPointService, @Inject(LostItemService) private lost: LostItemService) {}
   private limiter = new SlidingLimiter();
 
   /** Les liens de suivi sont publics : limite par adresse IP (la page se rafraîchit toutes les 10 s, soit 6 appels par minute). */
@@ -40,6 +41,10 @@ export class TrackingController {
     const photo = active && ride.driverId ? await shareablePhoto(this.prisma, ride.driverId) : null;
     // Point de rendez-vous validé près du lieu de prise en charge, tant que le voyageur n'est pas à bord.
     const meet = MEET_STATUSES.includes(ride.status) ? await this.points.nearestApproved({ lat: ride.pickupLat, lng: ride.pickupLng }) : null;
+    // Objet oublié : dernier signalement et possibilité d'en faire un (course terminée depuis peu).
+    const done = ride.status === "COMPLETED";
+    const item = done ? await this.prisma.lostItem.findFirst({ where: { rideId: ride.id }, orderBy: { createdAt: "desc" } }) : null;
+    const canReport = done && lostItemOpen(await this.lost.completedAt(ride.id), new Date()) && !(item && ["OPEN", "FOUND"].includes(item.status));
     return {
       language: ["fr", "en"].includes(b.passengerLanguage) ? b.passengerLanguage : "en",
       reference: `R-${ride.ref}`,
@@ -57,6 +62,7 @@ export class TrackingController {
         plate: ride.vehicle?.plate ?? null,
         photoUrl: photo ? `/track/${token}/photo` : null,
       } : null,
+      lostItem: done ? { canReport, days: lostItemDays(), last: item ? travelerView(item) : null } : null,
       meetingPoint: meet ? { label: meet.label, note: meet.note, photoUrl: `/track/${token}/meeting-point/${meet.id}` } : null,
     };
   }

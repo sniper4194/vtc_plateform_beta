@@ -6,8 +6,9 @@ import { Recruitment } from "./recruitment";
 import { MeetingPoints } from "./meeting-points";
 import { AlarmButton, useAlarm } from "./alarm";
 import { Reliability } from "./reliability";
+import { LostItems } from "./lost-items";
 
-type Tab = "rides" | "alerts" | "perf" | "drivers" | "recruitment" | "meeting" | "companies" | "partners" | "team" | "account";
+type Tab = "rides" | "alerts" | "perf" | "drivers" | "lost" | "recruitment" | "meeting" | "companies" | "partners" | "team" | "account";
 const OPEN_FLIGHT = ["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
 const COLUMNS: { title: string; statuses: string[]; tone: string }[] = [
   { title: "À attribuer", statuses: ["DISPATCHING"], tone: "yel" },
@@ -615,7 +616,7 @@ export default function Home() {
   if (!authed) return <Login onOk={sync} />;
   const isAdmin = user?.role === "ADMIN";
   const tabs: [Tab, string][] = [
-    ["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"],
+    ["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"], ["lost", "Objets oubliés"],
     ...(isAdmin ? ([["recruitment", "Recrutement"], ["meeting", "Points de RDV"], ["companies", "Sociétés"], ["partners", "Partenaires"], ["team", "Équipe"]] as [Tab, string][]) : []),
   ];
   const nAlerts = (alerts.data?.length ?? 0) + (rescues.data?.length ?? 0) + (pendingIds.data?.length ?? 0) + (openInc.data?.length ?? 0);
@@ -639,6 +640,7 @@ export default function Home() {
         {tab === "alerts" && <AlertsTab />}
         {tab === "perf" && <AdminPerformance />}
         {tab === "drivers" && <Drivers />}
+        {tab === "lost" && <LostItems />}
         {isAdmin && tab === "recruitment" && <Recruitment />}
         {isAdmin && tab === "meeting" && <MeetingPoints />}
         {isAdmin && tab === "companies" && <Companies />}

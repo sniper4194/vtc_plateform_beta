@@ -7,6 +7,7 @@ export interface Tracking {
   flight: { number: string; status: string; delayMin: number; earlyMin: number } | null;
   driver: { firstName: string; vehicle: string | null; plate: string | null; photoUrl: string | null } | null;
   meetingPoint?: { label: string; note: string | null; photoUrl: string } | null;
+  lostItem?: { canReport: boolean; days: number; last: { status: string; reportedAt: string; answeredAt: string | null } | null } | null;
 }
 
 /** Étapes affichées au voyageur, dans l'ordre. */
@@ -16,6 +17,9 @@ export type Step = (typeof STEPS)[number];
 const T = {
   fr: {
     meetTitle: "Où retrouver votre chauffeur", meetAlt: "Photo du point de rendez-vous",
+    lostTitle: "Un objet oublié ?", lostAsk: "J’ai oublié un objet dans le véhicule", lostLabel: "Décrivez l’objet (couleur, taille, où vous étiez assis)",
+    lostSend: "Envoyer au chauffeur", lostCancel: "Annuler", lostHint: (d: number) => `Possible pendant ${d} jours après le trajet. Votre chauffeur est prévenu ; l’équipe CliCab organise la restitution avec vous.`,
+    lostStatus: { OPEN: "Signalement envoyé : votre chauffeur vérifie son véhicule.", FOUND: "Bonne nouvelle : votre chauffeur a retrouvé l’objet. L’équipe CliCab vous contacte pour la restitution.", NOT_FOUND: "Votre chauffeur n’a pas trouvé l’objet dans son véhicule. Vous pouvez faire un nouveau signalement si besoin.", RETURNED: "Objet rendu. Signalement clos.", CLOSED: "Signalement clos." } as Record<string, string>,
     title: "Votre trajet", ref: "Référence",
     CONFIRMED: "Réservation confirmée", DISPATCHING: "Réservation confirmée", ASSIGNED: "Chauffeur attribué", EN_ROUTE: "Votre chauffeur est en route", ARRIVED: "Votre chauffeur est arrivé", IN_PROGRESS: "En route vers votre destination", COMPLETED: "Course terminée",
     CANCELLED: "Réservation annulée", NO_SHOW: "Course clôturée (voyageur absent)",
@@ -34,6 +38,9 @@ const T = {
   },
   en: {
     meetTitle: "Where to meet your driver", meetAlt: "Photo of the meeting point",
+    lostTitle: "Left something behind?", lostAsk: "I left an item in the vehicle", lostLabel: "Describe the item (colour, size, where you were sitting)",
+    lostSend: "Send to the driver", lostCancel: "Cancel", lostHint: (d: number) => `Possible for ${d} days after the ride. Your driver is notified; the CliCab team arranges the return with you.`,
+    lostStatus: { OPEN: "Report sent: your driver is checking the vehicle.", FOUND: "Good news: your driver found the item. The CliCab team will contact you to arrange the return.", NOT_FOUND: "Your driver did not find the item in the vehicle. You can report again if needed.", RETURNED: "Item returned. Report closed.", CLOSED: "Report closed." } as Record<string, string>,
     title: "Your ride", ref: "Reference",
     CONFIRMED: "Booking confirmed", DISPATCHING: "Booking confirmed", ASSIGNED: "Driver assigned", EN_ROUTE: "Your driver is on the way", ARRIVED: "Your driver has arrived", IN_PROGRESS: "On the way to your destination", COMPLETED: "Ride completed",
     CANCELLED: "Booking cancelled", NO_SHOW: "Ride closed (passenger not found)",

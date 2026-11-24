@@ -3,6 +3,8 @@ import { DeadlinesCard, DeadlinesScreen } from "./deadlines";
 import { Avatar, IdentityScreen } from "./identity";
 import { IncidentCard, IncidentScreen } from "./incident";
 import { CostNote, RescueCard, RescuePicker } from "./rescue";
+import { SwapBoard, SwapControl } from "./swap";
+import { LostItemsCard } from "./lostItems";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Text, View } from "react-native";
 import { api, ApiError } from "./api";
@@ -123,6 +125,7 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, 
       {showDl && <DeadlinesScreen onClose={() => setShowDl(false)} />}
       {showId && <IdentityScreen notify={notify} onClose={() => setShowId(false)} onChanged={() => { identity.reload(); me.reload(); }} />}
 
+      <LostItemsCard notify={notify} />
       <RescueCard notify={notify} onAccepted={openMission} />
 
       <View style={{ flexDirection: "row", justifyContent: "space-around", alignItems: "center" }}>
@@ -263,6 +266,7 @@ export function Radar({ notify }: { notify: Notify }) {
         stickySectionHeadersEnabled={false}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 30 }}
         refreshControl={<RefreshControl refreshing={false} onRefresh={offers.reload} tintColor={c.cream} />}
+        ListHeaderComponent={<SwapBoard notify={notify} />}
         renderSectionHeader={({ section }) => <DayHeader title={section.title} count={section.data.length} unit="mission" />}
         ListEmptyComponent={
           <View style={{ alignItems: "center", marginTop: 50, gap: 12 }}>
@@ -326,7 +330,7 @@ function Stepper({ status }: { status: string }) {
   );
 }
 
-function MissionDetail({ r, run, notify, openMission }: { r: any; run: (id: string, action: string) => void; notify: Notify; openMission: (id: string) => void }) {
+function MissionDetail({ r, run, notify, openMission, reload }: { r: any; run: (id: string, action: string) => void; notify: Notify; openMission: (id: string) => void; reload: () => void }) {
   const next = NEXT_ACTION(r.status);
   const [problem, setProblem] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -350,6 +354,7 @@ function MissionDetail({ r, run, notify, openMission }: { r: any; run: (id: stri
       {next && <HoldButton label={next.hold} onComplete={() => run(r.rideId, next.action)} />}
       <Pressable onPress={() => { setProblem(!problem); setConfirm(false); }}><Cond size={13} color={c.blue} style={{ textAlign: "center", textDecorationLine: "underline" }}>Un souci ?</Cond></Pressable>
       {problem && r.status === "ARRIVED" && <Btn label="Client introuvable (no-show)" color={c.red} text={c.cream} onPress={() => run(r.rideId, "no-show")} />}
+      {(problem || r.swapOfferedAt) && <SwapControl r={r} notify={notify} reload={reload} />}
       {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <CostNote rideId={r.rideId} />}
       {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <Btn label="Appeler un sauveteur" color={c.yel} onPress={() => setRescue(true)} />}
       {rescue && <RescuePicker rideId={r.rideId} notify={notify} onClose={() => setRescue(false)} />}
@@ -400,7 +405,7 @@ export function Agenda({ notify, openMission }: { notify: Notify; openMission: (
               badge={<Chip label={upcoming ? (STEPS[stepIndex(r.status)]?.short ?? r.status) : (STATUS_LABEL[r.status] ?? r.status)} color={upcoming ? c.yel : isCancelled(r.status) ? c.red : c.cream} text={!upcoming && isCancelled(r.status) ? c.cream : c.ink} />}
               expanded={expanded} onPress={upcoming ? () => setOpen(expanded ? "" : r.rideId) : undefined}
             >
-              <MissionDetail r={r} run={run} notify={notify} openMission={openMission} />
+              <MissionDetail r={r} run={run} notify={notify} openMission={openMission} reload={rides.reload} />
             </Row>
           );
         }}

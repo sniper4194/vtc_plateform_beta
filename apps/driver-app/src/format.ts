@@ -105,3 +105,10 @@ export function normalizeApiUrl(raw: string): string | null {
 /** Besoins particuliers du voyageur, tels qu'affichés au chauffeur. */
 export const NEED_LABEL: Record<string, string> = { CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant", PET: "Animal" };
 export const needLabels = (needs?: string[] | null) => (needs ?? []).map((n) => NEED_LABEL[n] ?? n);
+
+/** Bourse d'échange : la mission est-elle déjà proposée, encore échangeable, ou trop proche ? */
+export function swapState(r: { status: string; swapOfferedAt?: string | null; swapDeadline?: string | null }, now = new Date()): "offered" | "open" | "closed" {
+  if (r.status !== "ASSIGNED" || !r.swapDeadline) return "closed";
+  if (new Date(r.swapDeadline).getTime() <= now.getTime()) return "closed";
+  return r.swapOfferedAt ? "offered" : "open";
+}
