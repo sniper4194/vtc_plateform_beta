@@ -2,6 +2,7 @@ import { Booking, Driver, Ride, Vehicle } from "@prisma/client";
 import { euros } from "./http";
 import { effectivePickup, NO_SHOW_WAIT_MIN } from "./metrics";
 import { swapMinHours } from "./swap-rules";
+import { carbonFactors, rideCarbon } from "./carbon";
 
 export type RideFull = Ride & { booking: Booking; driver: Driver | null; vehicle: Vehicle | null };
 
@@ -36,6 +37,8 @@ export function bookingView(r: RideFull) {
     flightNumber: r.booking.flightNumber,
     total: euros(r.priceCents),
     currency: "EUR",
+    // Bilan carbone de la course terminée ; null tant que les facteurs ADEME ne sont pas renseignés.
+    carbon: rideCarbon(r, r.vehicle?.fuel, carbonFactors()),
     // Lien de suivi à transmettre au voyageur (page publique, sans compte) ; null pour les anciennes réservations.
     trackingUrl: r.booking.trackingToken ? `${(process.env.TRACKING_BASE_URL ?? "http://localhost:3002").replace(/\/$/, "")}/suivi/${r.booking.trackingToken}` : null,
     driver: r.driver

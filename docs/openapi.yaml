@@ -112,6 +112,18 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
       responses:
         '200': { description: Indicateurs (missions, assignedEarly, arrivedOnTime, atRisk, neverAssigned, completed, noShow, givenBack, cancelledByCustomer) }
+  /carbon:
+    get:
+      summary: Bilan carbone de vos courses terminées sur la période
+      description: |
+        Distance prévue du trajet client × facteur d'émission par véhicule-km selon la motorisation (thermique, hybride, électrique).
+        Facteurs issus de la Base Empreinte de l'ADEME, avec la source renvoyée dans la réponse. `enabled: false` tant que les facteurs
+        ne sont pas configurés. Chaque réservation terminée porte aussi un champ `carbon` (null si non calculable).
+      parameters:
+        - { in: query, name: from, schema: { type: string, format: date-time } }
+        - { in: query, name: to, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: "Total (kgCO2e, km, courses), détail par motorisation et par course, facteurs et source" }
   /bookings/{id}/proofs:
     get:
       summary: Photos-preuves prises sur place par le chauffeur (client absent, bagages en excès)
