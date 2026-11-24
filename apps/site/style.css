@@ -131,3 +131,17 @@ footer p{max-width:340px}
 }
 @media (max-width:640px){header.top{position:static}.top .wrap{padding:10px 0;gap:8px}nav ul{gap:7px}nav a{font-size:13px;padding:6px 11px;box-shadow:2px 2px 0 var(--ink)}.trust ul{grid-template-columns:1fr}.logo{font-size:34px}.sticker{width:96px;height:96px}.sticker b{font-size:24px}.sticker.r{width:104px;height:104px}.sticker.r b{font-size:17px}.doc{padding:22px}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn{transition:none}}
+
+/* Parcours en trois étapes (page partenaires) et exemple de code replié */
+.flow{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(3,1fr);gap:34px;counter-reset:none}
+.flow li{position:relative}
+.flow li:not(:last-child)::after{content:"→";position:absolute;right:-30px;top:50%;transform:translateY(-50%);font-family:var(--display);font-size:34px;color:var(--red);text-shadow:2px 2px 0 var(--cream);z-index:2}
+details.dev{margin-top:30px}
+details.dev summary{display:inline-block;cursor:pointer;font-family:var(--slab);font-size:15px;padding:10px 20px;border-radius:999px;border:2.5px solid var(--ink);background:var(--cream);box-shadow:3px 3px 0 var(--ink);list-style:none}
+details.dev summary::-webkit-details-marker{display:none}
+details.dev summary::before{content:"+ ";font-family:var(--cond)}
+details.dev[open] summary{background:var(--yel)}
+details.dev[open] summary::before{content:"− "}
+details.dev summary:focus-visible{outline:3px solid var(--dblue);outline-offset:3px}
+details.dev pre{margin-top:20px}
+@media (max-width:960px){.flow{grid-template-columns:1fr;gap:34px}.flow li:not(:last-child)::after{content:"↓";right:auto;left:50%;top:auto;bottom:-34px;transform:translateX(-50%)}}
