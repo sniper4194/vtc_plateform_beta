@@ -1,11 +1,11 @@
 /**
- * Prime écologique : le chauffeur qui prend une mission avec un véhicule électrique touche une prime égale à 5 % du prix payé par le client
+ * Prime écologique : le chauffeur qui prend une mission avec un véhicule électrique touche une prime égale à 3 % du prix payé par le client
  * (réglable), prélevée sur la commission de la plateforme (jamais sur le prix client). Elle est plafonnée par ce qu'il reste de commission :
  * la plateforme ne vend jamais à perte. ECO_BONUS_PERCENT la règle (0 la désactive).
  */
 export const ecoBonusPercent = (env: NodeJS.ProcessEnv = process.env) => {
   const v = env.ECO_BONUS_PERCENT;
-  return v !== undefined && v !== "" && Number.isFinite(Number(v)) ? Math.min(100, Math.max(0, Number(v))) : 5;
+  return v !== undefined && v !== "" && Number.isFinite(Number(v)) ? Math.min(100, Math.max(0, Number(v))) : 3;
 };
 
 /**

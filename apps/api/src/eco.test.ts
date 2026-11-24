@@ -69,9 +69,10 @@ async function accept(d: { token: string }) {
 }
 
 describe("prime écologique : calcul", () => {
-  it("5 % du prix client, seulement pour un véhicule électrique, plafonnée par la commission restante", () => {
-    expect(ecoBonusCents("ELECTRIC", 10000, 2000, {} as any)).toBe(500); // 5 % d'un prix client de 100 €
-    expect(ecoBonusCents("ELECTRIC", 5500, 2000, {} as any)).toBe(275); // 5 % de 55 €
+  it("3 % du prix client, seulement pour un véhicule électrique, plafonnée par la commission restante", () => {
+    expect(ecoBonusCents("ELECTRIC", 10000, 2000, {} as any)).toBe(300); // 3 % d'un prix client de 100 €
+    expect(ecoBonusCents("ELECTRIC", 5500, 2000, {} as any)).toBe(165); // 3 % de 55 €
+    expect(ecoBonusCents("ELECTRIC", 9500, 2000, {} as any)).toBe(285); // 3 % de 95 € (van)
     expect(ecoBonusCents("ELECTRIC", 10000, 120, {} as any)).toBe(120); // jamais plus que la commission restante
     expect(ecoBonusCents("ELECTRIC", 10000, -50, {} as any)).toBe(0); // commission déjà négative : pas de prime
     expect(ecoBonusCents("HYBRID", 10000, 2000, {} as any)).toBe(0);
@@ -91,7 +92,7 @@ describe("prime écologique : parcours", () => {
     const ride = await prisma.ride.findFirstOrThrow({ where: { driverId: d.id } });
     expect(offer.ecoBonusCents).toBeGreaterThan(0);
     expect(ride.ecoBonusCents).toBe(offer.ecoBonusCents);
-    expect(ride.ecoBonusCents).toBe(Math.round((ride.priceCents * 5) / 100)); // 5 % du prix payé par le client
+    expect(ride.ecoBonusCents).toBe(Math.round((ride.priceCents * 3) / 100)); // 3 % du prix payé par le client
     // le prix client ne bouge pas : net + commission = prix client
     expect(ride.driverNetCents + ride.commissionCents).toBe(ride.priceCents);
     expect(ride.driverNetCents).toBe(offer.netCents); // le prix annoncé est celui qui est payé
