@@ -1,4 +1,4 @@
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { Camera, CameraView } from "expo-camera";
 import * as Location from "expo-location";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Modal, Text, View } from "react-native";
@@ -70,7 +70,11 @@ const W = 360, H = 480; // taille de travail de l'image composée ; exportée en
 
 /** Viseur : date, heure, adresse et position en direct par-dessus la caméra, puis le même cachet incrusté dans la photo. */
 export function ProofCamera({ rideId, rideRef, kind, onClose, notify, onSent }: { rideId: string; rideRef: string; kind: Kind; onClose: () => void; notify: Notify; onSent: () => void }) {
-  const [perm, askPerm] = useCameraPermissions();
+  // Autorisation de la caméra : fonctions directes plutôt que le hook d'expo-camera. Sur certains PC (Windows + pnpm), le hook charge une
+  // seconde copie de React et plante (« Cannot read properties of null (reading 'useRef') »).
+  const [perm, setPerm] = useState<{ granted: boolean } | null>(null);
+  useEffect(() => { Camera.getCameraPermissionsAsync().then(setPerm).catch(() => setPerm({ granted: false })); }, []);
+  const askPerm = () => Camera.requestCameraPermissionsAsync().then(setPerm).catch(() => setPerm({ granted: false }));
   const { fix, denied } = useFix(true);
   const cam = useRef<CameraView>(null);
   const shot = useRef<ViewShot>(null);
