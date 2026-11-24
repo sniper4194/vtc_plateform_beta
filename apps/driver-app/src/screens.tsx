@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { DeadlinesCard, DeadlinesScreen } from "./deadlines";
 import { Avatar, IdentityScreen } from "./identity";
 import { IncidentCard, IncidentScreen } from "./incident";
@@ -29,7 +30,7 @@ function Route({ from, to }: { from: string; to: string }) {
 }
 const Text2 = ({ children }: { children: string }) => <Slab size={15} color={c.ink} shadow={null} style={{ lineHeight: 20 }}>{children}</Slab>;
 
-function Header({ title, right }: { title: string; right?: React.ReactNode }) {
+function Header({ title, right }: { title: string; right?: ReactNode }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 6 }}>
       <Display size={46} shadow={c.red}>{title}</Display>
@@ -149,7 +150,7 @@ const catColor = (cat: string) => ({ BERLINE: c.yel, BUSINESS: c.onSky, VAN: c.r
 /** Une ligne de liste : heure + distance | barre de catégorie | trajet + prix. Se déplie en carte. */
 function Row({ time, dist, category, from, to, price, rising, flight, badge, expanded, onPress, children }: {
   time: string; dist?: number | null; category: string; from: string; to: string; price: string; rising?: boolean; flight?: boolean;
-  badge?: React.ReactNode; expanded: boolean; onPress?: () => void; children?: React.ReactNode;
+  badge?: ReactNode; expanded: boolean; onPress?: () => void; children?: ReactNode;
 }) {
   const ink = expanded ? c.ink : c.onSky;
   const body = (
