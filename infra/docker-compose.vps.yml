@@ -1,0 +1,178 @@
+# Déploiement sur un VPS Hostinger SANS accès au dépôt cloné : un seul fichier, collé dans le gestionnaire Docker de hPanel
+# (VPS > Gestionnaire Docker > Composer) ou envoyé par l'API Hostinger. Généré par `node infra/make-vps-compose.mjs` : ne pas modifier à la main
+# (modifier docker-compose.vps.template.yml, Caddyfile.vps ou backup.sh puis relancer le script).
+#
+# Variables à renseigner dans le gestionnaire (jamais dans ce fichier) :
+#   GIT_CONTEXT  adresse du dépôt avec un jeton en lecture seule, ex. https://<jeton>@github.com/sniper4194/vtc_plateform_beta.git#claude/optimistic-maxwell-sagq8e
+#   API_DOMAIN, ADMIN_DOMAIN, TRACK_DOMAIN, POSTGRES_PASSWORD, TOKEN_SECRET (+ fournisseurs SMS / e-mail : voir docs/DEPLOIEMENT.md)
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      POSTGRES_USER: vtc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis}
+      POSTGRES_DB: vtc
+    volumes: [dbdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vtc -d vtc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ${GIT_CONTEXT:?GIT_CONTEXT requis}
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://vtc:${POSTGRES_PASSWORD}@db:5432/vtc?schema=public
+      TOKEN_SECRET: ${TOKEN_SECRET:?TOKEN_SECRET requis (openssl rand -hex 32)}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      CORS_ORIGINS: https://${ADMIN_DOMAIN:?ADMIN_DOMAIN requis},https://${TRACK_DOMAIN:?TRACK_DOMAIN requis}
+      TRACKING_BASE_URL: https://${TRACK_DOMAIN}
+      TRUST_PROXY: "1"
+      ROUTING_URL: ${ROUTING_URL:-}
+      SMS_PROVIDER: ${SMS_PROVIDER:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM: ${TWILIO_FROM:-}
+      BRAND_NAME: ${BRAND_NAME:-CliCab}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      PRICE_LADDER: ${PRICE_LADDER:-1}
+      IDENTITY_CHECKS: ${IDENTITY_CHECKS:-1}
+      IDENTITY_SPOT: ${IDENTITY_SPOT:-1}
+      VEHICLE_RULES: ${VEHICLE_RULES:-1}
+    expose: ["3000"]
+
+  backoffice:
+    build:
+      context: ${GIT_CONTEXT}
+      dockerfile: apps/backoffice/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?API_DOMAIN requis}
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    depends_on: [api]
+    expose: ["3001"]
+
+  web-booking:
+    build:
+      context: ${GIT_CONTEXT}
+      dockerfile: apps/web-booking/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN}
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    depends_on: [api]
+    expose: ["3002"]
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGHOST: db
+      PGUSER: vtc
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: vtc
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    entrypoint: ["sh", "/backup.sh"]
+    configs:
+      - source: backup_sh
+        target: /backup.sh
+    volumes: [backups:/backups]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [api, backoffice, web-booking]
+    ports: ["80:80", "443:443"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN}
+      TRACK_DOMAIN: ${TRACK_DOMAIN}
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes: [caddy_data:/data, caddy_config:/config]
+
+configs:
+  caddyfile:
+    content: |
+      # HTTPS automatique (Let's Encrypt) : les trois noms de domaine doivent pointer vers ce serveur (ports 80 et 443 ouverts).
+      (securite) {
+      	encode gzip
+      	header {
+      		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+      		X-Content-Type-Options "nosniff"
+      		X-Frame-Options "DENY"
+      		Referrer-Policy "strict-origin-when-cross-origin"
+      		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+      		Cross-Origin-Opener-Policy "same-origin"
+      		-Server
+      		-X-Powered-By
+      	}
+      }
+
+      {$$API_DOMAIN} {
+      	import securite
+      	reverse_proxy api:3000
+      }
+
+      {$$ADMIN_DOMAIN} {
+      	import securite
+      	reverse_proxy backoffice:3001
+      }
+
+      # Page de suivi du voyageur : le lien contient un jeton secret, il ne doit pas fuiter ni être mis en cache.
+      {$$TRACK_DOMAIN} {
+      	import securite
+      	header Referrer-Policy "no-referrer"
+      	reverse_proxy web-booking:3002
+      }
+  backup_sh:
+    content: |
+      #!/bin/sh
+      # Sauvegarde de la base : une copie compressée (format pg_dump -Fc) tous les BACKUP_INTERVAL_HOURS heures, dans /backups.
+      # Les copies de plus de BACKUP_RETENTION_DAYS jours sont supprimées. BACKUP_ONCE=1 : une seule sauvegarde puis arrêt (essais).
+      # Variables libpq attendues : PGHOST, PGUSER, PGPASSWORD, PGDATABASE.
+      set -eu
+      DIR="$${BACKUP_DIR:-/backups}"
+      KEEP="$${BACKUP_RETENTION_DAYS:-14}"
+      EVERY="$${BACKUP_INTERVAL_HOURS:-24}"
+      mkdir -p "$$DIR"
+      while true; do
+        f="$$DIR/vtc-$$(date -u +%Y%m%d-%H%M%S).dump"
+        if pg_dump -Fc -f "$$f.part"; then
+          mv "$$f.part" "$$f"
+          echo "sauvegarde ok : $$f ($$(wc -c < "$$f") octets)"
+          find "$$DIR" -name 'vtc-*.dump' -mtime +"$$KEEP" -delete
+        else
+          rm -f "$$f.part"
+          echo "ÉCHEC de la sauvegarde" >&2
+        fi
+        [ "$${BACKUP_ONCE:-0}" = "1" ] && break
+        sleep "$$((EVERY * 3600))"
+      done
+
+volumes:
+  dbdata:
+  backups:
+  caddy_data:
+  caddy_config:

@@ -51,3 +51,21 @@ La sauvegarde contient les selfies et les données personnelles des chauffeurs :
 
 ## Non couvert
 Haute disponibilité (une seule instance), publication de l'application chauffeur (App Store, Google Play : aucune chaîne EAS/Expo en place), stockage objet des documents et des selfies (aujourd'hui dans la base), paiements (Stripe), e-signature, notifications push, métriques/alertes.
+
+## Variante « VPS Hostinger, sans terminal » (`infra/docker-compose.vps.yml`)
+
+Quand on n'a pas de terminal sur le serveur, le gestionnaire Docker de hPanel (VPS > Gestionnaire Docker) accepte **un seul fichier compose**. `infra/docker-compose.vps.yml` est autonome : la configuration Caddy et le script de sauvegarde y sont intégrés, et le code est récupéré directement depuis GitHub au moment de la construction des images.
+
+1. **Jeton GitHub en lecture seule** (le dépôt est privé) : GitHub > Settings > Developer settings > Fine-grained tokens > dépôt `vtc_plateform_beta` uniquement, permission *Contents : Read-only*, durée courte (30 jours). Ne le partagez qu'à hPanel.
+2. **Créer le projet** (nom `clicab`) en collant le contenu de `infra/docker-compose.vps.yml`, et renseigner les variables d'environnement dans hPanel (jamais dans le fichier) :
+   - `GIT_CONTEXT` = `https://<jeton>@github.com/sniper4194/vtc_plateform_beta.git#<branche>`
+   - `API_DOMAIN`, `ADMIN_DOMAIN`, `TRACK_DOMAIN` (les trois enregistrements DNS « A » doivent pointer vers l'IP du VPS)
+   - `POSTGRES_PASSWORD`, `TOKEN_SECRET` (`openssl rand -hex 32`), `ADMIN_TOKEN` (temporaire, voir ci-dessous)
+   - pour que les chauffeurs puissent se connecter : `SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`. **Sans fournisseur SMS, la connexion chauffeur répond 501.**
+3. Le premier démarrage construit trois images (plusieurs minutes). Caddy obtient ensuite les certificats HTTPS tout seul.
+4. **Premier compte administrateur** : avec `ADMIN_TOKEN` défini, créez-le par l'API, puis **retirez `ADMIN_TOKEN`** du projet et mettez le projet à jour (le jeton de service donne tous les droits).
+5. Le site vitrine reste sur l'hébergement web (clicab.fr) : cette variante n'en a pas besoin.
+
+Régénérer le fichier après une modification : `node infra/make-vps-compose.mjs`.
+
+**Non vérifié** : la construction des images depuis l'adresse GitHub avec jeton n'a pas pu être essayée depuis l'environnement de développement. Les fichiers sont validés par `docker compose config` (le contenu intégré est identique aux originaux).
