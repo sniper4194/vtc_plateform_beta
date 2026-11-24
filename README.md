@@ -270,3 +270,7 @@ Guide pas à pas : [docs/MISE_EN_LIGNE.md](docs/MISE_EN_LIGNE.md). Le script `sc
 - **Accueil traduit** : dans la mission, une carte de bienvenue dans la langue du voyageur (anglais, espagnol, allemand, italien, portugais, néerlandais ; anglais à défaut), avec la traduction française en petit pour le chauffeur.
 - **Garde-fou fatigue** : au-delà de `FATIGUE_MAX_MISSION_HOURS` (10 h par défaut, à confirmer) de mission sur n'importe quelle période de 24 h, plus aucune offre n'est proposée ni attribuée, y compris en sauveteur. L'écran d'accueil prévient à partir de 80 %. Le temps compté est une estimation (trajet + marge entre deux courses), pas un relevé de conduite.
 - **Missions de retour** : une offre qui part à moins de 3 km (`RETURN_RADIUS_KM`) de l'arrivée d'une mission prévue, dans les 2 h (`RETURN_WINDOW_MIN`), est signalée « ↩ Retour » et passe en tête ; le dispatch sert ces chauffeurs en priorité.
+
+## Son d'atterrissage
+
+Quand le vol d'une mission se pose (message « Vol … atterri » envoyé par le suivi de vol), l'application chauffeur affiche une bulle et joue le son d'atterrissage (`apps/driver-app/assets/sounds/atterrissage.mp3`). Vérification toutes les 15 s, **application ouverte uniquement** : application fermée, il faudra les notifications push (point 2 de la feuille de route), qui pourront reprendre ce son.

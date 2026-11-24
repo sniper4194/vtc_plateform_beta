@@ -10,6 +10,7 @@ import { ActivityIndicator, Pressable, SafeAreaView, TextInput, View } from "rea
 import { api, getApiUrl, loadApiUrl, loadToken, saveApiUrl, saveToken } from "./src/api";
 import { reportCrash } from "./src/crashReport";
 import { ErrorBoundary } from "./src/ErrorBoundary";
+import { useLandingAlert } from "./src/useLandingAlert";
 import { SpotPrompt } from "./src/identity";
 import { MissionScreen } from "./src/mission";
 import { Earnings } from "./src/earnings";
@@ -126,6 +127,7 @@ function Root() {
   const [missionId, setMissionId] = useState<string | null>(null);
   const [showMessages, setShowMessages] = useState(false);
   const toast = useToast();
+  useLandingAlert(authed, toast.show);
 
   useEffect(() => {
     Promise.all([loadThemeMode(), loadApiUrl().then(() => loadToken())]).then(([m, t]) => { applyTheme(m); setMode(m); setAuthed(Boolean(t)); setReady(true); });
