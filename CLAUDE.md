@@ -52,6 +52,7 @@ Démo : chauffeur `06 00 00 00 01` code `000000` ; admin `demo@clicab.local` / `
 - Une table sans clé étrangère vers `Ride`/`Driver` n'est pas vidée par `TRUNCATE … CASCADE` des tests : relier les tables ou les ajouter à la liste.
 - Les tests qui simulent un filtre ou un service doivent **restaurer** la simulation (`mockRestore`), sinon la suite suivante se bloque.
 - Corps de requête limité à 1 Mo (photos : 650 Ko décodés au plus). `prisma generate` avant `pnpm -r build`.
+- **hPanel ne construit pas d'images** (« No such image ») : la CI publie `ghcr.io/sniper4194/clicab-{api,backoffice,suivi}:pilote` (paquets publics) ; le VPS les télécharge. Aucune tabulation dans le fichier VPS.
 - `docker-compose.vps.yml` est **généré** : modifier `docker-compose.vps.template.yml` puis `node infra/make-vps-compose.mjs`.
 - Site statique : `.htaccess` (Apache/LiteSpeed) sans redirection HTTPS (Hostinger la gère) ; HSTS à passer de 1 jour à 1 an une fois vérifié.
 

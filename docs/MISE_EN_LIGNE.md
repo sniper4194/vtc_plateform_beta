@@ -5,12 +5,11 @@ Les mots de passe, jetons et clés ne s'écrivent **que** dans hPanel ou dans vo
 
 Déjà vérifié : le VPS (`76.13.255.155`) est allumé et vide ; `api`, `admin` et `suivi.clicab.fr` pointent vers lui.
 
-## Étape 1. Jeton GitHub (lecture seule)
-GitHub → photo de profil → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
-- Nom : `clicab-vps` ; expiration : 30 jours.
-- Repository access : **Only select repositories** → `vtc_plateform_beta`.
-- Permissions → Repository permissions → **Contents : Read-only**.
-- **Réussi quand** : un jeton commençant par `github_pat_` s'affiche. Copiez-le dans le bloc-notes (il ne sera plus jamais affiché).
+## Étape 1. Rendre publiques les 3 images (une seule fois)
+GitHub construit les images du serveur à chaque envoi (après des tests verts) et les publie ; hPanel ne sait que télécharger des images toutes faites.
+GitHub → photo de profil → **Your profile** → onglet **Packages**. Pour chacun des 3 paquets `clicab-api`, `clicab-backoffice`, `clicab-suivi` :
+ouvrir le paquet → **Package settings** (en bas à droite) → **Change visibility** → **Public** → confirmer en tapant son nom.
+- **Réussi quand** : les 3 paquets affichent « Public ».
 
 ## Étape 2. Infobip (SMS)
 Dans le portail Infobip :
@@ -36,7 +35,6 @@ Notez les 3 résultats : n° 1 = `POSTGRES_PASSWORD`, n° 2 = `TOKEN_SECRET`, n�
 
 | Variable | Valeur |
 |---|---|
-| `GIT_CONTEXT` | `https://JETON@github.com/sniper4194/vtc_plateform_beta.git#claude/optimistic-maxwell-sagq8e` (remplacez `JETON`) |
 | `API_DOMAIN` | `api.clicab.fr` |
 | `ADMIN_DOMAIN` | `admin.clicab.fr` |
 | `TRACK_DOMAIN` | `suivi.clicab.fr` |
@@ -51,7 +49,7 @@ Notez les 3 résultats : n° 1 = `POSTGRES_PASSWORD`, n° 2 = `TOKEN_SECRET`, n�
 | `IDENTITY_CHECKS` | `0` (premier essai seulement) |
 | `VEHICLE_RULES` | `0` (premier essai seulement) |
 
-4. Lancez (Déployer). La construction prend plusieurs minutes.
+4. Lancez (Déployer). Le téléchargement des images prend quelques minutes.
 - **Réussi quand** : tous les services sont « en cours d'exécution » et https://api.clicab.fr/health affiche `{"status":"ok"}`.
 - Les certificats HTTPS sont demandés automatiquement au premier démarrage : une erreur de certificat pendant les premières minutes est normale.
 
@@ -92,7 +90,7 @@ Ensuite, connexion au back-office (https://admin.clicab.fr) avec l'e-mail et le 
 - **Copie hors du serveur** des sauvegardes : reste à organiser (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
 
 ## Ce qui n'est pas encore vérifié
-- La construction des images depuis GitHub avec jeton sur le VPS (testée seulement en local et dans la CI GitHub).
+- Le téléchargement des images publiques par le VPS.
 - L'envoi réel de SMS par Infobip (écrit d'après les exemples publiés, le site de documentation n'était pas joignable).
 - L'alerte Discord réelle et celle du service `backup-check`.
 - Aucune charge n'a été simulée.

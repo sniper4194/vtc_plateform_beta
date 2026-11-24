@@ -56,15 +56,15 @@ Haute disponibilité (une seule instance), publication de l'application chauffeu
 
 ## Variante « VPS Hostinger, sans terminal » (`infra/docker-compose.vps.yml`)
 
-Quand on n'a pas de terminal sur le serveur, le gestionnaire Docker de hPanel (VPS > Gestionnaire Docker) accepte **un seul fichier compose**. `infra/docker-compose.vps.yml` est autonome : la configuration Caddy et le script de sauvegarde y sont intégrés, et le code est récupéré directement depuis GitHub au moment de la construction des images.
+Quand on n'a pas de terminal sur le serveur, le gestionnaire Docker de hPanel (VPS > Gestionnaire Docker) accepte **un seul fichier compose**. `infra/docker-compose.vps.yml` est autonome : la configuration Caddy et le script de sauvegarde y sont intégrés. **hPanel ne construit pas d'images** (constaté : « No such image: clicab-api:latest ») : la CI GitHub construit les trois images après des tests verts et les publie sur `ghcr.io/sniper4194` (`clicab-api`, `clicab-backoffice`, `clicab-suivi`, étiquette `pilote` + empreinte du commit). Les paquets sont **publics** (choix de l'utilisateur : le VPS ne peut pas s'authentifier) ; aucun secret n'y figure. L'adresse de l'API est intégrée aux pages web à la construction : `https://api.clicab.fr` (variable de dépôt GitHub `API_URL` pour la changer).
 
-1. **Jeton GitHub en lecture seule** (le dépôt est privé) : GitHub > Settings > Developer settings > Fine-grained tokens > dépôt `vtc_plateform_beta` uniquement, permission *Contents : Read-only*, durée courte (30 jours). Ne le partagez qu'à hPanel.
+1. **Paquets publics, une seule fois** : après la première publication, sur GitHub > votre profil > Packages, pour `clicab-api`, `clicab-backoffice` et `clicab-suivi` : Package settings > Change visibility > Public.
 2. **Créer le projet** (nom `clicab`) en collant le contenu de `infra/docker-compose.vps.yml`, et renseigner les variables d'environnement dans hPanel (jamais dans le fichier) :
-   - `GIT_CONTEXT` = `https://<jeton>@github.com/sniper4194/vtc_plateform_beta.git#<branche>`
+   - `IMAGE_TAG` (facultatif) : `pilote` par défaut ; l'empreinte d'un commit pour revenir à une version précise
    - `API_DOMAIN`, `ADMIN_DOMAIN`, `TRACK_DOMAIN` (les trois enregistrements DNS « A » doivent pointer vers l'IP du VPS)
    - `POSTGRES_PASSWORD`, `TOKEN_SECRET` (`openssl rand -hex 32`), `ADMIN_TOKEN` (temporaire, voir ci-dessous)
    - pour que les chauffeurs puissent se connecter : `SMS_PROVIDER=ovh`, `OVH_APP_KEY`, `OVH_APP_SECRET`, `OVH_CONSUMER_KEY`, `OVH_SMS_SERVICE` (et `OVH_SMS_SENDER` une fois l'expéditeur validé par OVHcloud) ; ou Twilio : `SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` ; ou Infobip : `SMS_PROVIDER=infobip`, `INFOBIP_BASE_URL` (adresse personnelle affichée dans le portail), `INFOBIP_API_KEY`, `INFOBIP_FROM`. **Sans fournisseur SMS, la connexion chauffeur répond 501.**
-3. Le premier démarrage construit trois images (plusieurs minutes). Caddy obtient ensuite les certificats HTTPS tout seul.
+3. Le premier démarrage télécharge les images (quelques minutes). Pour une nouvelle version : attendre la CI verte, puis « Mettre à jour » le projet dans hPanel. Caddy obtient ensuite les certificats HTTPS tout seul.
 4. **Premier compte administrateur** : avec `ADMIN_TOKEN` défini, créez-le par l'API, puis **retirez `ADMIN_TOKEN`** du projet et mettez le projet à jour (le jeton de service donne tous les droits).
 5. Le site vitrine reste sur l'hébergement web (clicab.fr) : cette variante n'en a pas besoin.
 

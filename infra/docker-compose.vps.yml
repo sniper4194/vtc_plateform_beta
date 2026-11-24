@@ -3,7 +3,8 @@
 # (modifier docker-compose.vps.template.yml, Caddyfile.vps ou backup.sh puis relancer le script).
 #
 # Variables à renseigner dans le gestionnaire (jamais dans ce fichier) :
-#   GIT_CONTEXT  adresse du dépôt avec un jeton en lecture seule, ex. https://<jeton>@github.com/sniper4194/vtc_plateform_beta.git#claude/optimistic-maxwell-sagq8e
+#   Les images sont construites par GitHub (CI) et publiées sur ghcr.io/sniper4194 : hPanel ne sait pas construire d'images.
+#   IMAGE_TAG (facultatif) : « pilote » par défaut (dernière version testée), ou l'empreinte d'un commit pour revenir en arrière.
 #   API_DOMAIN, ADMIN_DOMAIN, TRACK_DOMAIN, POSTGRES_PASSWORD, TOKEN_SECRET (+ fournisseurs SMS / e-mail : voir docs/DEPLOIEMENT.md)
 services:
   db:
@@ -22,9 +23,7 @@ services:
       retries: 10
 
   api:
-    build:
-      context: ${GIT_CONTEXT:?GIT_CONTEXT requis}
-      dockerfile: apps/api/Dockerfile
+    image: ghcr.io/sniper4194/clicab-api:${IMAGE_TAG:-pilote}
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
@@ -65,11 +64,7 @@ services:
     expose: ["3000"]
 
   backoffice:
-    build:
-      context: ${GIT_CONTEXT}
-      dockerfile: apps/backoffice/Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?API_DOMAIN requis}
+    image: ghcr.io/sniper4194/clicab-backoffice:${IMAGE_TAG:-pilote}
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
@@ -77,11 +72,7 @@ services:
     expose: ["3001"]
 
   web-booking:
-    build:
-      context: ${GIT_CONTEXT}
-      dockerfile: apps/web-booking/Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: https://${API_DOMAIN}
+    image: ghcr.io/sniper4194/clicab-suivi:${IMAGE_TAG:-pilote}
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
