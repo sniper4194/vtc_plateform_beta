@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { normalizePhone } from "./phone";
 import { createHash } from "node:crypto";
-import { OvhSmsProvider, smsProviderFromEnv, TwilioSmsProvider } from "./sms";
+import { InfobipSmsProvider, OvhSmsProvider, smsProviderFromEnv, TwilioSmsProvider } from "./sms";
 
 describe("numéros de téléphone", () => {
   it("normalise en E.164", () => {
@@ -94,5 +94,30 @@ describe("choix du fournisseur", () => {
   it("Twilio exige une configuration complète", () => {
     expect(() => smsProviderFromEnv({ SMS_PROVIDER: "twilio" } as any)).toThrow();
     expect(smsProviderFromEnv({ SMS_PROVIDER: "twilio", TWILIO_ACCOUNT_SID: "AC", TWILIO_AUTH_TOKEN: "t", TWILIO_FROM: "CliCab" } as any)).toBeInstanceOf(TwilioSmsProvider);
+  });
+});
+
+describe("fournisseur Infobip", () => {
+  it("poste sur l'adresse personnelle avec la clé « App », numéro international sans +", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ messages: [{ status: { groupName: "PENDING" } }] }) });
+    await new InfobipSmsProvider({ baseUrl: "https://abc12.api.infobip.com/", apiKey: "k1", from: "CliCab" }, f as any).send("+33612345678", "Votre code : 123456");
+    const [url, init] = f.mock.calls[0];
+    expect(url).toBe("https://abc12.api.infobip.com/sms/2/text/advanced");
+    expect(init.headers.authorization).toBe("App k1");
+    expect(JSON.parse(init.body)).toEqual({ messages: [{ destinations: [{ to: "33612345678" }], from: "CliCab", text: "Votre code : 123456" }] });
+    // adresse saisie sans https://
+    await new InfobipSmsProvider({ baseUrl: "abc12.api.infobip.com", apiKey: "k1" }, f as any).send("+33612345678", "x");
+    expect(f.mock.calls[1][0]).toBe("https://abc12.api.infobip.com/sms/2/text/advanced");
+    expect(JSON.parse(f.mock.calls[1][1].body).messages[0].from).toBeUndefined();
+  });
+  it("signale les erreurs HTTP et les refus par message", async () => {
+    const p401 = new InfobipSmsProvider({ baseUrl: "x.api.infobip.com", apiKey: "k" }, vi.fn().mockResolvedValue({ ok: false, status: 401 }) as any);
+    await expect(p401.send("+33612345678", "x")).rejects.toThrow(/401/);
+    const rej = new InfobipSmsProvider({ baseUrl: "x.api.infobip.com", apiKey: "k" }, vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ messages: [{ status: { groupName: "REJECTED", name: "REJECTED_DESTINATION", description: "not whitelisted" } }] }) }) as any);
+    await expect(rej.send("+33612345678", "x")).rejects.toThrow(/REJECTED_DESTINATION/);
+  });
+  it("se configure par l'environnement", () => {
+    expect(smsProviderFromEnv({ SMS_PROVIDER: "infobip", INFOBIP_BASE_URL: "x.api.infobip.com", INFOBIP_API_KEY: "k" } as any)).toBeInstanceOf(InfobipSmsProvider);
+    expect(() => smsProviderFromEnv({ SMS_PROVIDER: "infobip", INFOBIP_API_KEY: "k" } as any)).toThrow(/INFOBIP_BASE_URL/);
   });
 });

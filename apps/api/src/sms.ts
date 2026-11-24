@@ -80,6 +80,30 @@ export class OvhSmsProvider implements SmsProvider {
   }
 }
 
+/**
+ * Infobip (`POST {base}/sms/2/text/advanced`, en-tête `Authorization: App <clé>`). Variables : INFOBIP_BASE_URL (adresse personnelle
+ * affichée dans le portail, du type `xxxxx.api.infobip.com`), INFOBIP_API_KEY, INFOBIP_FROM (expéditeur ; en essai gratuit, celui imposé par Infobip).
+ * Écrit d'après les exemples publiés par Infobip (le site de documentation n'était pas joignable) ; non essayé contre un vrai compte.
+ */
+export class InfobipSmsProvider implements SmsProvider {
+  constructor(private cfg: { baseUrl: string; apiKey: string; from?: string }, private fetchImpl: typeof fetch = fetch) {}
+  private get base() { return ("https://" + this.cfg.baseUrl.replace(/^https?:\/\//, "")).replace(/\/+$/, ""); }
+  async send(to: string, text: string) {
+    const res = await this.fetchImpl(`${this.base}/sms/2/text/advanced`, {
+      method: "POST",
+      headers: { authorization: `App ${this.cfg.apiKey}`, "content-type": "application/json", accept: "application/json" },
+      // Numéro au format international ; les exemples d'Infobip l'écrivent sans « + ».
+      body: JSON.stringify({ messages: [{ destinations: [{ to: to.replace(/^\+/, "") }], ...(this.cfg.from ? { from: this.cfg.from } : {}), text }] }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw new Error(`Infobip HTTP ${res.status}`);
+    // Une réponse 200 peut porter un refus par message (numéro non autorisé en essai, expéditeur refusé…).
+    const j: any = await res.json().catch(() => null);
+    const st = j?.messages?.[0]?.status;
+    if (st?.groupName === "REJECTED") throw new Error(`Infobip refusé : ${st.name ?? ""} ${st.description ?? ""}`.trim());
+  }
+}
+
 export function smsProviderFromEnv(env = process.env): SmsProvider | null {
   const kind = env.SMS_PROVIDER ?? (env.NODE_ENV === "production" ? "" : "console");
   if (kind === "console") return env.NODE_ENV === "production" ? null : new ConsoleSmsProvider();
@@ -90,6 +114,10 @@ export function smsProviderFromEnv(env = process.env): SmsProvider | null {
   if (kind === "ovh") {
     if (!env.OVH_APP_KEY || !env.OVH_APP_SECRET || !env.OVH_CONSUMER_KEY || !env.OVH_SMS_SERVICE) throw new Error("Configuration OVHcloud incomplète (OVH_APP_KEY, OVH_APP_SECRET, OVH_CONSUMER_KEY, OVH_SMS_SERVICE)");
     return new OvhSmsProvider({ appKey: env.OVH_APP_KEY, appSecret: env.OVH_APP_SECRET, consumerKey: env.OVH_CONSUMER_KEY, service: env.OVH_SMS_SERVICE, sender: env.OVH_SMS_SENDER || undefined, endpoint: env.OVH_ENDPOINT || undefined });
+  }
+  if (kind === "infobip") {
+    if (!env.INFOBIP_BASE_URL || !env.INFOBIP_API_KEY) throw new Error("Configuration Infobip incomplète (INFOBIP_BASE_URL, INFOBIP_API_KEY)");
+    return new InfobipSmsProvider({ baseUrl: env.INFOBIP_BASE_URL, apiKey: env.INFOBIP_API_KEY, from: env.INFOBIP_FROM || undefined });
   }
   return null;
 }
