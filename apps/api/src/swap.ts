@@ -67,7 +67,8 @@ export class SwapService {
     return out;
   }
 
-  private async eligible(db: any, driverId: string, vehicles: Parameters<typeof firstCompliant>[0], ride: Ride, now: Date) {
+  /** Ce chauffeur peut-il faire cette mission (véhicule conforme et équipé, planning libre, repos) ? Sert aussi à la mise en commun. */
+  async eligible(db: any, driverId: string, vehicles: Parameters<typeof firstCompliant>[0], ride: Ride, now: Date) {
     if (!swapOpen(effectivePickup(ride.pickupAt, ride.flightDelayMin), now)) return false;
     if (!firstCompliant(vehicles.filter((v) => v.category === ride.category), ride.category, ride.needs)) return false;
     if (await this.dispatch.hasOverlap(db, driverId, ride)) return false;

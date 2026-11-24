@@ -112,6 +112,10 @@ model Company {
   /// Clé d'accès de l'espace société (hash SHA-256 ; la clé en clair n'est jamais stockée)
   accessKeyHash   String? @unique
   accessKeyPrefix String?
+  /// Mise en commun : la société accepte de confier et de recevoir des missions d'autres sociétés partenaires
+  poolOptIn  Boolean  @default(false)
+  poolsGiven RidePool[] @relation("PoolFrom")
+  poolsTaken RidePool[] @relation("PoolTo")
   drivers    Driver[]
   vehicles   Vehicle[]
   createdAt  DateTime @default(now())
@@ -237,6 +241,7 @@ model Ride {
   /// Besoins particuliers du voyageur (voir NEEDS) : seuls les véhicules équipés reçoivent la mission
   needs         String[]        @default([])
   lostItems     LostItem[]
+  pools         RidePool[]
   referralReward ReferralReward?
   /// Bourse d'échange : le chauffeur affecté propose la mission à un collègue (sans pénalité, assez tôt). Null = pas à l'échange.
   swapOfferedAt DateTime?
@@ -776,4 +781,32 @@ model ReferralReward {
 
   @@index([sponsorId, createdAt])
   @@index([filleulId])
+}
+
+enum PoolStatus {
+  OPEN
+  TAKEN
+  CANCELLED
+}
+
+/// Mise en commun entre sociétés : une société confie une mission de l'un de ses chauffeurs à une autre société partenaire.
+/// La part reversée à la société d'origine est figée au moment où la mission est confiée (POOL_SHARE_PERCENT, à confirmer).
+model RidePool {
+  id              String     @id @default(uuid())
+  rideId          String
+  ride            Ride       @relation(fields: [rideId], references: [id])
+  fromCompanyId   String
+  fromCompany     Company    @relation("PoolFrom", fields: [fromCompanyId], references: [id])
+  fromDriverId    String
+  sharePercent    Int        @default(0)
+  status          PoolStatus @default(OPEN)
+  toCompanyId     String?
+  toCompany       Company?   @relation("PoolTo", fields: [toCompanyId], references: [id])
+  toDriverId      String?
+  shareCents      Int        @default(0)
+  createdAt       DateTime   @default(now())
+  takenAt         DateTime?
+
+  @@index([status, createdAt])
+  @@index([rideId])
 }

@@ -161,10 +161,21 @@ export class CompanyController {
         route: `${p.kind === "RESCUE" ? "Pénalité (sauveteur)" : "Pénalité (mission rendue)"} · ${r.pickupAddress} → ${r.dropoffAddress}`, grossCents: 0, commissionCents: 0, netCents: -p.amountCents,
       };
     });
+    // Mise en commun : part reversée à cette société pour les missions confiées à une autre société et réalisées.
+    const pools = await this.prisma.ridePool.findMany({
+      where: { fromCompanyId: companyId, status: "TAKEN", shareCents: { gt: 0 }, ride: { status: "COMPLETED", pickupAt: { gte: from, lt: to } } },
+      include: { ride: true, toCompany: { select: { name: true } } },
+    });
+    const poolDrivers = await this.prisma.driver.findMany({ where: { id: { in: pools.map((p) => p.fromDriverId) } }, select: { id: true, firstName: true, lastName: true } });
+    const nameOf = new Map(poolDrivers.map((d) => [d.id, `${d.firstName} ${d.lastName}`]));
+    const poolRows = pools.map((p) => ({
+      kind: "MISE_EN_COMMUN" as const, rideId: p.rideId, pickupAt: p.ride.pickupAt, at: p.ride.pickupAt, reference: `R-${p.ride.ref}`, driver: nameOf.get(p.fromDriverId) ?? "?", driverId: p.fromDriverId,
+      route: `Confiée à ${p.toCompany?.name ?? "une société partenaire"} (${p.sharePercent} %) · ${p.ride.pickupAddress} → ${p.ride.dropoffAddress}`, grossCents: 0, commissionCents: 0, netCents: p.shareCents,
+    }));
     const rows = [...rides.map((r) => ({
       kind: "COURSE" as const, rideId: r.id, pickupAt: r.pickupAt, at: r.pickupAt, reference: r.booking.externalReference ?? `R-${r.ref}`, driver: `${r.driver!.firstName} ${r.driver!.lastName}`, driverId: r.driver!.id,
       route: `${r.pickupAddress} → ${r.dropoffAddress}`, grossCents: r.priceCents, commissionCents: r.commissionCents, netCents: r.driverNetCents,
-    })), ...compRows, ...penRows].sort((a, b) => a.at.getTime() - b.at.getTime());
+    })), ...compRows, ...penRows, ...poolRows].sort((a, b) => a.at.getTime() - b.at.getTime());
     const sum = (k: "grossCents" | "commissionCents" | "netCents") => rows.reduce((s, r) => s + r[k], 0);
     const byDriver = new Map<string, { driverId: string; driver: string; rides: number; netCents: number }>();
     for (const r of rows) {

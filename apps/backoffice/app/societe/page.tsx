@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { capi, clearCompanyKey, downloadCompanyFile, dt, eur, getCompanyKey, setCompanyKey } from "../../lib/api";
 import { PerformanceView } from "../perf";
 
-type Tab = "perf" | "drivers" | "vehicles" | "rides" | "payments";
+type Tab = "perf" | "drivers" | "vehicles" | "rides" | "pool" | "payments";
 
 function useLoad<T>(path: string, every = 8000) {
   const [data, setData] = useState<T | null>(null);
@@ -126,28 +126,101 @@ function Vehicles() {
   );
 }
 
+function Pool() {
+  const b = useLoad<any>("/company/pool", 15000);
+  const [pick, setPick] = useState<Record<string, string>>({});
+  const [msg, setMsg] = useState("");
+  const d = b.data;
+  async function run(fn: () => Promise<any>, ok: string) { try { await fn(); setMsg(ok); } catch (e: any) { setMsg(e.message); } b.reload(); }
+  if (!d) return <div className="card muted">{b.error || "Chargement…"}</div>;
+  return (
+    <>
+      <h1 className="title">Mise en commun</h1>
+      <div className="card">
+        <p style={{ marginTop: 0 }}>
+          Confiez une mission que vous ne pouvez pas assurer à une autre société partenaire, ou prenez celles des autres. C'est réciproque : il faut être inscrit pour confier comme pour recevoir.
+          Possible jusqu'à {d.minHours} h avant la prise en charge. Part du net reversée à la société d'origine : <b>{d.sharePercent} %</b>, annoncée avant d'accepter. Aucune pénalité.
+        </p>
+        <button className={`btn ${d.optIn ? "" : "primary"}`} onClick={() => run(() => capi("/company/pool/opt-in", { enabled: !d.optIn }), d.optIn ? "Vous ne participez plus à la mise en commun" : "Inscription enregistrée")}>
+          {d.optIn ? "Ne plus participer" : "Participer à la mise en commun"}
+        </button>
+        {msg && <p className="muted">{msg}</p>}
+      </div>
+      {d.optIn && (
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Missions proposées par d'autres sociétés</h3>
+          {!d.available.length && <p className="muted">Aucune pour le moment.</p>}
+          {d.available.map((p: any) => (
+            <div key={p.id} className="row" style={{ borderTop: "2px solid var(--ink)", paddingTop: 10, marginTop: 10, justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ minWidth: 260, flex: 1 }}>
+                <b>{dt(p.ride.pickupAt)} · R-{p.ride.ref}</b> <span className="chip">{p.ride.category}</span>
+                <div>{p.ride.pickup} <span className="muted">→ {p.ride.dropoff}</span></div>
+                <div className="muted" style={{ fontSize: 13 }}>
+                  De {p.fromCompany} · net {eur(p.ride.baseNetCents)}{p.shareCents > 0 ? ` − part reversée ${eur(p.shareCents)} (${p.sharePercent} %)` : ""} · {Math.round(p.ride.distanceKm)} km
+                  {p.ride.needs?.length ? ` · besoins : ${p.ride.needs.join(", ")}` : ""}
+                </div>
+              </div>
+              {p.drivers.length ? (
+                <div className="row">
+                  <select value={pick[p.id] ?? ""} onChange={(e) => setPick({ ...pick, [p.id]: e.target.value })} aria-label="Chauffeur">
+                    <option value="">Choisir un chauffeur…</option>
+                    {p.drivers.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                  <button className="btn primary" disabled={!pick[p.id]} onClick={() => run(() => capi(`/company/pool/${p.id}/take`, { driverId: pick[p.id] }), `Mission R-${p.ride.ref} attribuée`)}>Prendre</button>
+                </div>
+              ) : <span className="muted">Aucun de vos chauffeurs n'est disponible et équipé.</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Vos missions confiées</h3>
+        {!d.given.length && <p className="muted">Aucune. Pour confier une mission, utilisez le bouton « Confier » dans l'onglet Missions.</p>}
+        <table>
+          <tbody>
+            {d.given.map((p: any) => (
+              <tr key={p.id}>
+                <td>{dt(p.ride.pickupAt)} · R-{p.ride.ref}</td><td>{p.ride.pickup} → {p.ride.dropoff}</td>
+                <td><span className={`chip ${p.status === "TAKEN" ? "ok" : ""}`}>{p.status === "OPEN" ? "En attente" : p.status === "TAKEN" ? `Prise par ${p.toCompany}` : "Annulée"}</span></td>
+                <td>{p.status === "TAKEN" && p.shareCents > 0 ? `+ ${eur(p.shareCents)}` : ""}</td>
+                <td>{p.status === "OPEN" && <button className="btn" onClick={() => run(() => capi(`/company/pool/${p.id}/cancel`, {}), "Proposition retirée")}>Retirer</button>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 function Rides({ drivers }: { drivers: any[] }) {
   const [driverId, setDriverId] = useState("");
-  const rides = useLoad<any[]>(`/company/rides${driverId ? `?driverId=${driverId}` : ""}`);
+  const [msg, setMsg] = useState("");
+  async function give(id: string) { try { await capi("/company/pool", { rideId: id }); setMsg("Mission proposée aux sociétés partenaires (onglet Mise en commun)"); } catch (e: any) { setMsg(e.message); } }
+  // 30 jours passés ET 30 jours à venir : les missions à venir sont celles qu'on peut confier. Bornes figées au montage.
+  const [range] = useState(() => `from=${encodeURIComponent(new Date(Date.now() - 30 * 86400_000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 30 * 86400_000).toISOString())}`);
+  const rides = useLoad<any[]>(`/company/rides?${range}${driverId ? `&driverId=${driverId}` : ""}`);
   return (
     <>
       <h1 className="title">Missions</h1>
       <div className="card filters">
         <select value={driverId} onChange={(e) => setDriverId(e.target.value)}><option value="">Tous les chauffeurs</option>{drivers.map((d) => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}</select>
-        <span className="muted">30 derniers jours</span>
+        <span className="muted">30 jours avant et après aujourd'hui</span>
       </div>
+      {msg && <div className="card">{msg}</div>}
       <div className="card" style={{ overflowX: "auto" }}>
         <table>
-          <thead><tr><th>Prise en charge</th><th>Trajet</th><th>Chauffeur</th><th>Vol</th><th>Statut</th><th>Net</th></tr></thead>
+          <thead><tr><th>Prise en charge</th><th>Trajet</th><th>Chauffeur</th><th>Vol</th><th>Statut</th><th>Net</th><th></th></tr></thead>
           <tbody>
             {rides.data?.map((r) => (
               <tr key={r.id}>
                 <td>{dt(r.pickupAt)}</td><td>{r.pickup}<br /><span className="muted">→ {r.dropoff}</span></td><td>{r.driver ?? "—"}<br /><span className="muted">{r.plate}</span></td>
                 <td>{r.flight ? `✈ ${r.flight}${r.flightDelayMin ? ` +${r.flightDelayMin} min` : ""}` : "—"}</td>
                 <td><span className={`chip ${r.status === "COMPLETED" ? "ok" : ["NO_SHOW", "DISPUTED"].includes(r.status) ? "bad" : ""}`}>{r.status}</span></td><td>{eur(r.netCents)}</td>
+                <td>{r.status === "ASSIGNED" && new Date(r.pickupAt).getTime() > Date.now() && <button className="btn" title="Confier à une société partenaire" onClick={() => give(r.id)}>Confier</button>}</td>
               </tr>
             ))}
-            {!rides.data?.length && <tr><td colSpan={6} className="muted">Aucune mission sur la période.</td></tr>}
+            {!rides.data?.length && <tr><td colSpan={7} className="muted">Aucune mission sur la période.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -198,7 +271,7 @@ export default function CompanyPortal() {
   const loadPerf = useCallback((qs: string) => capi(`/company/performance?${qs}`), []);
   if (!ready) return null;
   if (!authed) return <Login onOk={() => setAuthed(true)} />;
-  const tabs: [Tab, string][] = [["perf", "Performance"], ["drivers", "Chauffeurs"], ["vehicles", "Véhicules"], ["rides", "Missions"], ["payments", "Paiements"]];
+  const tabs: [Tab, string][] = [["perf", "Performance"], ["drivers", "Chauffeurs"], ["vehicles", "Véhicules"], ["rides", "Missions"], ["pool", "Mise en commun"], ["payments", "Paiements"]];
   return (
     <>
       <header>
@@ -211,6 +284,7 @@ export default function CompanyPortal() {
         {tab === "drivers" && <Drivers />}
         {tab === "vehicles" && <Vehicles />}
         {tab === "rides" && <Rides drivers={drivers.data ?? []} />}
+        {tab === "pool" && <Pool />}
         {tab === "payments" && <Payments />}
       </main>
     </>
