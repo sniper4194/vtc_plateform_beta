@@ -7,10 +7,7 @@ ErrorDocument 403 /404.html
 
 <IfModule mod_rewrite.c>
 RewriteEngine On
-# 1. HTTPS obligatoire (sans boucle si le certificat est géré en amont : on lit aussi X-Forwarded-Proto)
-RewriteCond %{HTTPS} !=on
-RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
-RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# 1. HTTPS obligatoire : géré par Hostinger (option « Forcer HTTPS » du domaine, activée). Pas de règle ici : avec le CDN, elle risquerait de créer une boucle de redirection.
 # 2. www.clicab.fr redirige vers clicab.fr
 RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
 RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
