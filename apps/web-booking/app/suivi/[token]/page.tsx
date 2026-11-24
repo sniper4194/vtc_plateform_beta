@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { API_URL, headline, isCancelled, STEPS, stepIndex, text, type Lang, type Tracking } from "../../../lib/tracking";
 
 const when = (iso: string, lang: Lang) => new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-export default function Suivi({ params }: { params: { token: string } }) {
+export default function Suivi({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = use(params);
   const [data, setData] = useState<Tracking | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "gone" | "offline">("loading");
   const [at, setAt] = useState<Date | null>(null);
@@ -13,7 +14,7 @@ export default function Suivi({ params }: { params: { token: string } }) {
     let stop = false;
     async function load() {
       try {
-        const r = await fetch(`${API_URL}/track/${encodeURIComponent(params.token)}`, { cache: "no-store" });
+        const r = await fetch(`${API_URL}/track/${encodeURIComponent(token)}`, { cache: "no-store" });
         if (stop) return;
         if (r.status === 404) { setState("gone"); return; }
         if (!r.ok) throw new Error(String(r.status));
@@ -23,7 +24,7 @@ export default function Suivi({ params }: { params: { token: string } }) {
     load();
     const t = setInterval(load, 10000);
     return () => { stop = true; clearInterval(t); };
-  }, [params.token]);
+  }, [token]);
 
   const lang: Lang = data?.language ?? "fr";
   const t = text(lang);
