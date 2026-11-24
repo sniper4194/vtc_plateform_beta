@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { normalizePhone } from "./phone";
-import { smsProviderFromEnv, TwilioSmsProvider } from "./sms";
+import { createHash } from "node:crypto";
+import { OvhSmsProvider, smsProviderFromEnv, TwilioSmsProvider } from "./sms";
 
 describe("numéros de téléphone", () => {
   it("normalise en E.164", () => {
@@ -34,6 +35,53 @@ describe("fournisseur Twilio", () => {
     const body = f.mock.calls[0][1].body as URLSearchParams;
     expect(body.get("MessagingServiceSid")).toBe("MG1");
     expect(body.has("From")).toBe(false);
+  });
+});
+
+describe("fournisseur OVHcloud", () => {
+  const cfg = { appKey: "AK", appSecret: "AS", consumerKey: "CK", service: "sms-ab12345-1" };
+  /** Réponses simulées : l'heure du serveur OVHcloud, puis la création de l'envoi. */
+  const fetchMock = (serverTime: number, status = 200) =>
+    vi.fn(async (url: string) => (String(url).endsWith("/auth/time") ? { ok: true, status: 200, text: async () => String(serverTime) } : { ok: status < 400, status }));
+
+  it("signe la requête avec l'heure du serveur OVHcloud et envoie le message", async () => {
+    const serverTime = Math.round(Date.now() / 1000) + 5000; // horloge locale en retard : la signature doit suivre celle d'OVHcloud
+    const f = fetchMock(serverTime);
+    await new OvhSmsProvider({ ...cfg, sender: "CliCab" }, f as any).send("+33612345678", "Votre code : 123456");
+    expect(f.mock.calls[0][0]).toBe("https://eu.api.ovh.com/1.0/auth/time");
+    const [url, init] = f.mock.calls[1] as any;
+    expect(url).toBe("https://eu.api.ovh.com/1.0/sms/sms-ab12345-1/jobs");
+    expect(init.method).toBe("POST");
+    const ts = Number(init.headers["x-ovh-timestamp"]);
+    expect(Math.abs(ts - serverTime)).toBeLessThanOrEqual(2);
+    const expected = "$1$" + createHash("sha1").update(["AS", "CK", "POST", url, init.body, ts].join("+")).digest("hex");
+    expect(init.headers["x-ovh-signature"]).toBe(expected);
+    expect(init.headers["x-ovh-application"]).toBe("AK");
+    expect(init.headers["x-ovh-consumer"]).toBe("CK");
+    expect(JSON.parse(init.body)).toEqual({ message: "Votre code : 123456", receivers: ["+33612345678"], charset: "UTF-8", priority: "high", noStopClause: true, sender: "CliCab" });
+  });
+  it("sans expéditeur validé, utilise le numéro court par défaut (jamais les deux à la fois)", async () => {
+    const f = fetchMock(Math.round(Date.now() / 1000));
+    await new OvhSmsProvider(cfg, f as any).send("+33612345678", "x");
+    const body = JSON.parse((f.mock.calls[1] as any)[1].body);
+    expect(body.senderForResponse).toBe(true);
+    expect(body).not.toHaveProperty("sender");
+  });
+  it("lit l'heure du serveur une seule fois, la relit après un refus, et signale l'erreur", async () => {
+    const f = fetchMock(Math.round(Date.now() / 1000));
+    const p = new OvhSmsProvider(cfg, f as any);
+    await p.send("+33612345678", "a"); await p.send("+33612345678", "b");
+    expect(f.mock.calls.filter((c) => String(c[0]).endsWith("/auth/time"))).toHaveLength(1);
+    const bad = fetchMock(Math.round(Date.now() / 1000), 403);
+    const q = new OvhSmsProvider(cfg, bad as any);
+    await expect(q.send("+33612345678", "x")).rejects.toThrow(/403/);
+    await expect(q.send("+33612345678", "x")).rejects.toThrow(/403/);
+    expect(bad.mock.calls.filter((c) => String(c[0]).endsWith("/auth/time"))).toHaveLength(2);
+  });
+  it("exige une configuration complète", () => {
+    expect(() => smsProviderFromEnv({ SMS_PROVIDER: "ovh" } as any)).toThrow(/OVHcloud/);
+    const env = { SMS_PROVIDER: "ovh", OVH_APP_KEY: "a", OVH_APP_SECRET: "b", OVH_CONSUMER_KEY: "c", OVH_SMS_SERVICE: "sms-x-1" } as any;
+    expect(smsProviderFromEnv(env)).toBeInstanceOf(OvhSmsProvider);
   });
 });
 

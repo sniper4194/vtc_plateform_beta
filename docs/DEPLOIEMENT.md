@@ -42,7 +42,7 @@ La sauvegarde contient les selfies et les données personnelles des chauffeurs :
 
 ## Liste de contrôle avant ouverture
 - [ ] `TOKEN_SECRET` unique et secret ; `ADMIN_TOKEN` vide (ou secret robuste) ; `DRIVER_DEV_OTP` **absent** (refusé au démarrage).
-- [ ] Fournisseur SMS configuré et testé avec un vrai numéro (adaptateur Twilio non essayé en réel).
+- [ ] Fournisseur SMS configuré et testé avec un vrai numéro (adaptateurs OVHcloud et Twilio non essayés en réel).
 - [ ] Routage : héberger OSRM (ne pas utiliser le serveur de démonstration public) ou rester sur l'estimation.
 - [ ] Sauvegardes copiées hors du serveur et restauration testée sur votre serveur.
 - [ ] `TRACK_DOMAIN` ouvert et le lien reçu par SMS pointe bien vers `https://suivi.…` (faire une réservation de test avec une clé réelle ; les clés de test n'envoient rien).
@@ -61,7 +61,7 @@ Quand on n'a pas de terminal sur le serveur, le gestionnaire Docker de hPanel (V
    - `GIT_CONTEXT` = `https://<jeton>@github.com/sniper4194/vtc_plateform_beta.git#<branche>`
    - `API_DOMAIN`, `ADMIN_DOMAIN`, `TRACK_DOMAIN` (les trois enregistrements DNS « A » doivent pointer vers l'IP du VPS)
    - `POSTGRES_PASSWORD`, `TOKEN_SECRET` (`openssl rand -hex 32`), `ADMIN_TOKEN` (temporaire, voir ci-dessous)
-   - pour que les chauffeurs puissent se connecter : `SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`. **Sans fournisseur SMS, la connexion chauffeur répond 501.**
+   - pour que les chauffeurs puissent se connecter : `SMS_PROVIDER=ovh`, `OVH_APP_KEY`, `OVH_APP_SECRET`, `OVH_CONSUMER_KEY`, `OVH_SMS_SERVICE` (et `OVH_SMS_SENDER` une fois l'expéditeur validé par OVHcloud) ; ou Twilio : `SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`. **Sans fournisseur SMS, la connexion chauffeur répond 501.**
 3. Le premier démarrage construit trois images (plusieurs minutes). Caddy obtient ensuite les certificats HTTPS tout seul.
 4. **Premier compte administrateur** : avec `ADMIN_TOKEN` défini, créez-le par l'API, puis **retirez `ADMIN_TOKEN`** du projet et mettez le projet à jour (le jeton de service donne tous les droits).
 5. Le site vitrine reste sur l'hébergement web (clicab.fr) : cette variante n'en a pas besoin.
