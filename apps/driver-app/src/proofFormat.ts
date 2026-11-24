@@ -3,9 +3,14 @@
 export const PROOF_KIND_LABEL: Record<string, string> = { NO_SHOW: "Client absent", EXCESS_LUGGAGE: "Bagages en excès", OTHER: "Autre preuve" };
 
 /** « 24 nov. 2026 11:50:35 », à l'heure de Paris. */
-export function formatStampDate(d: Date): string {
-  return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "Europe/Paris" })
-    .format(d).replace(",", "");
+export function formatStampDate(d: Date, timeZone = "Europe/Paris"): string {
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false };
+  try {
+    return new Intl.DateTimeFormat("fr-FR", { ...opts, timeZone }).format(d).replace(",", "");
+  } catch {
+    // Certains téléphones ne gèrent pas les fuseaux nommés : on retombe sur l'heure locale de l'appareil.
+    try { return new Intl.DateTimeFormat("fr-FR", opts).format(d).replace(",", ""); } catch { return d.toLocaleString("fr-FR"); }
+  }
 }
 
 export interface StampInput { at: Date; lat: number | null; lng: number | null; accuracyM?: number | null; address?: string | null; ref?: string; kind?: string }

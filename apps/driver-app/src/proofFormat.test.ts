@@ -6,6 +6,9 @@ describe("cachet des photos-preuves", () => {
     expect(formatStampDate(new Date("2026-11-24T10:50:35Z"))).toBe("24 nov. 2026 11:50:35"); // UTC+1 en novembre
     expect(formatStampDate(new Date("2026-07-02T10:05:09Z"))).toBe("2 juil. 2026 12:05:09"); // UTC+2 en été
   });
+  it("ne plante pas si le fuseau n'est pas géré : repli sur l'heure locale", () => {
+    expect(formatStampDate(new Date("2026-11-24T10:50:35Z"), "Pays/Inconnu")).toMatch(/2026/);
+  });
   it("découpe l'adresse en lignes courtes", () => {
     expect(addressLines("104 Rue Henri Gautier, Bobigny, Seine-Saint-Denis, Île-de-France")).toEqual(["104 Rue Henri Gautier", "Bobigny", "Seine-Saint-Denis", "Île-de-France"]);
     expect(addressLines(null)).toEqual([]);

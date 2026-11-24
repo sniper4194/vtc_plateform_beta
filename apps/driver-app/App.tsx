@@ -8,6 +8,7 @@ import { RozhaOne_400Regular } from "@expo-google-fonts/rozha-one";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, TextInput, View } from "react-native";
 import { api, getApiUrl, loadApiUrl, loadToken, saveApiUrl, saveToken } from "./src/api";
+import { ErrorBoundary } from "./src/ErrorBoundary";
 import { SpotPrompt } from "./src/identity";
 import { MissionScreen } from "./src/mission";
 import { Earnings } from "./src/earnings";
@@ -115,7 +116,7 @@ const TABS: { key: Tab; label: string; glyph: string }[] = [
   { key: "agenda", label: "Agenda", glyph: "▦" },
 ];
 
-export default function App() {
+function Root() {
   const [mode, setMode] = useState<ThemeMode>("light");
   const [fontsLoaded] = useFonts({ RozhaOne_400Regular, AlfaSlabOne_400Regular, Anton_400Regular, KaushanScript_400Regular });
   const [ready, setReady] = useState(false);
@@ -195,4 +196,8 @@ export default function App() {
       </View>
     </SafeAreaView>
   );
+}
+
+export default function App() {
+  return <ErrorBoundary label="Application"><Root /></ErrorBoundary>;
 }

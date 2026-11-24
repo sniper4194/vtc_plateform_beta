@@ -8,6 +8,7 @@ import { timeOf } from "./format";
 import { PROOF_KIND_LABEL, stampHeader, stampLines } from "./proofFormat";
 import { c, font } from "./theme";
 import { Btn, Card, Chip, Cond, Display, Slab } from "./ui";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { useFetch } from "./useFetch";
 
 type Notify = (text: string, tone?: "ok" | "bad") => void;
@@ -111,7 +112,7 @@ export function ProofCamera({ rideId, rideRef, kind, onClose, notify, onSent }: 
 
   const stamped = pic ? stampLines({ at: pic.at, lat: pic.fix.lat, lng: pic.fix.lng, accuracyM: pic.fix.accuracyM, address: pic.fix.address }) : [];
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
       <View style={{ flex: 1, backgroundColor: "#000" }}>
         {!perm ? <ActivityIndicator color={c.cream} style={{ marginTop: 120 }} /> : !perm.granted ? (
           <View style={{ flex: 1, justifyContent: "center", padding: 28, gap: 14 }}>
@@ -152,7 +153,7 @@ export function ProofCamera({ rideId, rideRef, kind, onClose, notify, onSent }: 
           </View>
         )}
       </View>
-    </Modal>
+    </View>
   );
 }
 
@@ -180,7 +181,13 @@ export function ProofSection({ rideId, rideRef, status, notify }: { rideId: stri
           </View>
         ))}
       </Card>
-      {kind && <ProofCamera rideId={rideId} rideRef={rideRef} kind={kind} onClose={() => setKind(null)} notify={notify} onSent={list.reload} />}
+      {kind && (
+        <Modal visible animationType="slide" onRequestClose={() => setKind(null)}>
+          <ErrorBoundary label="Photo-preuve" onClose={() => setKind(null)}>
+            <ProofCamera rideId={rideId} rideRef={rideRef} kind={kind} onClose={() => setKind(null)} notify={notify} onSent={list.reload} />
+          </ErrorBoundary>
+        </Modal>
+      )}
     </View>
   );
 }
