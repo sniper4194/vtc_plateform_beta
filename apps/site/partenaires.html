@@ -12,7 +12,7 @@
 <meta property="og:description" content="L’API CliCab pour agences, hôtels et plateformes de réservation : devis à prix fixe, réservation, webhooks signés, suivi du voyageur et de son vol.">
 <meta property="og:locale" content="fr_FR">
 <meta name="theme-color" content="#0b2a4a">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <a class="skip" href="#contenu">Aller au contenu</a>
@@ -62,8 +62,16 @@
 Authorization: Bearer &lt;votre clé&gt;
 
 {
-  "pickup":  { "address": "Aéroport CDG T2", "lat": 49.0097, "lng": 2.5479 },
-  "dropoff": { "address": "10 rue de Rivoli, Paris", "lat": 48.8566, "lng": 2.3522 },
+  "pickup": {
+    "address": "Aéroport CDG T2",
+    "lat": 49.0097,
+    "lng": 2.5479
+  },
+  "dropoff": {
+    "address": "10 rue de Rivoli, Paris",
+    "lat": 48.8566,
+    "lng": 2.3522
+  },
   "pickupAt": "2026-12-12T09:30:00Z",
   "category": "BERLINE",
   "passengers": 2
