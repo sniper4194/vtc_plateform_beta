@@ -123,3 +123,14 @@ export function useToast() {
 }
 
 export const screen = StyleSheet.create({ root: { flex: 1, backgroundColor: c.sky } });
+
+/** Pastille lune / soleil : bascule entre thème clair et sombre. */
+export function ThemeToggle({ dark, onToggle }: { dark: boolean; onToggle: () => void }) {
+  return (
+    <Pressable onPress={onToggle} accessibilityRole="switch" accessibilityState={{ checked: dark }} accessibilityLabel={dark ? "Passer en thème clair" : "Passer en thème sombre"}>
+      <Sticker size={56} color={dark ? c.yel : c.blue} rot={-6}>
+        <Slab size={24} color={dark ? c.ink : c.cream} shadow={null}>{dark ? "☀" : "☾"}</Slab>
+      </Sticker>
+    </Pressable>
+  );
+}

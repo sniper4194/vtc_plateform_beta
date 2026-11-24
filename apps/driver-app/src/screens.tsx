@@ -7,7 +7,7 @@ import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, Sect
 import { api, ApiError } from "./api";
 import { countdown, eurShort, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
-import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker } from "./ui";
+import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker, ThemeToggle } from "./ui";
 import { useFetch } from "./useFetch";
 
 type Notify = (text: string, tone?: "ok" | "bad") => void;
@@ -39,7 +39,7 @@ function Header({ title, right }: { title: string; right?: React.ReactNode }) {
 }
 
 /* ------------------------------ CAP (accueil) ------------------------------ */
-export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { goRadar: () => void; onQuit: () => void; notify: Notify; openMission: (id: string) => void; openMessages: () => void }) {
+export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, onToggleTheme }: { goRadar: () => void; onQuit: () => void; notify: Notify; openMission: (id: string) => void; openMessages: () => void; dark: boolean; onToggleTheme: () => void }) {
   const me = useFetch<any>("/driver/me", 15000);
   const home = useFetch<any>("/driver/home");
   const [busy, setBusy] = useState(false);
@@ -65,11 +65,14 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
           <Script size={34}>Salut {me.data?.firstName},</Script>
           <Display size={40} shadow={c.red}>cap sur la journée</Display>
         </View>
-        <Pressable onPress={openMessages} accessibilityLabel={`Messages${home.data?.unreadNotifications ? `, ${home.data.unreadNotifications} non lus` : ""}`}>
-          <Sticker size={56} color={home.data?.unreadNotifications ? c.red : c.cream} rot={8}>
-            <Slab size={22} color={home.data?.unreadNotifications ? c.cream : c.ink} shadow={null}>{home.data?.unreadNotifications ? home.data.unreadNotifications : "✉"}</Slab>
-          </Sticker>
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <ThemeToggle dark={dark} onToggle={onToggleTheme} />
+          <Pressable onPress={openMessages} accessibilityLabel={`Messages${home.data?.unreadNotifications ? `, ${home.data.unreadNotifications} non lus` : ""}`}>
+            <Sticker size={56} color={home.data?.unreadNotifications ? c.red : c.cream} rot={8}>
+              <Slab size={22} color={home.data?.unreadNotifications ? c.cream : c.ink} shadow={null}>{home.data?.unreadNotifications ? home.data.unreadNotifications : "✉"}</Slab>
+            </Sticker>
+          </Pressable>
+        </View>
       </View>
 
       {home.data?.liveRideId && (
@@ -141,7 +144,7 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages }: { go
 }
 
 /* ------------------------------ LISTE : briques communes ------------------------------ */
-const CAT_COLOR: Record<string, string> = { BERLINE: c.yel, BUSINESS: c.onSky, VAN: c.red, GREEN: "#3ddc84" };
+const catColor = (cat: string) => ({ BERLINE: c.yel, BUSINESS: c.onSky, VAN: c.red, GREEN: "#3ddc84" } as Record<string, string>)[cat] ?? c.yel;
 
 /** Une ligne de liste : heure + distance | barre de catégorie | trajet + prix. Se déplie en carte. */
 function Row({ time, dist, category, from, to, price, rising, flight, badge, expanded, onPress, children }: {
@@ -155,7 +158,7 @@ function Row({ time, dist, category, from, to, price, rising, flight, badge, exp
         <Display size={26} color={ink} shadow={expanded ? c.yel : c.red}>{time}</Display>
         {dist != null && <Cond size={12} color={expanded ? c.muted : c.dblue}>à {dist} km</Cond>}
       </View>
-      <View style={{ width: 8, borderRadius: 4, backgroundColor: CAT_COLOR[category] ?? c.yel, borderWidth: 2, borderColor: c.ink }} />
+      <View style={{ width: 8, borderRadius: 4, backgroundColor: catColor(category), borderWidth: 2, borderColor: c.ink }} />
       <View style={{ flex: 1, gap: 3 }}>
         <Slab size={14} color={ink} shadow={null} lines={expanded ? undefined : 2}>{from}</Slab>
         <Cond size={11} color={expanded ? c.red : c.dblue}>vers</Cond>

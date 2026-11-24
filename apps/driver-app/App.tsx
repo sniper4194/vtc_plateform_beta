@@ -12,12 +12,13 @@ import { SpotPrompt } from "./src/identity";
 import { MissionScreen } from "./src/mission";
 import { Earnings } from "./src/earnings";
 import { Agenda, Cap, Messages, Radar } from "./src/screens";
-import { BRAND, c, font } from "./src/theme";
-import { Btn, Card, Cond, Display, Script, Slab, Sticker, useToast } from "./src/ui";
+import { applyTheme, BRAND, c, font, type ThemeMode } from "./src/theme";
+import { loadThemeMode, saveThemeMode } from "./src/themeStore";
+import { Btn, Card, Cond, Display, Script, Slab, Sticker, ThemeToggle, useToast } from "./src/ui";
 
 type Tab = "radar" | "cap" | "revenus" | "agenda";
 
-function Login({ onDone }: { onDone: () => void }) {
+function Login({ onDone, dark, onToggleTheme }: { onDone: () => void; dark: boolean; onToggleTheme: () => void }) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"phone" | "code">("phone");
@@ -58,6 +59,7 @@ function Login({ onDone }: { onDone: () => void }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: c.sky }}>
       <View style={{ position: "absolute", top: -40, right: -50 }}><Sticker size={190} color={c.yel} rot={12}><Display size={60} color={c.blue} shadow={c.red}>V</Display></Sticker></View>
       <View style={{ position: "absolute", bottom: -60, left: -60 }}><Sticker size={220} color={c.red} rot={-10}><Slab size={22} color={c.yel} shadow={null}>PRIX FIXE</Slab></Sticker></View>
+      <View style={{ position: "absolute", top: 14, left: 16, zIndex: 5 }}><ThemeToggle dark={dark} onToggle={onToggleTheme} /></View>
       <View style={{ padding: 24, marginTop: 90, gap: 18 }}>
         <View>
           <Display size={70} shadow={c.red}>{BRAND}</Display>
@@ -114,6 +116,7 @@ const TABS: { key: Tab; label: string; glyph: string }[] = [
 ];
 
 export default function App() {
+  const [mode, setMode] = useState<ThemeMode>("light");
   const [fontsLoaded] = useFonts({ RozhaOne_400Regular, AlfaSlabOne_400Regular, Anton_400Regular, KaushanScript_400Regular });
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
@@ -122,7 +125,15 @@ export default function App() {
   const [showMessages, setShowMessages] = useState(false);
   const toast = useToast();
 
-  useEffect(() => { loadApiUrl().then(() => loadToken()).then((t) => { setAuthed(Boolean(t)); setReady(true); }); }, []);
+  useEffect(() => {
+    Promise.all([loadThemeMode(), loadApiUrl().then(() => loadToken())]).then(([m, t]) => { applyTheme(m); setMode(m); setAuthed(Boolean(t)); setReady(true); });
+  }, []);
+  // Les couleurs sont lues à chaque rendu : on change la palette puis on remonte l'arbre (clé = thème) pour tout repeindre.
+  const dark = mode === "dark";
+  function toggleTheme() {
+    const next: ThemeMode = dark ? "light" : "dark";
+    applyTheme(next); setMode(next); void saveThemeMode(next);
+  }
 
   // Position envoyée toutes les 30 s pour trier les offres par proximité.
   useEffect(() => {
@@ -142,11 +153,11 @@ export default function App() {
   }, [authed]);
 
   if (!ready || !fontsLoaded) return <View style={{ flex: 1, backgroundColor: c.sky, justifyContent: "center" }}><ActivityIndicator color={c.onSky} /></View>;
-  if (!authed) return <Login onDone={() => setAuthed(true)} />;
+  if (!authed) return <Login key={mode} onDone={() => setAuthed(true)} dark={dark} onToggleTheme={toggleTheme} />;
   if (showMessages) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: c.sky }}>
-        <StatusBar style="dark" />
+      <SafeAreaView key={mode} style={{ flex: 1, backgroundColor: c.sky }}>
+        <StatusBar style={dark ? "light" : "dark"} />
         <Messages onClose={() => setShowMessages(false)} notify={toast.show} openMission={setMissionId} />
         {toast.node}
         <SpotPrompt notify={toast.show} />
@@ -164,11 +175,11 @@ export default function App() {
     );
   }
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.sky }}>
+    <SafeAreaView key={mode} style={{ flex: 1, backgroundColor: c.sky }}>
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
         {tab === "radar" && <Radar notify={toast.show} />}
-        {tab === "cap" && <Cap goRadar={() => setTab("radar")} onQuit={async () => { await saveToken(null); setAuthed(false); }} notify={toast.show} openMission={setMissionId} openMessages={() => setShowMessages(true)} />}
+        {tab === "cap" && <Cap dark={dark} onToggleTheme={toggleTheme} goRadar={() => setTab("radar")} onQuit={async () => { await saveToken(null); setAuthed(false); }} notify={toast.show} openMission={setMissionId} openMessages={() => setShowMessages(true)} />}
         {tab === "revenus" && <Earnings notify={toast.show} />}
         {tab === "agenda" && <Agenda notify={toast.show} openMission={setMissionId} />}
         {toast.node}
