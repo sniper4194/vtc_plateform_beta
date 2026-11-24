@@ -21,6 +21,9 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3001 HOSTNAME=0.0.0.0
 WORKDIR /app
 COPY --from=build /app/apps/backoffice/.next/standalone ./
 COPY --from=build /app/apps/backoffice/.next/static apps/backoffice/.next/static
+# Next.js « standalone » ne copie pas public/ : sans cette ligne, le son de l'alarme manquait en production (404).
+COPY --from=build /app/apps/backoffice/public apps/backoffice/public
+RUN test -s apps/backoffice/public/sounds/alarme.mp3
 USER node
 EXPOSE 3001
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \

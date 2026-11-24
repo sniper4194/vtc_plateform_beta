@@ -12,20 +12,27 @@ const KEY = "clicab_alarme_coupee";
  * celles déjà présentes à l'ouverture sonnent une fois, pour ne pas passer inaperçues. Le choix « coupée » est retenu par le navigateur.
  * Les navigateurs n'autorisent le son qu'après une première action sur la page (la connexion suffit).
  */
+/** null : le son joue ; « blocked » : le navigateur attend un clic ; « missing » : fichier absent ou illisible (cause différente, message différent). */
+export type SoundProblem = null | "blocked" | "missing";
+export const soundProblem = (e: unknown): Exclude<SoundProblem, null> => ((e as any)?.name === "NotAllowedError" ? "blocked" : "missing");
+function play(set: (p: SoundProblem) => void) {
+  new Audio("/sounds/alarme.mp3").play().then(() => set(null)).catch((e) => set(soundProblem(e)));
+}
+
 export function useAlarm(alerts: { reason: string; rideId: string }[] | null, enabled: boolean) {
   const seen = useRef(new Set<string>());
   const [muted, setMuted] = useState(false);
-  const [blocked, setBlocked] = useState(false);
+  const [blocked, setBlocked] = useState<SoundProblem>(null);
   useEffect(() => { try { setMuted(localStorage.getItem(KEY) === "1"); } catch { /* stockage indisponible : alarme active */ } }, []);
   useEffect(() => {
     if (!enabled || !alerts) return;
     const keys = alarmKeys(alerts);
     const fresh = keys.filter((k) => !seen.current.has(k));
     keys.forEach((k) => seen.current.add(k));
-    if (fresh.length && !muted) new Audio("/sounds/alarme.mp3").play().then(() => setBlocked(false)).catch(() => setBlocked(true));
+    if (fresh.length && !muted) play(setBlocked);
   }, [alerts, enabled, muted]);
   const toggle = () => setMuted((m) => { try { localStorage.setItem(KEY, m ? "0" : "1"); } catch { /* sans incidence */ } return !m; });
-  const test = () => new Audio("/sounds/alarme.mp3").play().then(() => setBlocked(false)).catch(() => setBlocked(true));
+  const test = () => play(setBlocked);
   return { muted, toggle, test, blocked };
 }
 
@@ -36,7 +43,7 @@ export function AlarmButton({ alarm }: { alarm: ReturnType<typeof useAlarm> }) {
         {alarm.muted ? "🔕 Alarme coupée" : "🔔 Alarme"}
       </button>
       {!alarm.muted && <button className="btn" onClick={alarm.test} title="Écouter l'alarme">Tester</button>}
-      {alarm.blocked && !alarm.muted && <span className="muted" style={{ fontSize: 12 }}>Le navigateur bloque le son : cliquez sur « Tester »</span>}
+      {alarm.blocked && !alarm.muted && <span className="muted" style={{ fontSize: 12 }}>{alarm.blocked === "blocked" ? "Le navigateur bloque le son : cliquez sur « Tester »" : "Son de l'alarme introuvable ou illisible : prévenez l'équipe technique"}</span>}
     </span>
   );
 }
