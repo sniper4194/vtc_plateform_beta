@@ -54,3 +54,44 @@ jobs:
           name: clicab-chauffeur-apk
           path: apps/driver-app/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+
+  # Essai de démarrage sur un téléphone Android virtuel : un APK qui plante à l'ouverture est détecté ici,
+  # avec le journal d'erreur complet (logcat), au lieu d'être découvert sur le téléphone de l'utilisateur.
+  demarrage:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: clicab-chauffeur-apk, path: apk }
+      - name: Autoriser l'accélération matérielle (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Installer, ouvrir et surveiller l'application pendant 40 s
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb install -r apk/*.apk
+            adb logcat -c
+            adb shell monkey -p com.clicab.driver -c android.intent.category.LAUNCHER 1
+            sleep 40
+            adb logcat -d > logcat.txt
+            adb logcat -d -b crash > crash.txt || true
+            adb shell pidof com.clicab.driver > pid.txt || true
+            echo "=== Plantages (tampon crash) ===" ; cat crash.txt
+            echo "=== Erreurs JavaScript et Android ===" ; grep -E "FATAL|AndroidRuntime|ReactNativeJS|JavascriptException|Exception" logcat.txt | head -80 || true
+            if [ ! -s pid.txt ] || grep -q "FATAL EXCEPTION" logcat.txt; then echo "L'application s'est arrêtée au démarrage" ; exit 1 ; fi
+            echo "L'application tourne toujours après 40 s (pid $(cat pid.txt))"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: journal-demarrage
+          path: |
+            logcat.txt
+            crash.txt
+          if-no-files-found: ignore
