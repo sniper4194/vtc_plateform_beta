@@ -9,8 +9,8 @@ export const metadata = { title: "CliCab · Tour de contrôle" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr">
-      <body>{children}</body>
+    <html lang="fr" suppressHydrationWarning>
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }
