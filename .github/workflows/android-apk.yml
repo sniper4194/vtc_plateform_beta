@@ -13,14 +13,14 @@ on:
       api_url:
         description: "Adresse HTTPS de l'API (facultatif, modifiable dans l'application)"
         required: false
-        default: "https://api.exemple.fr"
+        default: "https://api.clicab.fr"
         type: string
 jobs:
   apk:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      API_URL: ${{ inputs.api_url || 'https://api.exemple.fr' }}
+      API_URL: ${{ inputs.api_url || 'https://api.clicab.fr' }}
       # APK de test seulement : autorise le HTTP simple pour joindre un PC du même Wi-Fi. Jamais pour une version publiée.
       ALLOW_CLEARTEXT: "1"
     steps:

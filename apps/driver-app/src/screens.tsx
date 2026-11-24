@@ -6,6 +6,7 @@ import { CostNote, RescueCard, RescuePicker } from "./rescue";
 import { SwapBoard, SwapControl } from "./swap";
 import { LostItemsCard } from "./lostItems";
 import { ReferralCard } from "./referral";
+import { playSound } from "./useLandingAlert";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Text, View } from "react-native";
 import { api, ApiError } from "./api";
@@ -129,6 +130,14 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, 
       <LostItemsCard notify={notify} />
       <RescueCard notify={notify} onAccepted={openMission} />
       <ReferralCard notify={notify} />
+      <Card>
+        <Slab size={17} color={c.ink} shadow={null}>Sons de l'application</Slab>
+        <Cond size={12} color={c.muted}>Nouvelle course et atterrissage. Ils sonnent application ouverte ; vérifiez le volume « multimédia » du téléphone.</Cond>
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+          <View style={{ flex: 1 }}><Btn label="Nouvelle course" onPress={async () => { const e = await playSound("offer"); notify(e ? `Son impossible : ${e}` : "Son joué", e ? "bad" : "ok"); }} /></View>
+          <View style={{ flex: 1 }}><Btn label="Atterrissage" onPress={async () => { const e = await playSound("landing"); notify(e ? `Son impossible : ${e}` : "Son joué", e ? "bad" : "ok"); }} /></View>
+        </View>
+      </Card>
 
       <View style={{ flexDirection: "row", justifyContent: "space-around", alignItems: "center" }}>
         <Pressable onPress={goRadar}>

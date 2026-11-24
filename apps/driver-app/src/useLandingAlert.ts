@@ -5,14 +5,19 @@ import { newLandings, newOffers, Notice, OfferLite, offerToast } from "./landing
 
 const SOUNDS = { landing: require("../assets/sounds/atterrissage.mp3"), offer: require("../assets/sounds/nouvelle-course.mp3") };
 
-/** Joue un son (fonctions directes d'expo-av, pas de hook fourni par le module : voir CLAUDE.md). */
-async function play(which: keyof typeof SOUNDS) {
+/**
+ * Joue un son (fonctions directes d'expo-av, pas de hook fourni par le module : voir CLAUDE.md).
+ * Renvoie null si le son est parti, sinon le message d'erreur : le bouton « Tester le son » l'affiche au chauffeur.
+ */
+export async function playSound(which: keyof typeof SOUNDS): Promise<string | null> {
   try {
     await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
     const { sound } = await Audio.Sound.createAsync(SOUNDS[which], { shouldPlay: true });
     sound.setOnPlaybackStatusUpdate((s) => { if (s.isLoaded && s.didJustFinish) sound.unloadAsync().catch(() => {}); });
-  } catch { /* son facultatif : le message s'affiche quand même */ }
+    return null;
+  } catch (e: any) { return e?.message ?? String(e); }
 }
+const play = (which: keyof typeof SOUNDS) => { void playSound(which); }; // alertes automatiques : son facultatif, le message s'affiche quand même
 
 /**
  * Sons de l'application chauffeur : nouvelle course proposée, et atterrissage du vol d'une mission.
