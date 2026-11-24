@@ -2,6 +2,7 @@ import { HttpException, Inject, Injectable } from "@nestjs/common";
 import { Prisma, Ride, RideStatus } from "@prisma/client";
 import { canTransition } from "@vtc/shared";
 import { driverOfferCents } from "./ladder";
+import { ecoBonusCents } from "./eco";
 import { acceptanceMessage } from "./messages";
 import { NotificationsService } from "./notifications";
 import { minutesBefore, PenaltiesService } from "./penalties.service";
@@ -156,14 +157,16 @@ export class DispatchService {
     // Prix accepté = prix proposé AU MOMENT de l'acceptation, calculé ici (jamais fourni par le client).
     const cap = this.capOf(ride);
     const price = priceOverride ?? driverOfferCents(cap, effectivePickup(ride.pickupAt, ride.flightDelayMin), new Date());
+    // Prime écologique : véhicule électrique, prélevée sur la commission restante (jamais sur le prix client).
+    const eco = ecoBonusCents(vehicle.fuel, ride.priceCents - price);
     const res = await tx.ride.updateMany({
       where: { id: ride.id, status: "DISPATCHING", driverId: null },
-      data: { status: "ASSIGNED", driverId, vehicleId: vehicle.id, version: { increment: 1 }, driverCapCents: cap, driverNetCents: price, commissionCents: ride.priceCents - price },
+      data: { status: "ASSIGNED", driverId, vehicleId: vehicle.id, version: { increment: 1 }, driverCapCents: cap, driverNetCents: price + eco, commissionCents: ride.priceCents - price - eco, ecoBonusCents: eco },
     });
     if (res.count !== 1) throw new HttpException("Course déjà attribuée", 409);
     await tx.dispatchOffer.updateMany({ where: { rideId: ride.id, driverId }, data: { status: "ACCEPTED" } });
     await tx.dispatchOffer.updateMany({ where: { rideId: ride.id, status: "PENDING" }, data: { status: "CANCELLED" } });
-    await this.event(tx, ride.id, "ride.assigned", actor, { driverId, capCents: cap, acceptedCents: price });
+    await this.event(tx, ride.id, "ride.assigned", actor, { driverId, capCents: cap, acceptedCents: price, ecoBonusCents: eco });
     await this.webhooks.enqueue(tx, ride.id, "driver.assigned");
   }
 

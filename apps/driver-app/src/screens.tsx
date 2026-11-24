@@ -271,6 +271,7 @@ export function Radar({ notify }: { notify: Notify }) {
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                 <Chip label={`≈ ${eurShort(o.netPerHourCents)}/h`} color={c.yel} />
                 {o.priceRising ? <Chip label="Prix en hausse ↗" color={c.cream} /> : null}
+                {o.ecoBonusCents > 0 ? <Chip label={`⚡ dont ${eurShort(o.ecoBonusCents)} prime électrique`} color="#3ddc84" /> : null}
                 <Chip label={`${o.durationMin} min · ${o.distanceKm} km`} />
                 {o.partner ? <Chip label={o.partner} color={c.blue} text={c.cream} /> : null}
                 {o.flightNumber ? <Chip label={`Vol ${o.flightNumber}`} color={c.red} text={c.cream} /> : null}

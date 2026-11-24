@@ -4,8 +4,9 @@ import { parse } from "./http";
 import { PrismaService } from "./prisma";
 import { driverRideView } from "./views";
 import { driverOfferCents } from "./ladder";
+import { ecoBonusCents } from "./eco";
 import { effectivePickup } from "./metrics";
-import { checkVehicle } from "./vehicle-rules";
+import { checkVehicle, firstCompliant } from "./vehicle-rules";
 import { DeadlinesService } from "./deadlines.service";
 import { IdentityService } from "./identity.service";
 import { missingDocuments, missingIdentifiers } from "./driver-docs";
@@ -185,7 +186,7 @@ export class DriverController {
   @UseGuards(DriverGuard)
   async offers(@Req() req: any) {
     const now = new Date();
-    const me = await this.prisma.driver.findUnique({ where: { id: req.driverId }, select: { lastLat: true, lastLng: true } });
+    const me = await this.prisma.driver.findUnique({ where: { id: req.driverId }, select: { lastLat: true, lastLng: true, vehicles: { where: { active: true } } } });
     const distTo = (lat: number, lng: number) =>
       me?.lastLat != null && me.lastLng != null ? Math.round(haversineKm({ lat: me.lastLat, lng: me.lastLng }, { lat, lng }) * 10) / 10 : null;
     const offers = await this.prisma.dispatchOffer.findMany({
@@ -193,7 +194,12 @@ export class DriverController {
       include: { ride: { include: { booking: { include: { partner: true } } } } },
       orderBy: { ride: { pickupAt: "asc" } },
     });
-    return offers.map((o) => ({
+    return offers.map((o) => {
+      // Prime écologique : annoncée avant l'acceptation, avec le véhicule qui servirait à la mission.
+      const price = this.currentPrice(o.ride, now);
+      const fuel = firstCompliant(me?.vehicles ?? [], o.ride.category)?.fuel;
+      const eco = ecoBonusCents(fuel, o.ride.priceCents - price);
+      return {
       offerId: o.id,
       expiresAt: o.expiresAt,
       secondsLeft: Math.max(0, Math.round((o.expiresAt.getTime() - now.getTime()) / 1000)),
@@ -203,11 +209,13 @@ export class DriverController {
       pickupDistanceKm: distTo(o.ride.pickupLat, o.ride.pickupLng),
       distanceKm: Math.round(o.ride.distanceKm * 10) / 10, durationMin: Math.round(o.ride.durationMin),
       // Prix du moment : il peut monter d'ici l'acceptation, jamais baisser. Le prix accepté est celui de l'instant de l'acceptation.
-      netCents: this.currentPrice(o.ride, now),
-      priceRising: this.currentPrice(o.ride, now) < (o.ride.driverCapCents > 0 ? o.ride.driverCapCents : o.ride.driverNetCents),
-      netPerHourCents: Math.round(this.currentPrice(o.ride, now) / Math.max(o.ride.durationMin / 60, 0.25)),
+      netCents: price + eco,
+      ecoBonusCents: eco,
+      priceRising: price < (o.ride.driverCapCents > 0 ? o.ride.driverCapCents : o.ride.driverNetCents),
+      netPerHourCents: Math.round((price + eco) / Math.max(o.ride.durationMin / 60, 0.25)),
       flightNumber: o.ride.booking.flightNumber,
-    }));
+    };
+    });
   }
 
   @Post("offers/:id/accept")

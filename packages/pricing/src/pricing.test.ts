@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeQuote, PricingConfig, FlatRate } from "./index";
+import { commissionRateFor, computeQuote, PricingConfig, FlatRate } from "./index";
 
 const config: PricingConfig = {
   baseFare: 5,
@@ -74,5 +74,23 @@ describe("computeQuote", () => {
   });
   it("refuse les valeurs négatives", () => {
     expect(() => computeQuote({ distanceKm: -1, durationMin: 5, category: "BERLINE", pickupAt: weekday }, config)).toThrow(RangeError);
+  });
+
+  it("réduit la commission d'une catégorie (van), sans toucher aux autres", () => {
+    const vanCfg = { ...config, categoryCommissionAdjust: { VAN: -0.05 } };
+    const van = computeQuote({ distanceKm: 10, durationMin: 20, category: "VAN", pickupAt: weekday }, vanCfg);
+    expect(van.total).toBe(37.5); // 25 × 1,5
+    expect(van.commission).toBe(5.63); // 15 % au lieu de 20 %
+    expect(van.driverNet).toBe(31.87);
+    expect(van.driverNet).toBeGreaterThan(computeQuote({ distanceKm: 10, durationMin: 20, category: "VAN", pickupAt: weekday }, config).driverNet);
+    const berline = computeQuote({ distanceKm: 10, durationMin: 20, category: "BERLINE", pickupAt: weekday }, vanCfg);
+    expect(berline.commission).toBe(5); // inchangée
+  });
+  it("l'ajustement suit le taux négocié du partenaire et reste borné", () => {
+    const negotiated = { ...config, commissionRate: 0.12, categoryCommissionAdjust: { VAN: -0.05 } };
+    expect(commissionRateFor(negotiated, "VAN")).toBeCloseTo(0.07);
+    expect(commissionRateFor({ commissionRate: 0.02, categoryCommissionAdjust: { VAN: -0.05 } }, "VAN")).toBe(0);
+    expect(commissionRateFor({ commissionRate: 0.89, categoryCommissionAdjust: { VAN: 0.2 } }, "VAN")).toBe(0.9);
+    expect(commissionRateFor(config, "VAN")).toBe(0.2);
   });
 });

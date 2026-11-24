@@ -246,3 +246,8 @@ pnpm demo
 ## Recrutement des chauffeurs (candidature sur parrainage)
 
 Un chauffeur candidate sur `/candidature` (application `web-booking`) avec un **code de parrainage obligatoire**. L'équipe vérifie la carte pro, le permis (relevé d'information intégral : seul le résultat est noté), fait passer les tests et l'entretien, puis décide dans l'onglet **Recrutement** du back-office. *Accepter* est impossible tant qu'un critère manque. L'arbre de parrainage montre qui a fait entrer qui. Détails, seuils et limites : [docs/RECRUTEMENT.md](docs/RECRUTEMENT.md).
+
+## Vans et prime écologique
+
+- **Vans** : prix client plus élevé (coefficient 1,7 au compteur ; forfaits CDG/Orly à 95 € et 85 €) **et** part du chauffeur plus grande (commission réduite de 5 points : 15 % au lieu de 20 %, cumulée avec le taux négocié d'un partenaire). Réglable dans la grille de prix : `categoryMultiplier`, `categoryCommissionAdjust`. Valeurs par défaut à confirmer.
+- **Prime écologique** : un chauffeur qui prend une mission avec un **véhicule électrique** (motorisation renseignée sur la fiche du véhicule) touche `ECO_BONUS_CENTS` en plus (300 centimes par défaut), **prélevés sur la commission**, jamais sur le prix client, et plafonnés par la commission restante. Elle est annoncée avant l'acceptation (offre), versée dans le net de la course et rappelée dans le message de confirmation. `ECO_BONUS_CENTS=0` la désactive. Non appliquée quand une mission est reprise par un sauveteur.

@@ -18,6 +18,17 @@ export interface PricingConfig {
   partnerMultiplier: number;
   /** Commission plateforme en fraction du prix */
   commissionRate: number;
+  /**
+   * Ajustement de la commission par catégorie, en points de commission (-0.05 : 5 points de moins). S'ajoute au taux de base,
+   * y compris au taux négocié d'un partenaire. Sert à mieux rémunérer les chauffeurs de van.
+   */
+  categoryCommissionAdjust?: Partial<Record<VehicleCategory, number>>;
+}
+
+/** Taux de commission applicable à une catégorie : taux de base + ajustement, borné entre 0 et 90 %. */
+export function commissionRateFor(config: Pick<PricingConfig, "commissionRate" | "categoryCommissionAdjust">, category: VehicleCategory): number {
+  const rate = config.commissionRate + (config.categoryCommissionAdjust?.[category] ?? 0);
+  return Math.min(0.9, Math.max(0, rate));
 }
 
 export interface FlatRate {
@@ -140,7 +151,9 @@ export function computeQuote(
   const total = round2(
     (base * (1 + surchargeRate) + luggage + waiting) * config.partnerMultiplier,
   );
-  const commission = round2(total * config.commissionRate);
+  const rate = commissionRateFor(config, input.category);
+  breakdown.commissionRate = rate;
+  const commission = round2(total * rate);
   return {
     total,
     commission,

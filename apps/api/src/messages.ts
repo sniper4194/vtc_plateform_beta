@@ -5,6 +5,8 @@ import { fmtDateTime, fmtTime } from "./notifications";
 export interface RideForMessage {
   ref: number; pickupAt: Date; pickupAddress: string; dropoffAddress: string; category: string; flatRateId: string | null;
   priceCents: number; commissionCents: number; driverNetCents: number; driverCapCents: number; flightBufferMin: number;
+  /** Prime écologique incluse dans la rémunération (véhicule électrique). */
+  ecoBonusCents?: number;
 }
 
 const SERVICE_LABEL: Record<string, string> = { BERLINE: "Berline", BUSINESS: "Berline Business", VAN: "Van", GREEN: "Électrique" };
@@ -28,6 +30,11 @@ export function rideDetailLines(ride: RideForMessage, flightNumber: string | nul
  * on montre alors les trois montants, comme une confirmation de course classique. Sinon, le prix client, la commission et le net.
  */
 export function priceLines(ride: RideForMessage, showClientPrice = driverSeesClientPrice()): string[] {
+  const eco = ride.ecoBonusCents && ride.ecoBonusCents > 0 ? [`dont prime écologique (véhicule électrique) : ${money(ride.ecoBonusCents)}`] : [];
+  return [...baseLines(ride, showClientPrice), ...eco];
+}
+
+function baseLines(ride: RideForMessage, showClientPrice: boolean): string[] {
   if (!showClientPrice) return [`Votre rémunération (net) : ${money(ride.driverNetCents)}`];
   if (ride.driverCapCents > ride.driverNetCents) {
     return [

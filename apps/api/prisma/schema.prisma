@@ -229,6 +229,8 @@ model Booking {
 }
 
 model Ride {
+  /// Prime écologique incluse dans driverNetCents (véhicule électrique), prélevée sur la commission
+  ecoBonusCents Int @default(0)
   id             String          @id @default(uuid())
   bookingId      String
   booking        Booking         @relation(fields: [bookingId], references: [id])
