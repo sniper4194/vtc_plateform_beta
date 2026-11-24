@@ -31,7 +31,7 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: v
 /* Formulaire de candidature */
 .field { display: block; margin: 14px 0 0; border: 0; padding: 0; }
 .field > span, .field > legend { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 4px; padding: 0; }
-input:not([type=checkbox]), textarea { width: 100%; font: inherit; font-size: 16px; padding: 11px 12px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); }
+input:not([type=checkbox]):not([type=radio]), textarea, select { width: 100%; font: inherit; font-size: 16px; padding: 11px 12px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); }
 input[aria-invalid=true] { border-color: var(--bad); }
 .two { display: grid; grid-template-columns: 1fr 110px; gap: 8px; margin-top: 8px; }
 .check { display: flex; gap: 10px; align-items: flex-start; margin: 18px 0 6px; font-size: 13px; line-height: 1.45; color: var(--muted); }

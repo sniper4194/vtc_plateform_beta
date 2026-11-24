@@ -82,6 +82,15 @@ model Partner {
   webhookUrl       String?
   webhookSecret    String?
   notifyPassenger  Boolean       @default(true) // envoyer au voyageur le lien de suivi par SMS et e-mail (désactiver si le partenaire s'en charge)
+  /// Page de réservation clé en main hébergée par CliCab (pour les partenaires sans développeur) : /reserver/{hostedSlug}
+  hostedEnabled    Boolean       @default(false)
+  hostedSlug       String?       @unique
+  hostedPlaceLabel String?
+  hostedAddress    String?
+  hostedLat        Float?
+  hostedLng        Float?
+  /// Code d'accès facultatif (hash SHA-256) : sans lui, n'importe qui connaissant l'adresse pourrait réserver au compte du partenaire
+  hostedCodeHash   String?
   active           Boolean       @default(true)
   createdAt        DateTime      @default(now())
   apiKeys          ApiKey[]

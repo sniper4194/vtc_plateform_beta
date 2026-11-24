@@ -7,6 +7,7 @@ import { MeetingPoints } from "./meeting-points";
 import { AlarmButton, useAlarm } from "./alarm";
 import { Reliability } from "./reliability";
 import { Carbon } from "./carbon";
+import { HostedPages } from "./hosted";
 import { LostItems } from "./lost-items";
 
 type Tab = "rides" | "alerts" | "perf" | "drivers" | "lost" | "recruitment" | "meeting" | "companies" | "partners" | "team" | "account";
@@ -473,6 +474,7 @@ function Partners() {
           </tbody>
         </table>
       </div>
+      <HostedPages />
       <Reliability />
       <Carbon />
     </>
