@@ -128,3 +128,17 @@ Tous dans `marketing/visuels/` (PNG, prêts à publier ; régénérables avec `n
 | `linkedin-partenaires.png` | 1200×627 | Post LinkedIn |
 | `banniere-reseaux.png` | 1640×624 | Couverture Facebook / page LinkedIn (à recadrer si besoin) |
 | `flyer-chauffeurs-A5.pdf` / `.png` | A5 | Impression (voir §0 : marque et légalité) |
+
+### Kit rétro du chauffeur (à imprimer)
+
+| Fichier | Format | Usage |
+|---|---|---|
+| `kit-pancarte-A4.pdf` | A4 paysage | Pancarte d'accueil à **plastifier** : le nom du voyageur s'écrit au feutre effaçable. Dans un hall plein de pancartes blanches, la vôtre se repère de loin. |
+| `kit-carte-visite.pdf` | 85 × 55 mm, recto + verso | Le chauffeur écrit son prénom et son numéro à la main (rien de personnel n'est imprimé). |
+| `kit-autocollant-rond.pdf` | Ø 80 mm | Autocollant décoratif. |
+
+Précautions (non vérifiées par un juriste) :
+- L'autocollant **ne remplace pas** la signalétique VTC obligatoire. Vérifier les règles d'apposition sur le véhicule (et l'accord du propriétaire pour un véhicule loué) avant de le coller.
+- Marque « CliCab » non vérifiée (voir §0) : n'imprimer en quantité qu'après vérification.
+- L'application affiche déjà la pancarte au nom du voyageur sur le téléphone (« Afficher la pancarte ») : la version imprimée est un complément.
+
