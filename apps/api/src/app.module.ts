@@ -27,6 +27,8 @@ import { IncidentService } from "./incident.service";
 import { RescueService } from "./rescue.service";
 import { ApplyController, AdminRecruitmentController, DriverReferralController } from "./recruitment.controller";
 import { RecruitmentService } from "./recruitment.service";
+import { AdminProofController, DriverProofController, PartnerProofController } from "./proof.controller";
+import { ProofService } from "./proof.service";
 import { RoutingService } from "./routing";
 import { AdminGuard, CompanyGuard, DriverGuard, PartnerGuard } from "./security";
 import { WebhooksService } from "./webhooks.service";
@@ -74,7 +76,8 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 }
 
 @Module({
-  controllers: [HealthController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, EarningsController, IncidentController, AdminIncidentController, CompanyController, TrackingController, AuthController, ApplyController, AdminRecruitmentController, DriverReferralController],
-  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, IdentityService, DeadlinesService, EarningsService, IncidentService, RecruitmentService, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
+  // Ordre : les routes de preuves (driver/rides/:id/proofs) passent avant la route générique des actions de mission (driver/rides/:id/:action).
+  controllers: [HealthController, PartnerProofController, DriverProofController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, EarningsController, IncidentController, AdminIncidentController, CompanyController, TrackingController, AuthController, ApplyController, AdminRecruitmentController, DriverReferralController, AdminProofController],
+  providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, IdentityService, DeadlinesService, EarningsService, IncidentService, RecruitmentService, ProofService, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
 })
 export class AppModule {}

@@ -8,6 +8,7 @@ import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, HoldButton, Slab, Sticker } from "./ui";
 import { IncidentScreen } from "./incident";
 import { CostNote, JustificatifModal, RescuePicker } from "./rescue";
+import { ProofSection } from "./proof";
 import { useFetch } from "./useFetch";
 
 type Notify = (text: string, tone?: "ok" | "bad") => void;
@@ -133,6 +134,8 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
           {(r.status === "EN_ROUTE" || r.status === "ARRIVED" || r.status === "ASSIGNED") && (
             <Btn label="Afficher la pancarte" color={c.blue} text={c.cream} onPress={() => setSign(true)} />
           )}
+
+          <ProofSection rideId={rideId} rideRef={r.reference} status={r.status} notify={notify} />
 
           <View style={{ gap: 6 }}>
             <Cond size={11} color={c.muted}>Passager</Cond>

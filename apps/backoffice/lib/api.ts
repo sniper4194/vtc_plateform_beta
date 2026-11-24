@@ -40,6 +40,13 @@ export const api = <T = any>(path: string, body?: unknown) =>
 /** Appel authentifié avec la clé d'une société partenaire. */
 export const capi = <T = any>(path: string, body?: unknown) => request<T>(path, { authorization: `Bearer ${getCompanyKey()}` }, body);
 
+/** Récupère un fichier protégé (image…) avec la session administrateur, sous forme d'adresse locale à afficher. */
+export async function adminBlobUrl(path: string): Promise<string> {
+  const res = await fetch(API_URL + path, { headers: { authorization: `Bearer ${getToken()}` } });
+  if (!res.ok) throw new Error(`Erreur ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}
+
 /** Télécharge un fichier protégé (en-tête d'autorisation) puis le propose à l'enregistrement. */
 export async function downloadCompanyFile(path: string, filename: string) {
   const res = await fetch(API_URL + path, { headers: { authorization: `Bearer ${getCompanyKey()}` } });

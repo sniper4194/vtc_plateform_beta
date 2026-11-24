@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { api, AdminSession, clearToken, dt, eur, getToken, getUser, login, setToken, setUser } from "../lib/api";
+import { adminBlobUrl, api, AdminSession, clearToken, dt, eur, getToken, getUser, login, setToken, setUser } from "../lib/api";
 import { PerformanceView } from "./perf";
 import { Recruitment } from "./recruitment";
 
@@ -104,6 +104,50 @@ function FlightControl({ ride, onDone, onError }: { ride: any; onDone: () => voi
   );
 }
 
+/** Photos-preuves du chauffeur (client absent, bagages en excès) : heure du serveur, distance au lieu de prise en charge, signalements. */
+function RideProofs({ rideId }: { rideId: string }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<any[] | null>(null);
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    if (!open) return;
+    let stop = false;
+    (async () => {
+      try {
+        const list = await api<any[]>(`/admin/rides/${rideId}/proofs`);
+        if (stop) return;
+        setItems(list);
+        for (const p of list) adminBlobUrl(p.photo).then((u) => !stop && setThumbs((t) => ({ ...t, [p.id]: u }))).catch(() => {});
+      } catch (e: any) { setErr(e.message); }
+    })();
+    return () => { stop = true; };
+  }, [open, rideId]);
+  return (
+    <div style={{ marginTop: 10 }}>
+      <button className="btn" onClick={() => setOpen(!open)}>{open ? "Masquer les preuves" : "Preuves du chauffeur"}</button>
+      {open && err && <div className="err">{err}</div>}
+      {open && items && !items.length && <p className="muted" style={{ margin: "6px 0 0" }}>Aucune photo-preuve.</p>}
+      {open && items?.map((p) => (
+        <div key={p.id} style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "flex-start" }}>
+          {thumbs[p.id]
+            ? <a href={thumbs[p.id]} target="_blank" rel="noreferrer"><img src={thumbs[p.id]} alt={p.label} style={{ width: 84, height: 112, objectFit: "cover", border: "2.5px solid var(--ink)", borderRadius: 10 }} /></a>
+            : <div style={{ width: 84, height: 112, border: "2.5px dashed var(--ink)", borderRadius: 10 }} />}
+          <div style={{ fontSize: 13 }}>
+            <b>{p.label}</b>
+            <div className="muted">Reçue le {dt(p.receivedAt)} (heure du serveur)</div>
+            <div className="muted">à {p.distanceToPickupM} m du lieu de prise en charge · {p.location.lat.toFixed(5)}, {p.location.lng.toFixed(5)}{p.location.accuracyM != null ? ` (±${Math.round(p.location.accuracyM)} m)` : ""}</div>
+            {p.location.address && <div className="muted">{p.location.address}</div>}
+            {p.note && <div>{p.note}</div>}
+            <div className="chips">{p.flags.map((f: any) => <span className="chip bad" key={f.code}>{f.label}</span>)}</div>
+            <div className="muted" style={{ fontSize: 11 }}>Empreinte {p.sha256.slice(0, 16)}…</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Board() {
   const rides = useLoad<any[]>("/admin/rides");
   const drivers = useLoad<any[]>("/admin/drivers?status=ACTIVE", 15000);
@@ -163,6 +207,7 @@ function Board() {
                       </div>
                     )}
                     {r.driver && <p style={{ margin: "10px 0 0" }}><span className="cond muted">Chauffeur</span><br /><b style={{ fontFamily: "var(--slab)", fontWeight: 400 }}>{r.driver.firstName} {r.driver.lastName}</b></p>}
+                    {r.driver && ["ARRIVED", "IN_PROGRESS", "NO_SHOW", "COMPLETED"].includes(r.status) && <RideProofs rideId={r.id} />}
                     {r.status === "DISPATCHING" && (
                       <>
                         <p className="muted" style={{ margin: "10px 0 6px" }}>{pending} offre(s) en circulation</p>

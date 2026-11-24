@@ -145,6 +145,7 @@ model Driver {
   referralCodes ReferralCode[]
   application   Application?
   identityChecks IdentityCheck[]
+  proofs        RideProof[]
   incidents     Incident[]
   rescueOptIn   Boolean            @default(false) // accepte de figurer dans la liste des sauveteurs (s'il remplit les critères)
   rescueRevokedAt DateTime? // retrait du statut par l'administration
@@ -229,6 +230,7 @@ model Booking {
 }
 
 model Ride {
+  proofs        RideProof[]
   /// Prime écologique incluse dans driverNetCents (véhicule électrique), prélevée sur la commission
   ecoBonusCents Int @default(0)
   id             String          @id @default(uuid())
@@ -662,4 +664,36 @@ model Application {
   @@index([status])
   @@index([phone])
   @@index([email])
+}
+
+enum ProofKind {
+  NO_SHOW
+  EXCESS_LUGGAGE
+  OTHER
+}
+
+/// Photo-preuve prise sur place par le chauffeur (client absent, bagages en excès…). L'heure `receivedAt` est celle du serveur
+/// (le téléphone ne peut pas la modifier) ; la date incrustée dans l'image vient du téléphone et n'est qu'indicative.
+model RideProof {
+  id             String    @id @default(uuid())
+  rideId         String
+  ride           Ride      @relation(fields: [rideId], references: [id])
+  driverId       String
+  driver         Driver    @relation(fields: [driverId], references: [id])
+  kind           ProofKind
+  note           String?
+  mime           String
+  image          Bytes
+  imageSha256    String
+  receivedAt     DateTime  @default(now())
+  deviceTakenAt  DateTime?
+  lat            Float
+  lng            Float
+  accuracyM      Float?
+  address        String? // adresse lue par le téléphone au moment de la prise de vue
+  distanceToPickupM Int
+  flags          String[]
+  createdAt      DateTime  @default(now())
+
+  @@index([rideId, receivedAt])
 }

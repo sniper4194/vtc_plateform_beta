@@ -99,6 +99,43 @@ paths:
         '201': { description: Note enregistrée (remplace la précédente) }
         '409': { description: Course non terminée }
         '422': { $ref: '#/components/responses/ValidationError' }
+  /bookings/{id}/proofs:
+    get:
+      summary: Photos-preuves prises sur place par le chauffeur (client absent, bagages en excès)
+      description: |
+        Chaque preuve est une photo avec date, heure, adresse et coordonnées incrustées. Elle est accompagnée des données du serveur :
+        `receivedAt` (heure du serveur, qui fait foi), la position et la **distance au lieu de prise en charge** (`distanceToPickupM`),
+        l'empreinte SHA-256 de l'image et d'éventuels `flags` (position éloignée ou imprécise, heure du téléphone différente de celle du serveur).
+        Un signalement n'invalide pas la preuve : il vous permet d'en juger. Un webhook `ride.proof_added` est envoyé à chaque nouvelle preuve.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Liste des preuves, de la plus ancienne à la plus récente
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RideProof' }
+        '404': { description: Réservation inconnue }
+  /bookings/{id}/proofs/{proofId}/photo:
+    get:
+      summary: Image d'une photo-preuve (JPEG ou PNG, cachet incrusté)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: proofId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: L'image, avec son type de contenu }
+        '404': { description: Réservation ou photo inconnue }
 webhooks:
   bookingEvent:
     post:
@@ -119,6 +156,32 @@ components:
         application/json:
           schema: { type: object, properties: { errors: { type: object } } }
   schemas:
+    RideProof:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [NO_SHOW, EXCESS_LUGGAGE, OTHER] }
+        label: { type: string, example: Client absent }
+        note: { type: string, nullable: true }
+        receivedAt: { type: string, format: date-time, description: "Heure du serveur : fait foi" }
+        deviceTakenAt: { type: string, format: date-time, nullable: true, description: "Heure du téléphone : indicative" }
+        location:
+          type: object
+          properties:
+            lat: { type: number }
+            lng: { type: number }
+            accuracyM: { type: number, nullable: true }
+            address: { type: string, nullable: true }
+        distanceToPickupM: { type: integer }
+        flags:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string, enum: [FAR_FROM_PICKUP, LOW_ACCURACY, CLOCK_MISMATCH, NO_DEVICE_TIME] }
+              label: { type: string }
+        sha256: { type: string }
+        photo: { type: string, description: "Chemin de l'image (GET)" }
     VehicleCategory:
       type: string
       enum: [BERLINE, BUSINESS, VAN, GREEN]
@@ -207,6 +270,6 @@ components:
         id: { type: string, format: uuid }
         type:
           type: string
-          enum: [booking.confirmed, driver.assigned, driver.en_route, driver.arrived, ride.started, ride.completed, booking.cancelled, flight.delayed, flight.updated]
+          enum: [booking.confirmed, driver.assigned, driver.en_route, driver.arrived, ride.started, ride.completed, booking.cancelled, flight.delayed, flight.updated, ride.proof_added]
         createdAt: { type: string, format: date-time }
         data: { $ref: '#/components/schemas/Booking' }
