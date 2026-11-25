@@ -129,6 +129,7 @@ export class CrmController {
   async remove(@Req() req: any, @Param("id") id: string) {
     try {
       return await this.prisma.$transaction(async tx => {
+        if (await tx.crmDeal.count({ where: { accountId: id } })) throw new HttpException("Cette fiche contient des devis ou contrats à conserver", 409);
         await tx.crmAccount.delete({ where: { id } });
         await tx.auditLog.create({ data: { actor: req.admin.actor, action: "crm.deleted", entity: "CrmAccount", entityId: id } });
         return { ok: true };

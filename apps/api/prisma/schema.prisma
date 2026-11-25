@@ -879,6 +879,7 @@ model CrmAccount {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   interactions   CrmInteraction[]
+  deals          CrmDeal[]
   @@index([stage, nextActionAt])
 }
 
@@ -891,4 +892,43 @@ model CrmInteraction {
   actor     String
   createdAt DateTime @default(now())
   @@index([accountId, createdAt])
+}
+
+enum CrmDealStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  SIGNED
+}
+
+model CrmDeal {
+  id             String @id @default(uuid())
+  ref            Int @unique @default(autoincrement())
+  accountId      String
+  account        CrmAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  status         CrmDealStatus @default(DRAFT)
+  issuerName     String
+  issuerAddress  String
+  issuerSiret    String
+  recipientName  String
+  recipientAddress String
+  description    String
+  quantity       Int
+  unitCents      Int
+  vatBps         Int
+  priceMultiplier Decimal @db.Decimal(5,4)
+  terms          String
+  validUntil     DateTime @db.Date
+  sentAt         DateTime?
+  acceptedAt     DateTime?
+  signedAt       DateTime?
+  contractRef    String?
+  startsOn       DateTime? @db.Date
+  endsOn         DateTime? @db.Date
+  renewalOn      DateTime? @db.Date
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@index([accountId, createdAt])
+  @@index([status, renewalOn])
 }

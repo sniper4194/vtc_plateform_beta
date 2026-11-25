@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api, dt, eur } from "../lib/api";
+import { CrmDeals, CrmRenewals } from "./crm-deals";
 
 const stages = { PROSPECT: "Prospection", CONTACTED: "Contact établi", OFFER: "Offre envoyée", NEGOTIATION: "Négociation", WON: "Contrat signé", LOST: "Perdu" } as const;
 const kinds = { HOTEL: "Hôtel", COMPANY: "Entreprise", AGENCY: "Agence de voyages", CONCIERGE: "Conciergerie", OTHER: "Autre" } as const;
@@ -130,6 +131,7 @@ export function Crm() {
         <button className={"btn " + (due ? "primary" : "")} onClick={() => { setDue(!due); setPage(1); }}>Relances échues · {list?.overdue ?? "—"}</button>
       </div>
     </div>
+    <CrmRenewals onOpen={open} revision={rev}/>
     {error && <div className="err" role="alert">{error}</div>}
     <div className="card">
       <div className="row" style={{ flexWrap: "wrap" }}>
@@ -169,6 +171,7 @@ export function Crm() {
       {selected && <>
         {selected.nextAction && selected.nextActionAt && <div className="row" style={{ margin: "12px 0" }}><span>Relance enregistrée : {selected.nextAction} · {dt(selected.nextActionAt)}</span><button className="btn primary" disabled={busy} onClick={finishFollowUp}>Marquer comme effectuée</button></div>}
         <PartnerActivity key={selected.id + ":" + (selected.partnerId ?? "")} id={selected.id} />
+        <CrmDeals key={selected.id} accountId={selected.id} partnerId={selected.partnerId} onChange={() => { refresh(); api<Partner[]>("/admin/crm/partners").then(setPartners).catch(e => setError(e.message)); void open(selected.id); }}/>
         <h3>Historique des échanges</h3>
         <form onSubmit={addNote} className="row" style={{ flexWrap: "wrap" }}>
           <select aria-label="Type d'échange" value={channel} onChange={e => setChannel(e.target.value as Channel)}>{Object.entries(channels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
