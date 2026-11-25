@@ -3,6 +3,8 @@
 name: clicab-staging
 services:
   db:
+    mem_limit: 512m
+    cpus: 0.50
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -16,7 +18,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
-  api:
+  clicab-staging-api:
+    mem_limit: 768m
+    cpus: 0.75
     image: ghcr.io/sniper4194/clicab-api:staging-${STAGING_SHA:?SHA staging requis}
     restart: unless-stopped
     depends_on:
@@ -46,7 +50,9 @@ services:
     logging:
       driver: json-file
       options: {max-size: "5m",max-file: "2"}
-  backoffice:
+  clicab-staging-admin:
+    mem_limit: 384m
+    cpus: 0.35
     image: ghcr.io/sniper4194/clicab-backoffice:staging-${STAGING_SHA:?SHA staging requis}
     restart: unless-stopped
     networks:
@@ -54,8 +60,10 @@ services:
       proxy:
         aliases: [clicab-staging-admin]
     depends_on:
-      api: {condition: service_healthy}
-  web-booking:
+      clicab-staging-api: {condition: service_healthy}
+  clicab-staging-suivi:
+    mem_limit: 384m
+    cpus: 0.25
     image: ghcr.io/sniper4194/clicab-suivi:staging-${STAGING_SHA:?SHA staging requis}
     restart: unless-stopped
     networks:
@@ -63,7 +71,7 @@ services:
       proxy:
         aliases: [clicab-staging-suivi]
     depends_on:
-      api: {condition: service_healthy}
+      clicab-staging-api: {condition: service_healthy}
 networks:
   private:
     internal: true
