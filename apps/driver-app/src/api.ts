@@ -5,6 +5,15 @@ import { normalizeApiUrl } from "./format";
 const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 const KEY = "driver_token";
 const URL_KEY = "api_url";
+const DEVICE_KEY="driver_device_v1", BIO_KEY="driver_bio_v1";
+const bioOptions={requireAuthentication:true,keychainService:"clicab_biometric",authenticationPrompt:"Déverrouiller votre session CliCab"};
+export const biometricAvailable=()=>Platform.OS!=="web"&&SecureStore.canUseBiometricAuthentication();
+export async function loadDevice(){return Platform.OS==="web"?null:SecureStore.getItemAsync(DEVICE_KEY);}
+export async function saveDevice(v:string|null){if(Platform.OS==="web")return;if(v)await SecureStore.setItemAsync(DEVICE_KEY,v);else await SecureStore.deleteItemAsync(DEVICE_KEY);}
+async function clearBio(){if(Platform.OS!=="web")await SecureStore.deleteItemAsync(BIO_KEY,bioOptions);}
+export async function unlockBiometric(){if(!biometricAvailable())return false;const v=await SecureStore.getItemAsync(BIO_KEY,bioOptions);if(!v)return false;token=v;try{await api("/driver/auth/session");return true;}catch(e){token=null;if(e instanceof ApiError&&e.status===401)await clearBio();throw e;}}
+export async function saveHybridToken(t:string,biometric:boolean){await saveToken(null);if(biometric&&biometricAvailable()){await SecureStore.setItemAsync(BIO_KEY,t,bioOptions);token=t;}else await saveToken(t);}
+export async function logout(){try{await api("/driver/auth/logout",{});}finally{await saveToken(null);}}
 
 // Adresse du serveur : celle compilée dans l'application, modifiable sur l'écran de connexion (utile pour un APK de test :
 // on peut le pointer vers un PC du même Wi-Fi ou vers un tunnel sans recompiler).
@@ -27,6 +36,7 @@ export async function loadApiUrl() {
 export async function saveApiUrl(raw: string) {
   const u = normalizeApiUrl(raw);
   if (!u) throw new Error("Adresse invalide : elle doit ressembler à http://192.168.1.20:3000 ou https://api.exemple.fr");
+  if(u!==apiUrl){await saveToken(null);await saveDevice(null);}
   apiUrl = u;
   if (Platform.OS === "web") globalThis.localStorage?.setItem(URL_KEY, u); else await SecureStore.setItemAsync(URL_KEY, u);
   return u;
@@ -37,8 +47,8 @@ export async function loadToken() {
 }
 export async function saveToken(t: string | null) {
   token = t;
-  if (t) await store.set(t);
-  else await store.del();
+  if (t) {await clearBio();await store.set(t);}
+  else {await store.del();await clearBio();}
 }
 
 export class ApiError extends Error {

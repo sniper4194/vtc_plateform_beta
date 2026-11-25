@@ -4,6 +4,7 @@ import { normalizePhone } from "./phone";
 import { PrismaService } from "./prisma";
 import { config, safeEqual } from "./security";
 import { SmsService } from "./sms";
+import { smsSegments } from "./driver-auth";
 
 export const OTP = { ttlMin: 5, maxAttempts: 5, resendSeconds: 30, maxPerWindow: 3, windowMin: 10 };
 const ipPerMin = () => Number(process.env.OTP_IP_PER_MIN) || 20;
@@ -30,12 +31,14 @@ export class OtpService {
    * Envoie un code. La réponse est identique que le numéro soit connu ou non (pas d'énumération) :
    * on enregistre une demande dans les deux cas, donc les limites s'appliquent uniformément.
    */
-  async request(phoneRaw: string, ip: string, now = new Date()) {
+  async request(phoneRaw: string, ip: string, now = new Date(), allowActivated = false) {
     const phone = normalizePhone(phoneRaw);
     if (!phone) throw new HttpException({ errors: { phone: ["numéro invalide"] } }, 422);
     this.throttleIp(ip, now.getTime());
     if (!this.sms.provider && !(process.env.DRIVER_DEV_OTP && process.env.NODE_ENV !== "production")) throw new HttpException("Envoi de SMS non configuré", 501);
 
+    const account = await this.prisma.driver.findUnique({where:{phone},select:{id:true,authCredential:{select:{passwordHash:true}}}});
+    if(account?.authCredential?.passwordHash && !allowActivated) return {ok:true,resendInSeconds:OTP.resendSeconds};
     const since = new Date(now.getTime() - OTP.windowMin * 60_000);
     const recent = await this.prisma.otpCode.findMany({ where: { phone, createdAt: { gt: since } }, orderBy: { createdAt: "desc" } });
     if (recent.length >= OTP.maxPerWindow) throw new HttpException("Trop de demandes de code, réessayez plus tard", 429);
@@ -49,7 +52,11 @@ export class OtpService {
     ]);
     const driver = await this.prisma.driver.findUnique({ where: { phone }, select: { id: true } });
     if (driver && this.sms.provider) {
-      await this.sms.provider.send(phone, `Votre code ${process.env.BRAND_NAME ?? "CliCab"} : ${code}. Valable ${OTP.ttlMin} min. Ne le communiquez à personne.`);
+      const message = `Votre code ${process.env.BRAND_NAME ?? "CliCab"} : ${code}. Valable ${OTP.ttlMin} min. Ne le communiquez à personne.`;
+      const provider=process.env.SMS_PROVIDER??"console";
+      const usage=await this.prisma.driverOtpUsage.create({data:{provider,segments:smsSegments(message)}});
+      await this.sms.provider.send(phone,message);
+      await this.prisma.driverOtpUsage.update({where:{id:usage.id},data:{status:"ACCEPTED"}});
     }
     return { ok: true, resendInSeconds: OTP.resendSeconds };
   }

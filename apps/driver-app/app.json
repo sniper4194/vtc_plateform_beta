@@ -36,6 +36,12 @@
           "photosPermission": false,
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Autoriser CliCab à déverrouiller votre session avec Face ID."
+        }
       ]
     ],
     "ios": {

@@ -6,8 +6,8 @@ import { Anton_400Regular } from "@expo-google-fonts/anton";
 import { KaushanScript_400Regular } from "@expo-google-fonts/kaushan-script";
 import { RozhaOne_400Regular } from "@expo-google-fonts/rozha-one";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, SafeAreaView, TextInput, View } from "react-native";
-import { api, getApiUrl, loadApiUrl, loadToken, saveApiUrl, saveToken } from "./src/api";
+import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, Switch, TextInput, View } from "react-native";
+import { api, ApiError, biometricAvailable, getApiUrl, loadApiUrl, loadDevice, loadToken, logout, saveApiUrl, saveDevice, saveHybridToken, saveToken, unlockBiometric } from "./src/api";
 import { reportCrash } from "./src/crashReport";
 import { ErrorBoundary } from "./src/ErrorBoundary";
 import { requestDriverNotifications } from "./src/driverNotifications";
@@ -26,6 +26,15 @@ function Login({ onDone, dark, onToggleTheme }: { onDone: () => void; dark: bool
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"phone" | "code">("phone");
+  const [method,setMethod]=useState<"password"|"activate"|"legacy">("password");
+  const [password,setPassword]=useState("");
+  const [confirmPassword,setConfirmPassword]=useState("");
+  const [bio,setBio]=useState(false);
+  const [challenge,setChallenge]=useState(false);
+  function choose(m:typeof method){setMethod(m);setStep("phone");setCode("");setPassword("");setConfirmPassword("");setChallenge(false);setErr("");}
+  async function finish(r:{token:string;deviceKey?:string}){if(r.deviceKey)await saveDevice(r.deviceKey);await saveHybridToken(r.token,bio);setPassword("");setConfirmPassword("");onDone();}
+  async function passwordLogin(){setBusy(true);setErr("");try{const key=await loadDevice();const r=await api<{token?:string;deviceKey?:string;requiresSms?:boolean}>("/driver/auth/password",{phone:phone.trim(),password,...(key?{deviceKey:key}:{}),...(step==="code"?{code:code.trim()}:{})});if(r.requiresSms){setChallenge(true);return;}if(!r.token)throw new Error("Session non reçue");await finish({token:r.token,deviceKey:r.deviceKey});}catch(e:any){setErr(e.message);}finally{setBusy(false);}}
+  async function biometricLogin(){setBusy(true);setErr("");try{if(await unlockBiometric())onDone();else setErr("Aucune session biométrique disponible. Connectez-vous avec votre mot de passe.");}catch(e:any){setErr(e.message||"Déverrouillage annulé");}finally{setBusy(false);}}
   const [wait, setWait] = useState(0);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -46,16 +55,15 @@ function Login({ onDone, dark, onToggleTheme }: { onDone: () => void; dark: bool
   async function sendCode() {
     setBusy(true); setErr("");
     try {
-      const r = await api<{ resendInSeconds: number }>("/driver/otp", { phone: phone.trim() });
+      const r = await api<{ resendInSeconds: number }>(method==="password"?"/driver/auth/device-code":"/driver/otp", { phone: phone.trim(),...(method==="password"?{password}:{}) });
       setStep("code"); setCode(""); setWait(r.resendInSeconds ?? 30);
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   }
   async function submit() {
     setBusy(true); setErr("");
     try {
-      const r = await api<{ token: string }>("/driver/login", { phone: phone.trim(), code: code.trim() });
-      await saveToken(r.token);
-      onDone();
+      if(method==="activate"){if(password.length<15||password!==confirmPassword)throw new Error("Les mots de passe doivent correspondre et contenir 15 caractères minimum.");const r=await api<{token:string;deviceKey:string}>("/driver/auth/activate",{phone:phone.trim(),code:code.trim(),password});await finish(r);}
+      else {const r=await api<{ token: string }>("/driver/login", { phone: phone.trim(), code: code.trim() });await saveToken(r.token);onDone();}
     } catch (e: any) { setErr(e.message === "Identifiants invalides" ? "Code incorrect ou expiré" : e.message); } finally { setBusy(false); }
   }
   const input = { fontFamily: font.slab, fontSize: 18, color: c.ink, paddingVertical: 4 } as const;
@@ -64,19 +72,24 @@ function Login({ onDone, dark, onToggleTheme }: { onDone: () => void; dark: bool
       <View style={{ position: "absolute", top: -40, right: -50 }}><Sticker size={190} color={c.yel} rot={12}><Display size={60} color={c.blue} shadow={c.red}>V</Display></Sticker></View>
       <View style={{ position: "absolute", bottom: -60, left: -60 }}><Sticker size={220} color={c.red} rot={-10}><Slab size={22} color={c.yel} shadow={null}>PRIX FIXE</Slab></Sticker></View>
       <View style={{ position: "absolute", top: 14, left: 16, zIndex: 5 }}><ThemeToggle dark={dark} onToggle={onToggleTheme} /></View>
-      <View style={{ padding: 24, marginTop: 90, gap: 18 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, paddingTop: 90, gap: 18, paddingBottom: 50 }}>
         <View>
           <Display size={70} shadow={c.red}>{BRAND}</Display>
           <Script size={34}>l'app des chauffeurs</Script>
         </View>
+        {step==="phone"&&<View style={{gap:8}}>{biometricAvailable()&&<Btn label="Déverrouiller avec la biométrie" disabled={busy} onPress={biometricLogin}/>}<View style={{flexDirection:"row",gap:8}}><View style={{flex:1}}><Btn label="Mot de passe" color={method==="password"?c.yel:undefined} disabled={busy} onPress={()=>choose("password")}/></View><View style={{flex:1}}><Btn label="Activer mon compte" color={method==="activate"?c.yel:undefined} disabled={busy} onPress={()=>choose("activate")}/></View></View></View>}
         {step === "phone" ? (
           <>
             <Card>
               <Cond size={12} color={c.muted}>Téléphone</Cond>
               <TextInput style={input} placeholder="06 12 34 56 78" placeholderTextColor="#9a9ab0" keyboardType="phone-pad" value={phone} onChangeText={setPhone} autoCapitalize="none" autoComplete="tel" />
             </Card>
+            {method==="password"&&<Card><Cond size={12} color={c.muted}>Mot de passe</Cond><TextInput style={input} secureTextEntry value={password} onChangeText={v=>{setPassword(v);setChallenge(false);}} maxLength={128} autoCapitalize="none" autoCorrect={false} autoComplete="current-password"/></Card>}
+            {method==="activate"&&<><Cond size={13}>Première activation ou récupération autorisée par le support.</Cond><Card><Cond size={12}>Nouveau mot de passe (15 caractères minimum)</Cond><TextInput style={input} secureTextEntry value={password} onChangeText={setPassword} maxLength={128} autoCapitalize="none" autoCorrect={false}/><Cond size={12}>Confirmer</Cond><TextInput style={input} secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} maxLength={128} autoCapitalize="none" autoCorrect={false}/></Card></>}
+            {method!=="legacy"&&biometricAvailable()&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Cond size={12}>Protéger la session par biométrie locale</Cond><Switch value={bio} onValueChange={setBio} disabled={busy}/></View>}
             {err ? <Card color={c.red}><Slab size={14} color={c.cream} shadow={null}>{err}</Slab></Card> : null}
-            <Btn label={busy ? "Envoi…" : "Recevoir mon code"} onPress={sendCode} disabled={busy || phone.trim().length < 6} color={c.yel} />
+            {method==="password"?<><Btn label={busy?"Connexion…":"Se connecter"} onPress={passwordLogin} disabled={busy||phone.trim().length<6||!password} color={c.yel}/>{challenge&&<><Cond size={13}>Nouvel appareil ou autorisation expirée. Confirmez votre numéro par SMS.</Cond><Btn label="Vérifier cet appareil par SMS" onPress={sendCode} disabled={busy||wait>0||!password}/></>}<Cond size={12}>Mot de passe oublié ? Contactez le support pour vérifier votre identité et réactiver le compte.</Cond><Btn label="Recevoir mon code" disabled={busy||phone.trim().length<6} onPress={()=>{setMethod("legacy");setPassword("");setConfirmPassword("");setChallenge(false);setErr("");void (async()=>{setBusy(true);try{const r=await api<{resendInSeconds:number}>("/driver/otp",{phone:phone.trim()});setStep("code");setCode("");setWait(r.resendInSeconds??30);}catch(e:any){setErr(e.message);}finally{setBusy(false);}})();}}/></>:<Btn label={busy?"Envoi…":"Recevoir mon code"} onPress={sendCode} disabled={busy||phone.trim().length<6||method==="activate"&&(password.length<15||password!==confirmPassword)||wait>0} color={c.yel}/>}
+            {method==="password"&&<Cond size={11}>L'accès par code seul reste réservé aux comptes non activés.</Cond>}
           </>
         ) : (
           <>
@@ -86,10 +99,10 @@ function Login({ onDone, dark, onToggleTheme }: { onDone: () => void; dark: bool
               <TextInput style={input} placeholder="••••••" placeholderTextColor="#9a9ab0" keyboardType="number-pad" value={code} onChangeText={setCode} maxLength={6} autoComplete="sms-otp" textContentType="oneTimeCode" />
             </Card>
             {err ? <Card color={c.red}><Slab size={14} color={c.cream} shadow={null}>{err}</Slab></Card> : null}
-            <Btn label={busy ? "Connexion…" : "C'est parti"} onPress={submit} disabled={busy || code.trim().length < 4} color={c.yel} />
+            <Btn label={busy ? "Connexion…" : "C'est parti"} onPress={method==="password"?passwordLogin:submit} disabled={busy || code.trim().length !== 6} color={c.yel} />
             <View style={{ flexDirection: "row", gap: 12 }}>
               <View style={{ flex: 1 }}><Btn label={wait > 0 ? `Renvoyer (${wait} s)` : "Renvoyer le code"} onPress={sendCode} disabled={busy || wait > 0} /></View>
-              <View style={{ flex: 1 }}><Btn label="Changer de numéro" onPress={() => { setStep("phone"); setErr(""); }} /></View>
+              <View style={{ flex: 1 }}><Btn label="Changer de numéro" onPress={() => { setStep("phone"); setErr(""); setChallenge(false); setCode(""); }} /></View>
             </View>
           </>
         )}
@@ -107,7 +120,7 @@ function Login({ onDone, dark, onToggleTheme }: { onDone: () => void; dark: bool
             <Cond size={11} color={c.onSky}>Serveur : {server} (changer)</Cond>
           </Pressable>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -132,7 +145,7 @@ function Root() {
   useLandingAlert(authed && notificationsReady, toast.show);
 
   useEffect(() => {
-    Promise.all([loadThemeMode(), loadApiUrl().then(() => loadToken())]).then(([m, t]) => { applyTheme(m); setMode(m); setAuthed(Boolean(t)); setReady(true); });
+    Promise.all([loadThemeMode(), loadApiUrl().then(() => loadToken())]).then(async ([m,t])=>{applyTheme(m);setMode(m);if(t){try{await api("/driver/auth/session");setAuthed(true);}catch(e){if(e instanceof ApiError&&e.status===401)await saveToken(null);else setAuthed(true);}}setReady(true);}).catch(()=>setReady(true));
   }, []);
   useEffect(() => {
     if (!ready || !fontsLoaded) return;
@@ -148,6 +161,8 @@ function Root() {
     const next: ThemeMode = dark ? "light" : "dark";
     applyTheme(next); setMode(next); void saveThemeMode(next);
   }
+
+  useEffect(()=>{if(!authed)return;let active=true;const check=async()=>{try{await api("/driver/auth/session");}catch(e){if(active&&e instanceof ApiError&&e.status===401){await saveToken(null);setMissionId(null);setShowMessages(false);setAuthed(false);}}};const t=setInterval(check,30000);return()=>{active=false;clearInterval(t);};},[authed]);
 
   // Position envoyée toutes les 30 s pour trier les offres par proximité.
   useEffect(() => {
@@ -193,7 +208,7 @@ function Root() {
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
         {tab === "radar" && <Radar notify={toast.show} />}
-        {tab === "cap" && <Cap dark={dark} onToggleTheme={toggleTheme} goRadar={() => setTab("radar")} onQuit={async () => { await saveToken(null); setAuthed(false); }} notify={toast.show} openMission={setMissionId} openMessages={() => setShowMessages(true)} />}
+        {tab === "cap" && <Cap dark={dark} onToggleTheme={toggleTheme} goRadar={() => setTab("radar")} onQuit={async () => { try{await logout();}catch{toast.show("Déconnexion locale ; révocation serveur non confirmée.");}finally{setAuthed(false);setMissionId(null);setShowMessages(false);} }} notify={toast.show} openMission={setMissionId} openMessages={() => setShowMessages(true)} />}
         {tab === "revenus" && <Earnings notify={toast.show} />}
         {tab === "agenda" && <Agenda notify={toast.show} openMission={setMissionId} />}
         {toast.node}

@@ -16,7 +16,8 @@ import { haversineKm } from "./zones";
 import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, DriverOtpRequestSchema, LocationUpdateSchema } from "./schemas";
 import { OtpService } from "./otp.service";
 import { z } from "zod";
-import { config, DriverGuard, signToken } from "./security";
+import { DriverGuard } from "./security";
+import { DriverAuthService } from "./driver-auth.service";
 
 const ACTION_SET = new Set<DriverAction>(["en-route", "arrived", "start", "complete", "no-show"]);
 
@@ -30,6 +31,7 @@ export class DriverController {
     @Inject(PrismaService) private prisma: PrismaService,
     @Inject(DispatchService) private dispatch: DispatchService,
     @Inject(OtpService) private otp: OtpService,
+    @Inject(DriverAuthService) private auth: DriverAuthService,
     @Inject(IdentityService) private identityChecks: IdentityService,
     @Inject(DeadlinesService) private deadlines: DeadlinesService,
   ) {}
@@ -43,8 +45,7 @@ export class DriverController {
   @Post("login")
   async login(@Req() req: any, @Body() body: unknown) {
     const { phone, code } = parse(DriverLoginSchema, body);
-    const driverId = await this.otp.verify(phone, code, req.ip ?? "unknown");
-    return { token: signToken({ sub: driverId, role: "driver" }, config.tokenSecret, 12 * 3600), driverId };
+    return this.auth.legacyLogin(phone,code,req.ip??"unknown");
   }
 
   @Get("me")

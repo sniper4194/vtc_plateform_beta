@@ -1,0 +1,7 @@
+import {describe,it,expect} from "vitest";
+import {hashDriverPassword,verifyDriverPassword,activateSchema,loginSchema,adminSchema,smsSegments,SESSION_SECONDS} from "./driver-auth";
+describe("Authentification hybride",()=>{
+it("hash salé, vérification et refus d'un mauvais mot de passe",async()=>{const p="Une longue phrase personnelle";const a=await hashDriverPassword(p),b=await hashDriverPassword(p);expect(a).not.toBe(b);expect(a).not.toContain(p);expect(await verifyDriverPassword(p,a)).toBe(true);expect(await verifyDriverPassword("incorrect",a)).toBe(false);expect(await verifyDriverPassword(p,"invalid")).toBe(false);});
+it("valide activation, code, clé et confirmation administrative",()=>{expect(activateSchema.safeParse({phone:"0612345678",code:"123456",password:"court"}).success).toBe(false);expect(activateSchema.safeParse({phone:"0612345678",code:"123456",password:"Une longue phrase personnelle"}).success).toBe(true);expect(loginSchema.safeParse({phone:"0612345678",password:"x",deviceKey:"bad"}).success).toBe(false);expect(adminSchema.safeParse({reason:"Identité vérifiée",verified:false}).success).toBe(false);expect(SESSION_SECONDS).toBe(30*86400);});
+it("compte GSM et Unicode",()=>{expect(smsSegments("a".repeat(160))).toBe(1);expect(smsSegments("a".repeat(161))).toBe(2);expect(smsSegments("€".repeat(81))).toBe(2);expect(smsSegments("漢".repeat(71))).toBe(2);});
+});

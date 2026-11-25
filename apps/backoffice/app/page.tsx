@@ -11,6 +11,7 @@ import { HostedPages } from "./hosted";
 import { LostItems } from "./lost-items";
 import { Crm } from "./crm";
 import { Support } from "./support";
+import { DriverAuthCosts, DriverAuthPanel } from "./driver-auth";
 
 type Tab = "rides" | "alerts" | "perf" | "drivers" | "lost" | "recruitment" | "meeting" | "companies" | "partners" | "crm" | "support" | "team" | "account";
 const OPEN_FLIGHT = ["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
@@ -282,7 +283,7 @@ function Board() {
   );
 }
 
-function Drivers() {
+function Drivers({isAdmin}:{isAdmin:boolean}) {
   const drivers = useLoad<any[]>("/admin/drivers", 8000);
   const [msg, setMsg] = useState("");
   async function act(path: string, body: unknown = {}) {
@@ -292,6 +293,7 @@ function Drivers() {
   return (
     <>
       <h1 className="title">Chauffeurs</h1>
+      {isAdmin&&<DriverAuthCosts/>}
       {(drivers.error || msg) && <div className="card redbg">{drivers.error || msg}</div>}
       <div className="grid">
         {drivers.data?.map((d) => (
@@ -306,6 +308,7 @@ function Drivers() {
               </span>
             </div>
             <div className="muted">{d.phone}</div>
+            {isAdmin&&<DriverAuthPanel id={d.id}/> }
             <div className="chips">{d.vehicles.map((v: any) => <span className={`chip ${v.compliance?.ok === false ? "bad" : "blue"}`} key={v.id} title={v.compliance?.problems?.join(" · ")}>{v.make} {v.model} · {v.plate}{v.compliance?.ok === false ? " · non conforme" : ""}</span>)}</div>
             {d.vehicles.filter((v: any) => v.compliance?.ok === false).map((v: any) => <div className="muted" key={v.id} style={{ fontSize: 13 }}>{v.plate} : {v.compliance.problems.join(" · ")}</div>)}
             <div style={{ margin: "12px 0" }}>
@@ -712,7 +715,7 @@ export default function Home() {
         {tab === "rides" && <Board />}
         {tab === "alerts" && <AlertsTab />}
         {tab === "perf" && <AdminPerformance />}
-        {tab === "drivers" && <Drivers />}
+        {tab === "drivers" && <Drivers isAdmin={isAdmin}/>}
         {tab === "lost" && <LostItems />}
         {isAdmin && tab === "recruitment" && <Recruitment />}
         {isAdmin && tab === "meeting" && <MeetingPoints />}

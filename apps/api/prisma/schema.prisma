@@ -184,6 +184,10 @@ model Driver {
   createdAt     DateTime           @default(now())
   supportTickets SupportTicket[]
 
+  authCredential DriverCredential?
+  authDevices DriverDevice[]
+  authSessions DriverSession[]
+
 }
 
 model Vehicle {
@@ -1067,4 +1071,43 @@ model SupportMoney {
   decidedBy String?
   decidedAt DateTime?
   decisionReason String?
+}
+
+model DriverCredential {
+  driverId String @id
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  passwordHash String?
+  version Int @default(1)
+  failed Int @default(0)
+  lockedUntil DateTime?
+  updatedAt DateTime @updatedAt
+}
+model DriverDevice {
+  id String @id @default(uuid())
+  driverId String
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  secretHash String @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([driverId, expiresAt])
+}
+model DriverSession {
+  id String @id @default(uuid())
+  driverId String
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  credentialVersion Int
+  deviceId String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([driverId, expiresAt])
+}
+model DriverOtpUsage {
+  id String @id @default(uuid())
+  provider String
+  segments Int
+  status String @default("UNKNOWN")
+  createdAt DateTime @default(now())
+  @@index([createdAt])
 }
