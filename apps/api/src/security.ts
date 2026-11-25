@@ -120,11 +120,19 @@ export class AdminGuard implements CanActivate {
 
 @Injectable()
 export class DriverGuard implements CanActivate {
-  canActivate(ctx: ExecutionContext) {
+  constructor(@Inject(PrismaService) private prisma: PrismaService) {}
+  async canActivate(ctx: ExecutionContext) {
     const req = ctx.switchToHttp().getRequest();
     const token = bearer(req);
     const payload = token ? verifyToken(token, config.tokenSecret) : null;
     if (!payload || payload.role !== "driver") throw new HttpException("Non authentifié", 401);
+    const driver=await this.prisma.driver.findUnique({where:{id:payload.sub},select:{id:true,authCredential:{select:{version:true}}}});
+    if(!driver)throw new HttpException("Session expirée",401);
+    if(payload.sid){
+      const s=await this.prisma.driverSession.findFirst({where:{id:payload.sid,driverId:driver.id,revokedAt:null,expiresAt:{gt:new Date()}}});
+      if(!s||s.credentialVersion!==(driver.authCredential?.version??0))throw new HttpException("Session expirée",401);
+      req.driverSessionId=s.id;
+    }else if(driver.authCredential)throw new HttpException("Session expirée",401);
     req.driverId = payload.sub;
     return true;
   }

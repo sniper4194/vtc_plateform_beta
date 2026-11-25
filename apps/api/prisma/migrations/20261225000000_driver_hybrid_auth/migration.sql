@@ -1,0 +1,7 @@
+CREATE TABLE "DriverCredential" ("driverId" TEXT PRIMARY KEY,"passwordHash" TEXT,"version" INTEGER NOT NULL DEFAULT 1,"failed" INTEGER NOT NULL DEFAULT 0,"lockedUntil" TIMESTAMP(3),"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "DriverCredential_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE CASCADE ON UPDATE CASCADE);
+CREATE TABLE "DriverDevice" ("id" TEXT PRIMARY KEY,"driverId" TEXT NOT NULL,"secretHash" TEXT NOT NULL UNIQUE,"expiresAt" TIMESTAMP(3) NOT NULL,"revokedAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "DriverDevice_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE CASCADE ON UPDATE CASCADE);
+CREATE INDEX "DriverDevice_driverId_expiresAt_idx" ON "DriverDevice"("driverId","expiresAt");
+CREATE TABLE "DriverSession" ("id" TEXT PRIMARY KEY,"driverId" TEXT NOT NULL,"credentialVersion" INTEGER NOT NULL,"deviceId" TEXT,"expiresAt" TIMESTAMP(3) NOT NULL,"revokedAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "DriverSession_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE CASCADE ON UPDATE CASCADE);
+CREATE INDEX "DriverSession_driverId_expiresAt_idx" ON "DriverSession"("driverId","expiresAt");
+CREATE TABLE "DriverOtpUsage" ("id" TEXT PRIMARY KEY,"provider" TEXT NOT NULL,"segments" INTEGER NOT NULL,"status" TEXT NOT NULL DEFAULT 'UNKNOWN',"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX "DriverOtpUsage_createdAt_idx" ON "DriverOtpUsage"("createdAt");
