@@ -1,4 +1,5 @@
 import { Module, OnModuleDestroy, OnModuleInit, Inject, Injectable, Logger } from "@nestjs/common";
+import { SupportController } from "./support.controller";
 import { CrmCommsController } from "./crm-comms.controller";
 import { CrmDealsController } from "./crm-deals.controller";
 import { CrmController } from "./crm.controller";
@@ -94,7 +95,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 
 @Module({
   // Ordre : les routes de preuves (driver/rides/:id/proofs) passent avant la route générique des actions de mission (driver/rides/:id/:action).
-  controllers: [CrmCommsController, CrmDealsController, CrmController, HealthController, PublicBookingController, AdminHostedController, CompanyPoolController, PartnerCarbonController, AdminCarbonController, DriverSwapController, TrackLostItemController, DriverLostItemController, AdminLostItemController, PartnerProofController, PartnerReliabilityController, DriverProofController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, EarningsController, IncidentController, AdminIncidentController, CompanyController, TrackingController, AuthController, ApplyController, AdminRecruitmentController, DriverReferralController, AdminProofController, ClientErrorController, DriverMeetingPointController, AdminMeetingPointController, AdminReliabilityController],
+  controllers: [SupportController, CrmCommsController, CrmDealsController, CrmController, HealthController, PublicBookingController, AdminHostedController, CompanyPoolController, PartnerCarbonController, AdminCarbonController, DriverSwapController, TrackLostItemController, DriverLostItemController, AdminLostItemController, PartnerProofController, PartnerReliabilityController, DriverProofController, PartnerController, DriverController, AdminController, AdminRescueController, RescueController, EarningsController, IncidentController, AdminIncidentController, CompanyController, TrackingController, AuthController, ApplyController, AdminRecruitmentController, DriverReferralController, AdminProofController, ClientErrorController, DriverMeetingPointController, AdminMeetingPointController, AdminReliabilityController],
   providers: [PrismaService, QuotesService, BookingsService, DispatchService, RescueService, PenaltiesService, IdentityService, DeadlinesService, EarningsService, IncidentService, RecruitmentService, ProofService, MeetingPointService, ReliabilityService, SwapService, LostItemService, HostedService, PoolService, CarbonService, ErrorReporter, { provide: APP_FILTER, useClass: AllExceptionsFilter }, WebhooksService, NotificationsService, EmailService, FlightsService, PerformanceService, RoutingService, AuthService, OtpService, SmsService, WorkersService, PartnerGuard, AdminGuard, DriverGuard, CompanyGuard],
 })
 export class AppModule {}
