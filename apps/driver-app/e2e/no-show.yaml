@@ -8,7 +8,9 @@ appId: com.clicab.driver
 - tapOn: "https://api.clicab.fr"
 - eraseText: 40
 - inputText: "http://10.0.2.2:3000"
-- tapOn: "Enregistrer"
+- hideKeyboard
+- takeScreenshot: 0-serveur
+- tapOn: "(?i)enregistrer"
 - tapOn: "06 12 34 56 78"
 - inputText: "0611223355"
 - hideKeyboard
