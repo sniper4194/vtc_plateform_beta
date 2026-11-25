@@ -14,7 +14,7 @@ appId: com.clicab.driver
 - tapOn: "https://api.clicab.fr"
 - eraseText: 40
 - inputText: "http://10.0.2.2:3000"
-- tapOn: "(?i)l'app des chauffeurs"  # ferme le clavier sans la touche Retour
+- pressKey: Enter  # ferme le clavier (la touche Retour mettait parfois l'application en arrière-plan)
 - takeScreenshot: 0-serveur
 - extendedWaitUntil:
     visible: "(?i)enregistrer"
@@ -25,11 +25,11 @@ appId: com.clicab.driver
     timeout: 10000
 - tapOn: "06 12 34 56 78"
 - inputText: "0611223355"
-- tapOn: "(?i)l'app des chauffeurs"  # ferme le clavier sans la touche Retour
+- pressKey: Enter  # ferme le clavier (la touche Retour mettait parfois l'application en arrière-plan)
 - tapOn: "Recevoir mon code"
 - tapOn: "••••••"
 - inputText: "000000"
-- tapOn: "(?i)l'app des chauffeurs"  # ferme le clavier sans la touche Retour
+- pressKey: Enter  # ferme le clavier (la touche Retour mettait parfois l'application en arrière-plan)
 - tapOn: "C'est parti"
 - tapOn:
     text: "(?i)(While using the app|Only this time|Allow|Autoriser.*)"
