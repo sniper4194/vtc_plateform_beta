@@ -425,6 +425,28 @@ describe("pénalités : restitution, sauveteur, récidive", () => {
     expect((await prisma.notification.findMany({ where: { driverId: d.id } })).map((n) => n.type)).toContain("PENALTY");
   });
 
+  it("communique le numéro de la tour de contrôle au chauffeur affecté", async () => {
+    const driver = await mkDriver();
+    const otherDriver = await mkDriver();
+    const partner = await mkPartner();
+    const { ride } = await assigned(driver, partner);
+    const path = `/driver/rescue/cost?rideId=${ride.id}`;
+    const previous = process.env.CONTROL_TOWER_PHONE;
+    try {
+      process.env.CONTROL_TOWER_PHONE = "01 99 00 00 01";
+      expect((await call(path, { token: driver.token })).json.controlTowerPhone).toBe("+33199000001");
+      expect((await call(path, { token: otherDriver.token })).status).toBe(404);
+
+      process.env.CONTROL_TOWER_PHONE = "invalide";
+      expect((await call(path, { token: driver.token })).json.controlTowerPhone).toBeNull();
+      delete process.env.CONTROL_TOWER_PHONE;
+      expect((await call(path, { token: driver.token })).json.controlTowerPhone).toBeNull();
+    } finally {
+      if (previous === undefined) delete process.env.CONTROL_TOWER_PHONE;
+      else process.env.CONTROL_TOWER_PHONE = previous;
+    }
+  });
+
   it("un appel de sauveteur coûte une pénalité réduite, calculée sur le délai à la demande", async () => {
     const p = await mkPartner();
     const requester = await mkDriver();

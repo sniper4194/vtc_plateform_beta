@@ -5,6 +5,7 @@ import { money } from "./messages";
 import { NotificationsService } from "./notifications";
 import { giveBackPenaltyCents, PENALTY, rescuePenaltyCents, Sanction, SANCTION_HOURS, SANCTION_TEXT, sanctionFor, TIERS } from "./penalties";
 import { PrismaService } from "./prisma";
+import { normalizePhone } from "./phone";
 
 type Db = Prisma.TransactionClient | PrismaService;
 const WEIGHT: Record<PenaltyKind, number> = { GIVE_BACK: 1, RESCUE: 0.5 };
@@ -37,6 +38,7 @@ export class PenaltiesService {
       minutesBefore: min, tier: tier.label,
       giveBackCents: giveBackPenaltyCents(ride.driverNetCents, min),
       rescueCents: rescuePenaltyCents(ride.driverNetCents, min),
+      controlTowerPhone: normalizePhone(process.env.CONTROL_TOWER_PHONE ?? ""),
       recidivismScore: score,
       sanctionIfGiveBack: sanctionFor(score + WEIGHT.GIVE_BACK),
       sanctionIfRescue: sanctionFor(score + WEIGHT.RESCUE),

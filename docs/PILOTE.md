@@ -14,6 +14,7 @@ Le mode proposé pour le pilote est un règlement mensuel par facture, à faire 
 
 ## Conditions du premier essai réel
 
+- Configurer `CONTROL_TOWER_PHONE` dans l’environnement de l’API pour afficher le bouton d’appel aux chauffeurs, dans les options de restitution de la mission. Utiliser le numéro professionnel au format international.
 - Utiliser un tag d'image correspondant au commit validé pour le VPS et conserver une sauvegarde hors serveur.
 - Vérifier la réception des SMS Infobip par un numéro de test et la réception des alertes d'exploitation dans le canal choisi.
 - Rejouer la course avec un chauffeur sur téléphone physique, puis tester le client absent, un incident urgent et la reprise après perte de réseau.

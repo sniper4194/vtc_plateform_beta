@@ -357,7 +357,7 @@ function MissionDetail({ r, run, notify, openMission, reload }: { r: any; run: (
       <Pressable onPress={() => { setProblem(!problem); setConfirm(false); }}><Cond size={13} color={c.blue} style={{ textAlign: "center", textDecorationLine: "underline" }}>Un souci ?</Cond></Pressable>
       {problem && r.status === "ARRIVED" && <Btn label="Client introuvable (no-show)" color={c.red} text={c.cream} onPress={() => run(r.rideId, "no-show")} />}
       {(problem || r.swapOfferedAt) && <SwapControl r={r} notify={notify} reload={reload} />}
-      {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <CostNote rideId={r.rideId} />}
+      {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <CostNote rideId={r.rideId} notify={notify} />}
       {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <Btn label="Appeler un sauveteur" color={c.yel} onPress={() => setRescue(true)} />}
       {rescue && <RescuePicker rideId={r.rideId} notify={notify} onClose={() => setRescue(false)} />}
       {incident && <IncidentScreen rideId={r.rideId} notify={notify} onClose={() => setIncident(false)} />}

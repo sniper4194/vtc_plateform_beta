@@ -207,7 +207,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
               {problem && <Btn label="Signaler un incident" color={c.red} text={c.cream} onPress={() => setIncident(true)} />}
               {problem && r.status === "ARRIVED" && <Btn label={noShowIn > 0 ? `Client absent (dans ${countdown(noShowIn)})` : "Client introuvable (no-show)"} color={c.red} text={c.cream} disabled={noShowIn > 0} onPress={() => run("no-show")} />}
               {(problem || r.swapOfferedAt) && <SwapControl r={{ ...r, rideId }} notify={notify} reload={ride.reload} />}
-              {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <CostNote rideId={rideId} />}
+              {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <CostNote rideId={rideId} notify={notify} />}
               {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <Btn label="Appeler un sauveteur" color={c.yel} onPress={() => setRescue(true)} />}
               {problem && (r.status === "ASSIGNED" || r.status === "EN_ROUTE") && <Btn label={confirm ? "Confirmer : je rends la mission" : "Je ne peux plus la faire"} color={c.red} text={c.cream} onPress={giveBack} />}
             </>

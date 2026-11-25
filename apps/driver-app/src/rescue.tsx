@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, View } from "react-native";
+import { Linking, Modal, Pressable, ScrollView, View } from "react-native";
 import { api } from "./api";
 import { eurShort, timeOf } from "./format";
 import { c } from "./theme";
@@ -73,10 +73,17 @@ export function RescueCard({ notify, onAccepted }: { notify: Notify; onAccepted:
 const SANCTION_LABEL: Record<string, string> = { SUSPEND_48H: "suspension de 48 h", SUSPEND_7D: "suspension de 7 jours", REVIEW: "examen de votre compte (fermeture possible)" };
 
 /** Coût d'une restitution ou d'un appel à un sauveteur, montré AVANT la décision. */
-export function CostNote({ rideId }: { rideId: string }) {
-  const q = useFetch<any>(`/driver/rescue/cost?rideId=${rideId}`, 30000);
+export function CostNote({ rideId, notify }: { rideId: string; notify: Notify }) {
+  const q = useFetch<{
+    tier: string;
+    giveBackCents: number;
+    rescueCents: number;
+    sanctionIfGiveBack: string;
+    controlTowerPhone?: string | null;
+  }>(`/driver/rescue/cost?rideId=${rideId}`, 30000);
   const d = q.data;
   if (!d) return null;
+  const phone = d.controlTowerPhone;
   return (
     <Card color={c.cream} style={{ paddingVertical: 12 }}>
       <Cond size={12} color={c.muted}>Annuler maintenant ({d.tier})</Cond>
@@ -84,6 +91,13 @@ export function CostNote({ rideId }: { rideId: string }) {
       <Slab size={15} color={c.blue} shadow={null}>Avec un sauveteur : pénalité {eurShort(d.rescueCents)}</Slab>
       <Cond size={12} color={c.muted}>Plus c'est tard, plus c'est cher. Déduit de votre prochain relevé.</Cond>
       {d.sanctionIfGiveBack !== "NONE" && <Cond size={12} color={c.red}>Attention : {SANCTION_LABEL[d.sanctionIfGiveBack]} si vous rendez la mission (récidive).</Cond>}
+      {phone && (
+        <View style={{ marginTop: 10 }}>
+          <Btn label="Appeler la tour de contrôle" onPress={() => {
+            void Linking.openURL(`tel:${phone}`).catch(() => notify(`Composez le ${phone} pour joindre la tour de contrôle.`, "bad"));
+          }} />
+        </View>
+      )}
     </Card>
   );
 }
@@ -115,7 +129,7 @@ export function RescuePicker({ rideId, onClose, notify }: { rideId: string; onCl
           <Display size={34} shadow={c.red}>Appeler un sauveteur</Display>
           <Cond size={13} color={c.onSky}>Un chauffeur d'élite reprend votre mission : pénalité réduite, mission sauvée.</Cond>
 
-          <CostNote rideId={rideId} />
+          <CostNote rideId={rideId} notify={notify} />
           {sent ? (
             <Card color={c.yel}>
               <Slab size={18} color={c.ink} shadow={null}>Appel envoyé à {sent.notified} sauveteur(s)</Slab>
