@@ -4,20 +4,32 @@ appId: com.clicab.driver
 ---
 - launchApp:
     clearState: true
+- extendedWaitUntil:
+    visible: "(?i).*\\(changer\\).*"
+    timeout: 20000
 - tapOn: "(?i).*\\(changer\\).*"
+- extendedWaitUntil:
+    visible: "(?i)adresse du serveur"
+    timeout: 10000
 - tapOn: "https://api.clicab.fr"
 - eraseText: 40
 - inputText: "http://10.0.2.2:3000"
-- hideKeyboard
+- tapOn: "(?i)l'app des chauffeurs"  # ferme le clavier sans la touche Retour
 - takeScreenshot: 0-serveur
+- extendedWaitUntil:
+    visible: "(?i)enregistrer"
+    timeout: 10000
 - tapOn: "(?i)enregistrer"
+- extendedWaitUntil:
+    visible: "(?i).*10\\.0\\.2\\.2.*"
+    timeout: 10000
 - tapOn: "06 12 34 56 78"
 - inputText: "0611223355"
-- hideKeyboard
+- tapOn: "(?i)l'app des chauffeurs"  # ferme le clavier sans la touche Retour
 - tapOn: "Recevoir mon code"
 - tapOn: "••••••"
 - inputText: "000000"
-- hideKeyboard
+- tapOn: "(?i)l'app des chauffeurs"  # ferme le clavier sans la touche Retour
 - tapOn: "C'est parti"
 - tapOn:
     text: "(?i)(While using the app|Only this time|Allow|Autoriser.*)"
