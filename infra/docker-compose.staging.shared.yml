@@ -1,0 +1,74 @@
+# VPS partagé : aucun port publié, aucun volume de production, proxy externe interne requis.
+# Ne pas utiliser tant que clicab-staging-proxy n'a pas été créé (docker network create --internal clicab-staging-proxy).
+name: clicab-staging
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vtc
+      POSTGRES_DB: clicab_staging
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD:?secret staging requis}
+    volumes: [staging_db:/var/lib/postgresql/data]
+    networks: [private]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U vtc -d clicab_staging"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  api:
+    image: ghcr.io/sniper4194/clicab-api:staging-${STAGING_SHA:?SHA staging requis}
+    restart: unless-stopped
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      APP_ENV: staging
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://vtc:${STAGING_POSTGRES_PASSWORD}@db:5432/clicab_staging?schema=public
+      TOKEN_SECRET: ${STAGING_TOKEN_SECRET:?secret staging requis}
+      SMS_PROVIDER: console
+      EMAIL_PROVIDER: console
+      CRM_EMAIL_ENABLED: "0"
+      TRUST_PROXY: "1"
+      BRAND_NAME: CliCab TEST
+      CORS_ORIGINS: https://admin-test.clicab.fr,https://suivi-test.clicab.fr
+      TRACKING_BASE_URL: https://suivi-test.clicab.fr
+      IDENTITY_CHECKS: "0"
+      IDENTITY_SPOT: "0"
+      VEHICLE_RULES: "0"
+    networks:
+      private:
+      proxy:
+        aliases: [clicab-staging-api]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    logging:
+      driver: json-file
+      options: {max-size: "5m",max-file: "2"}
+  backoffice:
+    image: ghcr.io/sniper4194/clicab-backoffice:staging-${STAGING_SHA:?SHA staging requis}
+    restart: unless-stopped
+    networks:
+      private:
+      proxy:
+        aliases: [clicab-staging-admin]
+    depends_on:
+      api: {condition: service_healthy}
+  web-booking:
+    image: ghcr.io/sniper4194/clicab-suivi:staging-${STAGING_SHA:?SHA staging requis}
+    restart: unless-stopped
+    networks:
+      private:
+      proxy:
+        aliases: [clicab-staging-suivi]
+    depends_on:
+      api: {condition: service_healthy}
+networks:
+  private:
+    internal: true
+  proxy:
+    external: true
+    name: clicab-staging-proxy
+volumes:
+  staging_db:

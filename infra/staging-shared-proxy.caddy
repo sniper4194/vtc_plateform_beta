@@ -1,0 +1,23 @@
+# À intégrer dans le Caddyfile ACTUEL, sans remplacer les blocs existants.
+# EXEMPLE : remplacer les valeurs d'IP ci-dessous par les IP publiques autorisées.
+# Ne pas appliquer sans sauvegarde, caddy validate et accord explicite.
+# Les adresses TEST-NET suivantes ne donnent accès à aucun utilisateur réel.
+(staging_restricted) {
+  header X-Robots-Tag "noindex, nofollow"
+  header X-CliCab-Environment "staging"
+  header Referrer-Policy "no-referrer"
+  @staging_denied not remote_ip 192.0.2.1/32
+  respond @staging_denied "Acces preproduction restreint" 403
+}
+api-test.clicab.fr {
+  import staging_restricted
+  reverse_proxy clicab-staging-api:3000
+}
+admin-test.clicab.fr {
+  import staging_restricted
+  reverse_proxy clicab-staging-admin:3001
+}
+suivi-test.clicab.fr {
+  import staging_restricted
+  reverse_proxy clicab-staging-suivi:3002
+}
