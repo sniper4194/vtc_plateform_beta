@@ -10,7 +10,7 @@ export const metadata = { title: "CliCab · Tour de contrôle" };
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="fr" suppressHydrationWarning>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>{process.env.NEXT_PUBLIC_API_URL === "https://api-test.clicab.fr" && <div role="status" style={{background:"#f7b30a",color:"#14172b",textAlign:"center",fontWeight:700,padding:8}}>CLICAB TEST — PRÉPRODUCTION — DONNÉES FICTIVES</div>}{children}</body>
     </html>
   );
 }

@@ -2,7 +2,8 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { normalizeApiUrl } from "./format";
 
-const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+const TEST_APP = process.env.EXPO_PUBLIC_CLICAB_TEST === "1";
+const DEFAULT_API_URL = TEST_APP ? "https://api-test.clicab.fr" : process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 const KEY = "driver_token";
 const URL_KEY = "api_url";
 const DEVICE_KEY="driver_device_v1", BIO_KEY="driver_bio_v1";
@@ -28,6 +29,7 @@ const store = {
   del: async () => (Platform.OS === "web" ? globalThis.sessionStorage?.removeItem(KEY) : SecureStore.deleteItemAsync(KEY)),
 };
 export async function loadApiUrl() {
+  if(TEST_APP)return DEFAULT_API_URL;
   const saved = Platform.OS === "web" ? globalThis.localStorage?.getItem(URL_KEY) ?? null : await SecureStore.getItemAsync(URL_KEY);
   const ok = saved ? normalizeApiUrl(saved) : null;
   if (ok) apiUrl = ok;
@@ -35,6 +37,7 @@ export async function loadApiUrl() {
 }
 export async function saveApiUrl(raw: string) {
   const u = normalizeApiUrl(raw);
+  if(TEST_APP && u!==DEFAULT_API_URL)throw new Error('CliCab TEST est réservé à api-test.clicab.fr');
   if (!u) throw new Error("Adresse invalide : elle doit ressembler à http://192.168.1.20:3000 ou https://api.exemple.fr");
   if(u!==apiUrl){await saveToken(null);await saveDevice(null);}
   apiUrl = u;

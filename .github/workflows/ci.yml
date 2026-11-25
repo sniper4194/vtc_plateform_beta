@@ -41,9 +41,10 @@ jobs:
       packages: write
     env:
       PUBLISH_PILOT: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/claude/optimistic-maxwell-sagq8e' || github.ref == 'refs/heads/main') }}
-      PUBLISH: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/claude/optimistic-maxwell-sagq8e' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/crm-sav') }}
+      PUBLISH: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/claude/optimistic-maxwell-sagq8e' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/crm-sav' || github.ref == 'refs/heads/staging/clicab') }}
       REGISTRY: ghcr.io/sniper4194
-      API_URL: ${{ vars.API_URL || 'https://api.clicab.fr' }}
+      API_URL: ${{ github.ref == 'refs/heads/staging/clicab' && 'https://api-test.clicab.fr' || vars.API_URL || 'https://api.clicab.fr' }}
+      IMAGE_VERSION: ${{ github.ref == 'refs/heads/staging/clicab' && format('staging-{0}', github.sha) || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -61,7 +62,7 @@ jobs:
           file: apps/api/Dockerfile
           push: ${{ env.PUBLISH == 'true' }}
           tags: |
-            ${{ env.REGISTRY }}/clicab-api:${{ github.sha }}
+            ${{ env.REGISTRY }}/clicab-api:${{ env.IMAGE_VERSION }}
             ${{ env.PUBLISH_PILOT == 'true' && format('{0}/clicab-api:pilote', env.REGISTRY) || '' }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha,scope=api
@@ -73,7 +74,7 @@ jobs:
           file: apps/backoffice/Dockerfile
           push: ${{ env.PUBLISH == 'true' }}
           tags: |
-            ${{ env.REGISTRY }}/clicab-backoffice:${{ github.sha }}
+            ${{ env.REGISTRY }}/clicab-backoffice:${{ env.IMAGE_VERSION }}
             ${{ env.PUBLISH_PILOT == 'true' && format('{0}/clicab-backoffice:pilote', env.REGISTRY) || '' }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           build-args: NEXT_PUBLIC_API_URL=${{ env.API_URL }}
@@ -86,7 +87,7 @@ jobs:
           file: apps/web-booking/Dockerfile
           push: ${{ env.PUBLISH == 'true' }}
           tags: |
-            ${{ env.REGISTRY }}/clicab-suivi:${{ github.sha }}
+            ${{ env.REGISTRY }}/clicab-suivi:${{ env.IMAGE_VERSION }}
             ${{ env.PUBLISH_PILOT == 'true' && format('{0}/clicab-suivi:pilote', env.REGISTRY) || '' }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           build-args: NEXT_PUBLIC_API_URL=${{ env.API_URL }}

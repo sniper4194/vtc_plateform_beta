@@ -2,8 +2,10 @@ import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { securityHeaders } from "./hardening";
+import { checkStagingEnv } from "./staging";
 
 export function checkEnv(env = process.env) {
+  checkStagingEnv(env);
   if (env.NODE_ENV === "production") {
     // ADMIN_TOKEN (token de service pour scripts) est optionnel ; s'il est défini, il doit être robuste.
     if (env.CORS_ORIGINS?.split(",").map((o) => o.trim()).includes("*")) throw new Error("CORS_ORIGINS=* (toutes les origines) est interdit en production");

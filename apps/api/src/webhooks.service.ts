@@ -33,6 +33,7 @@ export class WebhooksService {
 
   /** Livre les webhooks dus ; renvoie le nombre de livraisons réussies. */
   async deliverDue(now = new Date()): Promise<number> {
+    if (process.env.APP_ENV === "staging") return 0;
     const due = await this.prisma.webhookDelivery.findMany({
       where: { status: "PENDING", nextAttemptAt: { lte: now } },
       include: { partner: true },

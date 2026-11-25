@@ -25,7 +25,7 @@ export class ResendEmailProvider implements EmailProvider {
 
 export function emailProviderFromEnv(env = process.env): EmailProvider | null {
   const kind = env.EMAIL_PROVIDER ?? (env.NODE_ENV === "production" ? "" : "console");
-  if (kind === "console") return env.NODE_ENV === "production" ? null : new ConsoleEmailProvider();
+  if (kind === "console") return env.NODE_ENV === "production" && env.APP_ENV !== "staging" ? null : new ConsoleEmailProvider();
   if (kind === "resend") {
     if (!env.RESEND_API_KEY || !env.EMAIL_FROM) throw new Error("Configuration Resend incomplète (RESEND_API_KEY, EMAIL_FROM)");
     return new ResendEmailProvider(env.RESEND_API_KEY, env.EMAIL_FROM);

@@ -1,5 +1,5 @@
 /** Identité visuelle : aplats bleu / jaune / rouge, serif massif, pastilles. Nom de marque provisoire : une seule constante. */
-export const BRAND = "CliCab";
+export const BRAND = process.env.EXPO_PUBLIC_CLICAB_TEST === "1" ? "CliCab TEST" : "CliCab";
 
 export type ThemeMode = "light" | "dark";
 

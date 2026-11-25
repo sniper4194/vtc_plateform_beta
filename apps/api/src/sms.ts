@@ -106,7 +106,7 @@ export class InfobipSmsProvider implements SmsProvider {
 
 export function smsProviderFromEnv(env = process.env): SmsProvider | null {
   const kind = env.SMS_PROVIDER ?? (env.NODE_ENV === "production" ? "" : "console");
-  if (kind === "console") return env.NODE_ENV === "production" ? null : new ConsoleSmsProvider();
+  if (kind === "console") return env.NODE_ENV === "production" && env.APP_ENV !== "staging" ? null : new ConsoleSmsProvider();
   if (kind === "twilio") {
     if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !(env.TWILIO_FROM || env.TWILIO_MESSAGING_SERVICE_SID)) throw new Error("Configuration Twilio incomplète");
     return new TwilioSmsProvider(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN, { from: env.TWILIO_FROM, messagingServiceSid: env.TWILIO_MESSAGING_SERVICE_SID });
