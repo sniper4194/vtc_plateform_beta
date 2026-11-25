@@ -9,8 +9,10 @@ import { Reliability } from "./reliability";
 import { Carbon } from "./carbon";
 import { HostedPages } from "./hosted";
 import { LostItems } from "./lost-items";
+import { Crm } from "./crm";
+import { Support } from "./support";
 
-type Tab = "rides" | "alerts" | "perf" | "drivers" | "lost" | "recruitment" | "meeting" | "companies" | "partners" | "team" | "account";
+type Tab = "rides" | "alerts" | "perf" | "drivers" | "lost" | "recruitment" | "meeting" | "companies" | "partners" | "crm" | "support" | "team" | "account";
 const OPEN_FLIGHT = ["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
 const COLUMNS: { title: string; statuses: string[]; tone: string }[] = [
   { title: "À attribuer", statuses: ["DISPATCHING"], tone: "yel" },
@@ -688,7 +690,7 @@ export default function Home() {
   const isAdmin = user?.role === "ADMIN";
   const tabs: [Tab, string][] = [
     ["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"], ["lost", "Objets oubliés"],
-    ...(isAdmin ? ([["recruitment", "Recrutement"], ["meeting", "Points de RDV"], ["companies", "Sociétés"], ["partners", "Partenaires"], ["team", "Équipe"]] as [Tab, string][]) : []),
+    ...(isAdmin ? ([["recruitment", "Recrutement"], ["meeting", "Points de RDV"], ["companies", "Sociétés"], ["partners", "Partenaires"], ["crm", "CRM"], ["support", "SAV"], ["team", "Équipe"]] as [Tab, string][]) : []),
   ];
   const nAlerts = (alerts.data?.length ?? 0) + (rescues.data?.length ?? 0) + (pendingIds.data?.length ?? 0) + (openInc.data?.length ?? 0);
   return (
@@ -716,6 +718,8 @@ export default function Home() {
         {isAdmin && tab === "meeting" && <MeetingPoints />}
         {isAdmin && tab === "companies" && <Companies />}
         {isAdmin && tab === "partners" && <Partners />}
+        {isAdmin && tab === "crm" && <Crm />}
+        {isAdmin && tab === "support" && <Support />}
         {isAdmin && tab === "team" && <Team />}
         {tab === "account" && <Account user={user} />}
       </main>
