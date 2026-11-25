@@ -85,18 +85,26 @@ export class DispatchService {
     }));
   }
 
-  async hasOverlap(db: Tx | PrismaService, driverId: string, ride: Ride) {
-    const w = this.window(ride);
+  private async overlappingDrivers(db: Tx | PrismaService, driverIds: string[], ride: Ride) {
+    if (!driverIds.length) return new Set<string>();
+    const window = this.window(ride);
     const others = await db.ride.findMany({
       where: {
-        driverId, status: { in: ACTIVE }, id: { not: ride.id },
-        pickupAt: { gte: new Date(w.start - 24 * 3600_000), lte: new Date(w.end + 24 * 3600_000) },
+        driverId: { in: driverIds }, status: { in: ACTIVE }, id: { not: ride.id },
+        pickupAt: { gte: new Date(window.start - 24 * 3600_000), lte: new Date(window.end + 24 * 3600_000) },
       },
+      select: { driverId: true, pickupAt: true, durationMin: true, flightDelayMin: true },
     });
-    return others.some((o) => {
-      const ow = this.window(o);
-      return ow.start < w.end && ow.end > w.start;
-    });
+    const blocked = new Set<string>();
+    for (const other of others) {
+      const slot = this.window(other);
+      if (other.driverId && slot.start < window.end && slot.end > window.start) blocked.add(other.driverId);
+    }
+    return blocked;
+  }
+
+  async hasOverlap(db: Tx | PrismaService, driverId: string, ride: Ride) {
+    return (await this.overlappingDrivers(db, [driverId], ride)).has(driverId);
   }
 
   // ---------- démarrage et tours de dispatch ----------
@@ -127,11 +135,9 @@ export class DispatchService {
       },
       include: { vehicles: true },
     });
-    const eligible: typeof candidates = [];
-    for (const d of candidates) {
-      if (!firstCompliant(d.vehicles, ride.category, ride.needs)) continue; // véhicule non conforme ou non équipé : pas d'offre
-      if (!(await this.hasOverlap(this.prisma, d.id, ride))) eligible.push(d);
-    }
+    const compliant = candidates.filter((driver) => firstCompliant(driver.vehicles, ride.category, ride.needs));
+    const overlapping = await this.overlappingDrivers(this.prisma, compliant.map((driver) => driver.id), ride);
+    const eligible = compliant.filter((driver) => !overlapping.has(driver.id));
     const dist = (d: (typeof eligible)[number]) =>
       d.lastLat != null && d.lastLng != null ? haversineKm({ lat: d.lastLat, lng: d.lastLng }, { lat: ride.pickupLat, lng: ride.pickupLng }) : Infinity;
     // Garde-fou fatigue (personne au-delà du maximum d'heures sur 24 h), puis priorité aux chauffeurs pour qui c'est une mission de retour.
@@ -204,6 +210,8 @@ export class DispatchService {
   }
 
   private async claim(tx: Tx, ride: Ride, driverId: string, actor: string, priceOverride?: number) {
+    // Sérialise les attributions concurrentes à un même chauffeur avant le contrôle du planning.
+    await tx.$queryRaw`SELECT id FROM "Driver" WHERE id = ${driverId} FOR UPDATE`;
     const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: ride.category } }), ride.category, ride.needs);
     if (!vehicle) throw new HttpException(ride.needs.length ? "Aucun véhicule compatible, conforme et équipé pour les besoins du voyageur" : "Aucun véhicule compatible et conforme", 409);
     if (await this.hasOverlap(tx, driverId, ride)) throw new HttpException("Conflit avec une autre course de votre planning", 409);

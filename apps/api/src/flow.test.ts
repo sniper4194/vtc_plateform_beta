@@ -1363,6 +1363,19 @@ describe("échelle de prix chauffeur", () => {
   });
 });
 
+it("refuse une deuxième attribution simultanée au même chauffeur sur le même créneau", async () => {
+  const partner = await mkPartner(false);
+  const driver = await mkDriver();
+  const pickupAt = inDays(3);
+  const first = await mkBooking(partner, { pickupAt }, "double-attribution-1");
+  const second = await mkBooking(partner, { pickupAt }, "double-attribution-2");
+  const results = await Promise.all([first, second].map(({ res }) =>
+    call(`/admin/rides/${res.json.rideId}/assign`, { admin: true, body: { driverId: driver.id } }),
+  ));
+  expect(results.map(({ status }) => status).sort()).toEqual([201, 409]);
+  expect(await prisma.ride.count({ where: { driverId: driver.id, status: "ASSIGNED" } })).toBe(1);
+});
+
 it("exporte les montants des courses réelles du partenaire et exclut les courses de test", async () => {
   const partner = await mkPartner(false);
   const liveKey = generateApiKey(false);
