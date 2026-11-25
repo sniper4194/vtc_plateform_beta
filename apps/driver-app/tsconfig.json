@@ -1,0 +1,9 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    // Les pages Next (React 19) et cette application (React 18, imposé par React Native) cohabitent dans le dépôt : on n'utilise ici que les types React de l'application.
+    "typeRoots": ["./node_modules/@types"]
+  },
+  "include": ["**/*.ts", "**/*.tsx"]
+}

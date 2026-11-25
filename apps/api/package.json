@@ -1,0 +1,38 @@
+{
+  "name": "@vtc/api",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "dev": "tsx watch src/main.ts",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "prisma:migrate": "prisma migrate dev",
+    "simulate": "tsx scripts/simulate.ts",
+    "seed": "tsx scripts/seed.ts",
+    "db:deploy": "prisma migrate deploy",
+    "admin:create": "tsx src/cli/create-admin.ts",
+    "dev:demo": "cross-env ADMIN_TOKEN=dev-admin-token-dev-admin-token DRIVER_DEV_OTP=000000 VEHICLE_RULES=0 IDENTITY_CHECKS=0 TRACKING_BASE_URL=http://localhost:3002 CORS_ORIGINS=* tsx watch src/main.ts",
+    "demo:driver": "tsx scripts/demo-driver.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.4.0",
+    "@nestjs/core": "^10.4.0",
+    "@nestjs/platform-express": "^10.4.0",
+    "@prisma/client": "^5.22.0",
+    "@vtc/pricing": "workspace:*",
+    "@vtc/shared": "workspace:*",
+    "prisma": "^5.22.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "cross-env": "^10.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

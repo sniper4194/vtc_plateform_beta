@@ -1,0 +1,171 @@
+name: APK chauffeur (Android)
+# Construit un fichier .apk installable pour tester l'application chauffeur.
+# Déclenchement manuel : onglet « Actions » du dépôt GitHub → « APK chauffeur (Android) » → « Run workflow ».
+# L'APK est signé avec la clé de débogage : il s'installe pour des essais, il ne convient PAS à Google Play.
+on:
+  # Construit à chaque modification de l'application sur cette branche, et à la demande (adresse de l'API en option :
+  # elle se change de toute façon sur l'écran de connexion de l'application).
+  push:
+    branches: [main, codex/pilote-clicab, claude/optimistic-maxwell-sagq8e]
+    paths: ["apps/driver-app/**", "apps/api/**", "scripts/ci/**", ".github/workflows/android-apk.yml", "pnpm-lock.yaml"]
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Adresse HTTPS de l'API (facultatif, modifiable dans l'application)"
+        required: false
+        default: "https://api.clicab.fr"
+        type: string
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      API_URL: ${{ inputs.api_url || 'https://api.clicab.fr' }}
+      # APK de test seulement : autorise le HTTP simple pour joindre un PC du même Wi-Fi. Jamais pour une version publiée.
+      ALLOW_CLEARTEXT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vérifier l'adresse de l'API
+        run: |
+          case "$API_URL" in
+            https://*) ;;
+            *) echo "L'adresse par défaut doit commencer par https://"; exit 1 ;;
+          esac
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      # React Native et pnpm : les modules doivent être « hoisted » (à plat) pour que Gradle les trouve.
+      - run: pnpm install --frozen-lockfile --config.node-linker=hoisted
+      - name: Générer le projet Android
+        working-directory: apps/driver-app
+        env:
+          EXPO_PUBLIC_API_URL: ${{ env.API_URL }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: npx expo prebuild --platform android --no-install
+      - name: Compiler l'APK
+        working-directory: apps/driver-app/android
+        env:
+          EXPO_PUBLIC_API_URL: ${{ env.API_URL }}
+        run: ./gradlew assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clicab-chauffeur-apk
+          path: apps/driver-app/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+  # Essai de démarrage sur un téléphone Android virtuel : un APK qui plante à l'ouverture est détecté ici,
+  # avec le journal d'erreur complet (logcat), au lieu d'être découvert sur le téléphone de l'utilisateur.
+  demarrage:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: clicab-chauffeur-apk, path: apk }
+      - name: Autoriser l'accélération matérielle (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Installer, ouvrir et surveiller l'application pendant 40 s
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb install -r apk/*.apk
+            adb logcat -c
+            adb shell monkey -p com.clicab.driver -c android.intent.category.LAUNCHER 1
+            sleep 40
+            adb logcat -d > logcat.txt
+            adb logcat -d -b crash > crash.txt || true
+            adb shell pidof com.clicab.driver > pid.txt || true
+            echo "=== Plantages (tampon crash) ===" ; cat crash.txt
+            echo "=== Erreurs JavaScript et Android ===" ; grep -E "FATAL|AndroidRuntime|ReactNativeJS|JavascriptException|Exception" logcat.txt | head -80 || true
+            if [ ! -s pid.txt ] || grep -q "FATAL EXCEPTION" logcat.txt; then echo "L'application s'est arrêtée au démarrage" ; exit 1 ; fi
+            echo "L'application tourne toujours après 40 s (pid $(cat pid.txt))"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: journal-demarrage
+          path: |
+            logcat.txt
+            crash.txt
+          if-no-files-found: ignore
+
+  # Parcours complet sur téléphone virtuel, contre un serveur de test lancé dans la CI (code SMS de développement) :
+  # connexion → mode mission → « Client introuvable (no-show) ». Journal Android et captures d'écran conservés.
+  parcours-no-show:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: vtc, POSTGRES_PASSWORD: vtc, POSTGRES_DB: vtc }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U vtc" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vtc:vtc@localhost:5432/vtc?schema=public
+      ADMIN_TOKEN: ci-admin-token-ci-admin-token-1234
+      GOLIVE_PHONE: "0611223355"
+      GOLIVE_ADMIN_EMAIL: ci@example.com
+      GOLIVE_ADMIN_PASSWORD: Essai-Integration-2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm setup:build && pnpm -F @vtc/api build && pnpm -F @vtc/api exec prisma migrate deploy
+      - name: Serveur de test (code SMS de développement 000000)
+        working-directory: apps/api
+        env:
+          NODE_ENV: development
+          PORT: "3000"
+          TOKEN_SECRET: ci-token-secret-ci-token-secret-ci-token
+          DRIVER_DEV_OTP: "000000"
+          IDENTITY_CHECKS: "0"
+          IDENTITY_SPOT: "0"
+          VEHICLE_RULES: "0"
+          CORS_ORIGINS: "*"
+        run: |
+          nohup node dist/main.js > ../../api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:3000/health && break; sleep 1; done
+      - name: Données de test (chauffeur, missions, mission « sur place »)
+        run: |
+          (sleep 8; echo 000000) | node scripts/golive.mjs http://localhost:3000
+          sh scripts/ci/seed-no-show.sh
+      - uses: actions/download-artifact@v4
+        with: { name: clicab-chauffeur-apk, path: apk }
+      - name: Installer Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Autoriser l'accélération matérielle (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Parcours no-show sur le téléphone virtuel
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: bash scripts/ci/run-no-show.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parcours-no-show
+          path: |
+            logcat-no-show.txt
+            crash-no-show.txt
+            maestro.xml
+            maestro-debug
+            api.log
+            *.png
+          if-no-files-found: ignore

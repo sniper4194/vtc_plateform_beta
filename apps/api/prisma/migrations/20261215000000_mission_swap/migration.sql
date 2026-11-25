@@ -1,0 +1,1 @@
+ALTER TABLE "Ride" ADD COLUMN "swapOfferedAt" TIMESTAMP(3);

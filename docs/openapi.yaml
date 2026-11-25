@@ -1,0 +1,304 @@
+openapi: 3.0.3
+info:
+  title: VTC Platform — API partenaires
+  version: 0.1.0
+  description: |
+    API B2B pour devis, réservation, annulation et suivi de transferts VTC à prix fixe.
+    Authentification : en-tête `Authorization: Bearer <clé API>`. Une clé sandbox ne déclenche aucune vraie course.
+    Les créations de réservation exigent un en-tête `Idempotency-Key`.
+servers:
+  - url: https://sandbox.api.example.com/v1
+    description: Sandbox
+security:
+  - bearerAuth: []
+paths:
+  /quotes:
+    post:
+      summary: Obtenir un devis à prix fixe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuoteRequest' }
+      responses:
+        '200':
+          description: Devis valable 15 minutes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Quote' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /bookings:
+    post:
+      summary: Créer une réservation à partir d'un devis
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, maxLength: 100 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingRequest' }
+      responses:
+        '201':
+          description: Réservation confirmée
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Booking' }
+        '409': { description: Devis expiré ou déjà utilisé }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /bookings/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Statut d'une réservation (chauffeur, véhicule, position)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Booking' }
+        '404': { description: Introuvable }
+    delete:
+      summary: Annuler une réservation
+      description: Des frais d'annulation peuvent s'appliquer selon la politique du partenaire.
+      responses:
+        '200':
+          description: Annulée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: CANCELLED_BY_PARTNER }
+                  cancellationFee: { type: number, example: 0 }
+        '409': { description: Annulation impossible (course commencée) }
+  /bookings/{id}/rating:
+    post:
+      summary: Noter le trajet (1 à 5) une fois la course terminée
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [score]
+              properties:
+                score: { type: integer, minimum: 1, maximum: 5 }
+                comment: { type: string, maxLength: 500 }
+      responses:
+        '201': { description: Note enregistrée (remplace la précédente) }
+        '409': { description: Course non terminée }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /reliability:
+    get:
+      summary: Fiabilité mesurée de vos courses sur la période (garantie de prise en charge, ponctualité)
+      description: |
+        Calculée uniquement à partir de vos courses dont la prise en charge est passée. Chaque taux est donné avec son numérateur et son
+        dénominateur ; il vaut `null` quand il n'y a rien à compter. Vos annulations et celles de vos clients ne sont pas comptées.
+        Une course encore sans chauffeur à l'approche de la prise en charge déclenche le webhook `booking.at_risk` et une relance des offres.
+      parameters:
+        - in: query
+          name: days
+          schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+      responses:
+        '200': { description: Indicateurs (missions, assignedEarly, arrivedOnTime, atRisk, neverAssigned, completed, noShow, givenBack, cancelledByCustomer) }
+  /carbon:
+    get:
+      summary: Bilan carbone de vos courses terminées sur la période
+      description: |
+        Distance prévue du trajet client × facteur d'émission par véhicule-km selon la motorisation (thermique, hybride, électrique).
+        Facteurs issus de la Base Empreinte de l'ADEME, avec la source renvoyée dans la réponse. `enabled: false` tant que les facteurs
+        ne sont pas configurés. Chaque réservation terminée porte aussi un champ `carbon` (null si non calculable).
+      parameters:
+        - { in: query, name: from, schema: { type: string, format: date-time } }
+        - { in: query, name: to, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: "Total (kgCO2e, km, courses), détail par motorisation et par course, facteurs et source" }
+  /bookings/{id}/proofs:
+    get:
+      summary: Photos-preuves prises sur place par le chauffeur (client absent, bagages en excès)
+      description: |
+        Chaque preuve est une photo avec date, heure, adresse et coordonnées incrustées. Elle est accompagnée des données du serveur :
+        `receivedAt` (heure du serveur, qui fait foi), la position et la **distance au lieu de prise en charge** (`distanceToPickupM`),
+        l'empreinte SHA-256 de l'image et d'éventuels `flags` (position éloignée ou imprécise, heure du téléphone différente de celle du serveur).
+        Un signalement n'invalide pas la preuve : il vous permet d'en juger. Un webhook `ride.proof_added` est envoyé à chaque nouvelle preuve.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Liste des preuves, de la plus ancienne à la plus récente
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RideProof' }
+        '404': { description: Réservation inconnue }
+  /bookings/{id}/proofs/{proofId}/photo:
+    get:
+      summary: Image d'une photo-preuve (JPEG ou PNG, cachet incrusté)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: proofId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: L'image, avec son type de contenu }
+        '404': { description: Réservation ou photo inconnue }
+webhooks:
+  bookingEvent:
+    post:
+      summary: Événement de réservation (signé HMAC-SHA256 dans `X-Signature`)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebhookEvent' }
+      responses:
+        '200': { description: Reçu }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  responses:
+    ValidationError:
+      description: Données invalides
+      content:
+        application/json:
+          schema: { type: object, properties: { errors: { type: object } } }
+  schemas:
+    RideProof:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [NO_SHOW, EXCESS_LUGGAGE, OTHER] }
+        label: { type: string, example: Client absent }
+        note: { type: string, nullable: true }
+        receivedAt: { type: string, format: date-time, description: "Heure du serveur : fait foi" }
+        deviceTakenAt: { type: string, format: date-time, nullable: true, description: "Heure du téléphone : indicative" }
+        location:
+          type: object
+          properties:
+            lat: { type: number }
+            lng: { type: number }
+            accuracyM: { type: number, nullable: true }
+            address: { type: string, nullable: true }
+        distanceToPickupM: { type: integer }
+        flags:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string, enum: [FAR_FROM_PICKUP, LOW_ACCURACY, CLOCK_MISMATCH, NO_DEVICE_TIME] }
+              label: { type: string }
+        sha256: { type: string }
+        photo: { type: string, description: "Chemin de l'image (GET)" }
+    VehicleCategory:
+      type: string
+      enum: [BERLINE, BUSINESS, VAN, GREEN]
+    Location:
+      type: object
+      required: [address, lat, lng]
+      properties:
+        address: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+    QuoteRequest:
+      type: object
+      required: [pickup, dropoff, pickupAt, category, passengers]
+      properties:
+        pickup: { $ref: '#/components/schemas/Location' }
+        dropoff: { $ref: '#/components/schemas/Location' }
+        pickupAt: { type: string, format: date-time }
+        category: { $ref: '#/components/schemas/VehicleCategory' }
+        passengers: { type: integer, minimum: 1, maximum: 8 }
+        luggage: { type: integer, minimum: 0, default: 0 }
+        flightNumber: { type: string, example: AF1234 }
+    Quote:
+      type: object
+      properties:
+        needs:
+          type: array
+          description: "Besoins particuliers : seuls les véhicules équipés reçoivent la mission"
+          items: { type: string, enum: [CHILD_SEAT, BOOSTER, WHEELCHAIR, PET] }
+        quoteId: { type: string, format: uuid }
+        total: { type: number, example: 55.0 }
+        currency: { type: string, example: EUR }
+        distanceKm: { type: number }
+        durationMin: { type: number }
+        expiresAt: { type: string, format: date-time }
+    BookingRequest:
+      type: object
+      required: [quoteId, passenger]
+      properties:
+        quoteId: { type: string, format: uuid }
+        externalReference: { type: string }
+        signText: { type: string, maxLength: 100, description: "Texte de la pancarte d'accueil (défaut : nom du passager)" }
+        notes: { type: string, maxLength: 500, description: "Consignes de rendez-vous (terminal, porte…)" }
+        flightBufferMin: { type: integer, minimum: 0, maximum: 180, description: "Délai entre l'atterrissage prévu et la prise en charge (ignoré sans numéro de vol). Le retard de vol se mesure sur l'atterrissage." }
+        passenger:
+          type: object
+          required: [firstName, lastName, phone]
+          properties:
+            firstName: { type: string }
+            lastName: { type: string }
+            phone: { type: string }
+            email: { type: string, format: email }
+            language: { type: string, example: fr }
+    Booking:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        reference: { type: string, example: R-100234, description: "Référence courte, communiquée aussi aux chauffeurs" }
+        status:
+          type: string
+          enum: [CONFIRMED, DISPATCHING, ASSIGNED, EN_ROUTE, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED_BY_CLIENT, CANCELLED_BY_PARTNER, NO_SHOW, DISPUTED, REFUNDED]
+        trackingUrl:
+          type: string
+          nullable: true
+          description: "Lien de suivi à transmettre au voyageur (SMS, e-mail, application) : page publique sans compte, statut de la course, chauffeur, véhicule, vol. Le jeton est secret : à ne pas publier."
+        driver:
+          nullable: true
+          type: object
+          properties:
+            firstName: { type: string }
+            phone: { type: string }
+            vehicle: { type: string }
+            plate: { type: string }
+            photoUrl: { type: string, nullable: true, description: "Chemin de la photo du chauffeur (GET avec votre clé API ; image JPEG/PNG). Présent seulement si le chauffeur y a consenti ; disponible de l'attribution à la fin de la course ; 404 sinon ou si la photo n'est pas validée." }
+        pickupAt: { type: string, format: date-time, description: "Heure demandée" }
+        effectivePickupAt: { type: string, format: date-time, description: "Heure demandée + retard de vol" }
+        signText: { type: string }
+        flight:
+          nullable: true
+          type: object
+          properties:
+            number: { type: string }
+            status: { type: string, enum: [SCHEDULED, DELAYED, EARLY, LANDED, CANCELLED] }
+            delayMin: { type: integer }
+            earlyMin: { type: integer, description: "Avance de l'atterrissage estimé (minutes). L'heure de prise en charge convenue ne change pas." }
+            estimatedArrivalAt: { type: string, format: date-time, nullable: true }
+        total: { type: number }
+    WebhookEvent:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type:
+          type: string
+          enum: [booking.confirmed, driver.assigned, driver.en_route, driver.arrived, ride.started, ride.completed, booking.cancelled, flight.delayed, flight.updated, booking.at_risk, ride.proof_added]
+        createdAt: { type: string, format: date-time }
+        data: { $ref: '#/components/schemas/Booking' }

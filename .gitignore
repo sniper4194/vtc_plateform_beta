@@ -1,0 +1,13 @@
+node_modules
+dist
+.env
+*.log
+.turbo
+.DS_Store
+.next
+next-env.d.ts
+.expo
+*.tsbuildinfo
+apps/driver-app/android
+apps/driver-app/ios
+marketing/.tmp/

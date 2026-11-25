@@ -1,0 +1,263 @@
+# Déploiement sur un VPS Hostinger SANS accès au dépôt cloné : un seul fichier, collé dans le gestionnaire Docker de hPanel
+# (VPS > Gestionnaire Docker > Composer) ou envoyé par l'API Hostinger. Généré par `node infra/make-vps-compose.mjs` : ne pas modifier à la main
+# (modifier docker-compose.vps.template.yml, Caddyfile.vps ou backup.sh puis relancer le script).
+#
+# Variables à renseigner dans le gestionnaire (jamais dans ce fichier) :
+#   Les images sont construites par GitHub (CI) et publiées sur ghcr.io/sniper4194 : hPanel ne sait pas construire d'images.
+#   IMAGE_TAG (facultatif) : « pilote » par défaut (dernière version testée), ou l'empreinte d'un commit pour revenir en arrière.
+#   API_DOMAIN, ADMIN_DOMAIN, TRACK_DOMAIN, POSTGRES_PASSWORD, TOKEN_SECRET (+ fournisseurs SMS / e-mail : voir docs/DEPLOIEMENT.md)
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      POSTGRES_USER: vtc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis}
+      POSTGRES_DB: vtc
+    volumes: [dbdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vtc -d vtc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: ghcr.io/sniper4194/clicab-api:${IMAGE_TAG:-pilote}
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://vtc:${POSTGRES_PASSWORD}@db:5432/vtc?schema=public
+      TOKEN_SECRET: ${TOKEN_SECRET:?TOKEN_SECRET requis (openssl rand -hex 32)}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      CORS_ORIGINS: https://${ADMIN_DOMAIN:?ADMIN_DOMAIN requis},https://${TRACK_DOMAIN:?TRACK_DOMAIN requis}
+      TRACKING_BASE_URL: https://${TRACK_DOMAIN}
+      TRUST_PROXY: "1"
+      ROUTING_URL: ${ROUTING_URL:-}
+      SMS_PROVIDER: ${SMS_PROVIDER:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM: ${TWILIO_FROM:-}
+      OVH_APP_KEY: ${OVH_APP_KEY:-}
+      OVH_APP_SECRET: ${OVH_APP_SECRET:-}
+      OVH_CONSUMER_KEY: ${OVH_CONSUMER_KEY:-}
+      OVH_SMS_SERVICE: ${OVH_SMS_SERVICE:-}
+      OVH_SMS_SENDER: ${OVH_SMS_SENDER:-}
+      INFOBIP_BASE_URL: ${INFOBIP_BASE_URL:-}
+      INFOBIP_API_KEY: ${INFOBIP_API_KEY:-}
+      INFOBIP_FROM: ${INFOBIP_FROM:-}
+      BRAND_NAME: ${BRAND_NAME:-CliCab}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      PRICE_LADDER: ${PRICE_LADDER:-1}
+      ECO_BONUS_PERCENT: ${ECO_BONUS_PERCENT:-}
+      ERROR_WEBHOOK_URL: ${ERROR_WEBHOOK_URL:-}
+      CONTROL_TOWER_PHONE: ${CONTROL_TOWER_PHONE:-}
+      IDENTITY_CHECKS: ${IDENTITY_CHECKS:-1}
+      IDENTITY_SPOT: ${IDENTITY_SPOT:-1}
+      VEHICLE_RULES: ${VEHICLE_RULES:-1}
+    expose: ["3000"]
+
+  backoffice:
+    image: ghcr.io/sniper4194/clicab-backoffice:${IMAGE_TAG:-pilote}
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    depends_on: [api]
+    expose: ["3001"]
+
+  web-booking:
+    image: ghcr.io/sniper4194/clicab-suivi:${IMAGE_TAG:-pilote}
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    depends_on: [api]
+    expose: ["3002"]
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGHOST: db
+      PGUSER: vtc
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: vtc
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    entrypoint: ["sh", "/backup.sh"]
+    configs:
+      - source: backup_sh
+        target: /backup.sh
+    volumes: [backups:/backups]
+
+  backup-check:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGHOST: db
+      PGUSER: vtc
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: vtc
+      ERROR_WEBHOOK_URL: ${ERROR_WEBHOOK_URL:-}
+      BACKUP_CHECK_INTERVAL_HOURS: ${BACKUP_CHECK_INTERVAL_HOURS:-168}
+    entrypoint: ["sh", "/backup-check.sh"]
+    configs:
+      - source: backup_check_sh
+        target: /backup-check.sh
+      - source: restore_drill_sh
+        target: /restore-drill.sh
+    volumes: [backups:/backups:ro]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [api, backoffice, web-booking]
+    ports: ["80:80", "443:443"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN}
+      TRACK_DOMAIN: ${TRACK_DOMAIN}
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes: [caddy_data:/data, caddy_config:/config]
+
+configs:
+  caddyfile:
+    content: |
+      # HTTPS automatique (Let's Encrypt) : les trois noms de domaine doivent pointer vers ce serveur (ports 80 et 443 ouverts).
+      (securite) {
+        encode gzip
+        header {
+          Strict-Transport-Security "max-age=31536000; includeSubDomains"
+          X-Content-Type-Options "nosniff"
+          X-Frame-Options "DENY"
+          Referrer-Policy "strict-origin-when-cross-origin"
+          Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+          Cross-Origin-Opener-Policy "same-origin"
+          -Server
+          -X-Powered-By
+        }
+      }
+
+      {$$API_DOMAIN} {
+        import securite
+        reverse_proxy api:3000
+      }
+
+      {$$ADMIN_DOMAIN} {
+        import securite
+        reverse_proxy backoffice:3001
+      }
+
+      # Page de suivi du voyageur : le lien contient un jeton secret, il ne doit pas fuiter ni être mis en cache.
+      {$$TRACK_DOMAIN} {
+        import securite
+        header Referrer-Policy "no-referrer"
+        reverse_proxy web-booking:3002
+      }
+  backup_sh:
+    content: |
+      #!/bin/sh
+      # Sauvegarde de la base : une copie compressée (format pg_dump -Fc) tous les BACKUP_INTERVAL_HOURS heures, dans /backups.
+      # Les copies de plus de BACKUP_RETENTION_DAYS jours sont supprimées. BACKUP_ONCE=1 : une seule sauvegarde puis arrêt (essais).
+      # Variables libpq attendues : PGHOST, PGUSER, PGPASSWORD, PGDATABASE.
+      set -eu
+      DIR="$${BACKUP_DIR:-/backups}"
+      KEEP="$${BACKUP_RETENTION_DAYS:-14}"
+      EVERY="$${BACKUP_INTERVAL_HOURS:-24}"
+      mkdir -p "$$DIR"
+      while true; do
+        f="$$DIR/vtc-$$(date -u +%Y%m%d-%H%M%S).dump"
+        if pg_dump -Fc -f "$$f.part"; then
+          mv "$$f.part" "$$f"
+          echo "sauvegarde ok : $$f ($$(wc -c < "$$f") octets)"
+          find "$$DIR" -name 'vtc-*.dump' -mtime +"$$KEEP" -delete
+        else
+          rm -f "$$f.part"
+          echo "ÉCHEC de la sauvegarde" >&2
+        fi
+        [ "$${BACKUP_ONCE:-0}" = "1" ] && break
+        sleep "$$((EVERY * 3600))"
+      done
+  backup_check_sh:
+    content: |
+      #!/bin/sh
+      # Contrôle périodique des sauvegardes : restaure la plus récente dans une base temporaire (restore-drill.sh) et alerte si cela échoue.
+      # Une sauvegarde qu'on n'a jamais restaurée n'est pas une sauvegarde : ce service le vérifie tout seul, sans toucher à la base en service.
+      # Variables : BACKUP_DIR (/backups), BACKUP_CHECK_INTERVAL_HOURS (168 = chaque semaine), BACKUP_CHECK_FIRST_DELAY_MIN (60),
+      # RESTORE_DRILL (script de restauration), ERROR_WEBHOOK_URL (lien d'alerte, facultatif : sans lui, le résultat est seulement dans les journaux), CHECK_ONCE=1 (un seul contrôle, essais).
+      # Variables libpq attendues : PGHOST, PGUSER, PGPASSWORD, PGDATABASE.
+      set -eu
+      DIR="$${BACKUP_DIR:-/backups}"
+      EVERY="$${BACKUP_CHECK_INTERVAL_HOURS:-168}"
+      FIRST="$${BACKUP_CHECK_FIRST_DELAY_MIN:-60}"
+      DRILL="$${RESTORE_DRILL:-/restore-drill.sh}" # emplacement du script de restauration (dans le conteneur : /restore-drill.sh)
+      alert() {
+        [ -n "$${ERROR_WEBHOOK_URL:-}" ] || return 0
+        wget -q -T 10 -O /dev/null --header='Content-Type: application/json' --post-data="{\"text\":\"$$1\",\"content\":\"$$1\"}" "$$ERROR_WEBHOOK_URL" || echo "alerte non envoyée"
+      }
+      sleep "$$((FIRST * 60))"
+      while true; do
+        f=$$(ls -1t "$$DIR"/vtc-*.dump 2>/dev/null | head -1 || true)
+        if [ -z "$$f" ]; then
+          echo "ÉCHEC : aucune sauvegarde dans $$DIR"
+          alert "⚠ CliCab [sauvegarde] aucune sauvegarde trouvée dans $$DIR"
+        elif out=$$(TOLERATE=1 sh "$$DRILL" "$$f" 2>&1); then
+          echo "contrôle ok : $$(basename "$$f")"; echo "$$out" | tail -2
+        else
+          echo "ÉCHEC du contrôle : $$(basename "$$f")"; echo "$$out" | tail -5
+          alert "⚠ CliCab [sauvegarde] la restauration de $$(basename "$$f") a échoué : les sauvegardes ne sont peut-être pas exploitables"
+        fi
+        [ "$${CHECK_ONCE:-0}" = "1" ] && break
+        sleep "$$((EVERY * 3600))"
+      done
+  restore_drill_sh:
+    content: |
+      #!/bin/sh
+      # Exercice de restauration : prouve qu'une sauvegarde est exploitable SANS toucher à la base en service.
+      #   1. restaure la sauvegarde dans une base temporaire ;
+      #   2. compare le nombre de lignes de chaque table avec la base en service ;
+      #   3. supprime la base temporaire.
+      # Variables libpq attendues : PGHOST, PGUSER, PGPASSWORD, PGDATABASE (la base en service).
+      # Usage : sh restore-drill.sh /backups/vtc-AAAAMMJJ-HHMMSS.dump        (code de sortie 0 = sauvegarde exploitable)
+      # Attention : une sauvegarde est un instantané ; si la base a changé depuis, de petits écarts sont normaux (option TOLERATE=1).
+      set -eu
+      DUMP="$${1:?Usage : restore-drill.sh <fichier .dump>}"
+      [ -s "$$DUMP" ] || { echo "ÉCHEC : fichier de sauvegarde absent ou vide : $$DUMP" >&2; exit 2; }
+      TMP="restore_drill_$$(date +%s)"
+      LIVE="$${PGDATABASE:?PGDATABASE requis}"
+      cleanup() { psql -d "$$LIVE" -qAtc "DROP DATABASE IF EXISTS \"$$TMP\"" >/dev/null 2>&1 || true; }
+      trap cleanup EXIT
+      psql -d "$$LIVE" -qAtc "CREATE DATABASE \"$$TMP\""
+      pg_restore -d "$$TMP" --no-owner --exit-on-error "$$DUMP"
+      tables=$$(psql -d "$$TMP" -qAtc "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY 1")
+      bad=0; total=0
+      for t in $$tables; do
+        a=$$(psql -d "$$TMP" -qAtc "SELECT count(*) FROM \"$$t\"")
+        b=$$(psql -d "$$LIVE" -qAtc "SELECT count(*) FROM \"$$t\"" 2>/dev/null || echo "absente")
+        total=$$((total + 1))
+        if [ "$$a" != "$$b" ]; then bad=$$((bad + 1)); echo "écart : $$t  sauvegarde=$$a  base=$$b"; fi
+      done
+      echo "tables restaurées : $$total, écarts : $$bad"
+      if [ "$$bad" -gt 0 ] && [ "$${TOLERATE:-0}" != "1" ]; then echo "ÉCHEC : la sauvegarde ne correspond pas à la base (voir les écarts)." >&2; exit 1; fi
+      echo "OK : la sauvegarde se restaure et son contenu correspond."
+
+volumes:
+  dbdata:
+  backups:
+  caddy_data:
+  caddy_config:

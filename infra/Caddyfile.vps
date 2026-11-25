@@ -1,0 +1,31 @@
+# HTTPS automatique (Let's Encrypt) : les trois noms de domaine doivent pointer vers ce serveur (ports 80 et 443 ouverts).
+(securite) {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+		-X-Powered-By
+	}
+}
+
+{$API_DOMAIN} {
+	import securite
+	reverse_proxy api:3000
+}
+
+{$ADMIN_DOMAIN} {
+	import securite
+	reverse_proxy backoffice:3001
+}
+
+# Page de suivi du voyageur : le lien contient un jeton secret, il ne doit pas fuiter ni être mis en cache.
+{$TRACK_DOMAIN} {
+	import securite
+	header Referrer-Policy "no-referrer"
+	reverse_proxy web-booking:3002
+}

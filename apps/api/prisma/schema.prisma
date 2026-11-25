@@ -1,0 +1,840 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum VehicleCategory {
+  BERLINE
+  BUSINESS
+  VAN
+  GREEN
+}
+enum RideStatus {
+  CREATED
+  QUOTED
+  CONFIRMED
+  DISPATCHING
+  ASSIGNED
+  EN_ROUTE
+  ARRIVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED_BY_CLIENT
+  CANCELLED_BY_PARTNER
+  NO_SHOW
+  DISPUTED
+  REFUNDED
+}
+enum DriverStatus {
+  PENDING_DOCUMENTS
+  PENDING_REVIEW
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+enum DriverAvailability {
+  AVAILABLE
+  SUSPENDED
+  BUSY
+}
+enum DocumentType {
+  VTC_CARD
+  DRIVING_LICENSE
+  KBIS
+  INSURANCE
+  REGISTRATION_CERT
+  TECHNICAL_INSPECTION
+  ID
+}
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+enum PayoutStatus {
+  PENDING
+  PAID
+  FAILED
+}
+enum PaymentMode {
+  PREPAID
+  INVOICE
+}
+
+model Partner {
+  id               String        @id @default(uuid())
+  name             String
+  paymentMode      PaymentMode   @default(INVOICE)
+  priceMultiplier  Decimal       @default(1) @db.Decimal(5, 4)
+  commissionRate   Decimal       @default(0.2) @db.Decimal(5, 4)
+  webhookUrl       String?
+  webhookSecret    String?
+  notifyPassenger  Boolean       @default(true) // envoyer au voyageur le lien de suivi par SMS et e-mail (désactiver si le partenaire s'en charge)
+  /// Page de réservation clé en main hébergée par CliCab (pour les partenaires sans développeur) : /reserver/{hostedSlug}
+  hostedEnabled    Boolean       @default(false)
+  hostedSlug       String?       @unique
+  hostedPlaceLabel String?
+  hostedAddress    String?
+  hostedLat        Float?
+  hostedLng        Float?
+  /// Code d'accès facultatif (hash SHA-256) : sans lui, n'importe qui connaissant l'adresse pourrait réserver au compte du partenaire
+  hostedCodeHash   String?
+  active           Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  apiKeys          ApiKey[]
+  bookings         Booking[]
+  quotes           Quote[]
+  deliveries       WebhookDelivery[]
+}
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  partnerId  String
+  partner    Partner   @relation(fields: [partnerId], references: [id])
+  /// Hash SHA-256 de la clé ; la clé en clair n'est jamais stockée
+  keyHash    String    @unique
+  prefix     String
+  sandbox    Boolean   @default(true)
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model Company {
+  id         String   @id @default(uuid())
+  name       String
+  siret      String?  @unique
+  vtcRegistry String?
+  iban       String?
+  active     Boolean  @default(true)
+  /// Clé d'accès de l'espace société (hash SHA-256 ; la clé en clair n'est jamais stockée)
+  accessKeyHash   String? @unique
+  accessKeyPrefix String?
+  /// Mise en commun : la société accepte de confier et de recevoir des missions d'autres sociétés partenaires
+  poolOptIn  Boolean  @default(false)
+  poolsGiven RidePool[] @relation("PoolFrom")
+  poolsTaken RidePool[] @relation("PoolTo")
+  drivers    Driver[]
+  vehicles   Vehicle[]
+  createdAt  DateTime @default(now())
+}
+
+model Driver {
+  id            String             @id @default(uuid())
+  companyId     String?
+  company       Company?           @relation(fields: [companyId], references: [id])
+  firstName     String
+  lastName      String
+  phone         String             @unique
+  email         String             @unique
+  language      String             @default("fr")
+  status        DriverStatus       @default(PENDING_DOCUMENTS)
+  availability  DriverAvailability @default(SUSPENDED)
+  rating        Float              @default(5)
+  reliability   Float              @default(1)
+  contractSignedAt DateTime?
+  stripeAccountId String?
+  suspendedBy   String? // "admin" | "company" : une société ne peut lever que sa propre suspension
+  businessName  String? // exploitant indépendant : raison sociale (sinon celle de la société de rattachement)
+  siret         String? // Siren/Siret de l'exploitant (sinon celui de la société)
+  revtcNumber   String? // numéro d'inscription au registre des exploitants de VTC (sinon celui de la société)
+  proCardNumber String? // numéro de la carte professionnelle VTC
+  photoConsentAt DateTime? // consentement du chauffeur à montrer sa photo au voyageur pendant la course (révocable : remis à nul)
+  identityVerifiedAt DateTime? // dernière vérification d'identité par selfie valide (prise de service)
+  sponsorId     String? // chauffeur parrain (nul : cohorte fondatrice, entrée par un code délivré par l'équipe)
+  sponsor       Driver?  @relation("Sponsorship", fields: [sponsorId], references: [id])
+  sponsored     Driver[] @relation("Sponsorship")
+  referralCodes ReferralCode[]
+  rewardsAsSponsor ReferralReward[] @relation("RewardSponsor")
+  rewardsAsFilleul ReferralReward[] @relation("RewardFilleul")
+  application   Application?
+  identityChecks IdentityCheck[]
+  proofs        RideProof[]
+  incidents     Incident[]
+  rescueOptIn   Boolean            @default(false) // accepte de figurer dans la liste des sauveteurs (s'il remplit les critères)
+  rescueRevokedAt DateTime? // retrait du statut par l'administration
+  suspendedUntil DateTime? // suspension automatique à durée limitée (récidive) ; nul + suspendedBy=auto : à examiner par l'équipe
+  penalties     DriverPenalty[]
+  rescueAsked   RescueRequest[]    @relation("RescueRequester")
+  rescueTargeted RescueRequest[]   @relation("RescueTarget")
+  rescueDone    RescueRequest[]    @relation("RescueRescuer")
+  notifications Notification[]
+  lastLat       Float?
+  lastLng       Float?
+  lastSeenAt    DateTime?
+  documents     Document[]
+  vehicles      Vehicle[]
+  rides         Ride[]
+  offers        DispatchOffer[]
+  payouts       Payout[]
+  createdAt     DateTime           @default(now())
+}
+
+model Vehicle {
+  id        String          @id @default(uuid())
+  companyId String?
+  company   Company?        @relation(fields: [companyId], references: [id])
+  driverId  String?
+  driver    Driver?         @relation(fields: [driverId], references: [id])
+  plate     String          @unique
+  make      String
+  model     String
+  color     String?
+  category  VehicleCategory
+  seats     Int             @default(4)
+  electric  Boolean         @default(false)
+  collector Boolean         @default(false) // voiture de collection : exemptée de la limite d'âge
+  firstRegistrationAt DateTime? // date de première mise en circulation (champ B de la carte grise) : sert à calculer l'âge
+  fuel      VehicleFuel? // thermique, hybride ou électrique : les deux derniers sont exemptés d'âge, de puissance et de dimensions
+  doors     Int?
+  lengthMm  Int?
+  widthMm   Int?
+  powerKw   Float?
+  /// Équipements pour les besoins particuliers : CHILD_SEAT, BOOSTER, WHEELCHAIR, PET
+  features  String[]        @default([])
+  active    Boolean         @default(true)
+  rides     Ride[]
+}
+
+model Document {
+  id         String         @id @default(uuid())
+  driverId   String
+  driver     Driver         @relation(fields: [driverId], references: [id])
+  type       DocumentType
+  storageKey String
+  status     DocumentStatus @default(PENDING)
+  expiresAt  DateTime?
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime       @default(now())
+
+  reminders  DocumentReminder[]
+
+  @@index([driverId, type])
+}
+
+model Booking {
+  id                String   @id @default(uuid())
+  partnerId         String?
+  partner           Partner? @relation(fields: [partnerId], references: [id])
+  externalReference String?
+  idempotencyKey    String?
+  passengerFirstName String
+  passengerLastName  String
+  passengerPhone     String
+  passengerEmail     String?
+  passengerLanguage  String  @default("fr")
+  flightNumber      String?
+  signText          String? // texte de la pancarte (par défaut : nom du passager)
+  notes             String? // consignes de rendez-vous (terminal, porte…)
+  trackingSentAt    DateTime? // lien de suivi envoyé au voyageur (SMS et/ou e-mail)
+  trackingToken     String?  @unique // jeton secret du lien de suivi envoyé au voyageur (non devinable)
+  createdAt         DateTime @default(now())
+  rides             Ride[]
+
+  @@unique([partnerId, idempotencyKey])
+}
+
+model Ride {
+  /// Besoins particuliers du voyageur (voir NEEDS) : seuls les véhicules équipés reçoivent la mission
+  needs         String[]        @default([])
+  lostItems     LostItem[]
+  pools         RidePool[]
+  referralReward ReferralReward?
+  /// Bourse d'échange : le chauffeur affecté propose la mission à un collègue (sans pénalité, assez tôt). Null = pas à l'échange.
+  swapOfferedAt DateTime?
+  proofs        RideProof[]
+  /// Prime écologique incluse dans driverNetCents (véhicule électrique), prélevée sur la commission
+  ecoBonusCents Int @default(0)
+  id             String          @id @default(uuid())
+  bookingId      String
+  booking        Booking         @relation(fields: [bookingId], references: [id])
+  status         RideStatus      @default(CREATED)
+  category       VehicleCategory
+  pickupAddress  String
+  pickupLat      Float
+  pickupLng      Float
+  dropoffAddress String
+  dropoffLat     Float
+  dropoffLng     Float
+  pickupAt       DateTime
+  distanceKm     Float
+  durationMin    Float
+  passengers     Int             @default(1)
+  luggage        Int             @default(0)
+  /// Montants en centimes (évite les erreurs d'arrondi)
+  priceCents     Int
+  commissionCents Int
+  driverNetCents Int
+  flatRateId     String?
+  /// Suivi de vol : retard (min) à ajouter à pickupAt, heure d'arrivée estimée, statut
+  /// Référence courte lisible (support, chauffeurs, partenaires) : R-100234
+  ref            Int             @unique @default(autoincrement())
+  /// Délai entre l'atterrissage prévu et la prise en charge (le retard de vol se mesure sur l'atterrissage)
+  flightBufferMin Int            @default(0)
+  /// Annulation par le partenaire : frais facturés et part reversée au chauffeur affecté
+  /// Plafond de la rémunération chauffeur (prix client − commission de base) : « prix partenaire prévisionnel ».
+  /// Le prix proposé monte jusqu'à ce plafond à l'approche de la mission ; `driverNetCents` devient le prix accepté.
+  driverCapCents          Int    @default(0)
+  cancelledAt             DateTime?
+  cancellationFeeCents    Int    @default(0)
+  driverCompensationCents Int    @default(0)
+  flightDelayMin   Int       @default(0)
+  flightEarlyMin   Int       @default(0) // vol en avance (affichage et notification ; l'heure de prise en charge contractuelle ne bouge pas)
+  flightEstimatedAt DateTime?
+  flightStatus     String?
+  driverId       String?
+  driver         Driver?         @relation(fields: [driverId], references: [id])
+  vehicleId      String?
+  vehicle        Vehicle?        @relation(fields: [vehicleId], references: [id])
+  version        Int             @default(0) // verrou optimiste
+  events         RideEvent[]
+  trackingDeliveries TrackingDelivery[]
+  offers         DispatchOffer[]
+  rescues        RescueRequest[]
+  ratings        Rating[]
+  createdAt      DateTime        @default(now())
+
+  @@index([status, pickupAt])
+  @@index([driverId, pickupAt])
+}
+
+model RideEvent {
+  id        String   @id @default(uuid())
+  rideId    String
+  ride      Ride     @relation(fields: [rideId], references: [id])
+  type      String
+  payload   Json?
+  actor     String?
+  createdAt DateTime @default(now())
+
+  @@index([rideId, createdAt])
+}
+
+model DispatchOffer {
+  id        String      @id @default(uuid())
+  rideId    String
+  ride      Ride        @relation(fields: [rideId], references: [id])
+  driverId  String
+  driver    Driver      @relation(fields: [driverId], references: [id])
+  status    OfferStatus @default(PENDING)
+  expiresAt DateTime
+  createdAt DateTime    @default(now())
+
+  @@unique([rideId, driverId])
+  @@index([status, expiresAt])
+}
+
+model Rating {
+  id        String   @id @default(uuid())
+  rideId    String   @unique
+  ride      Ride     @relation(fields: [rideId], references: [id])
+  score     Int
+  comment   String?
+  createdAt DateTime @default(now())
+}
+
+model Payout {
+  id          String       @id @default(uuid())
+  driverId    String
+  driver      Driver       @relation(fields: [driverId], references: [id])
+  amountCents Int
+  status      PayoutStatus @default(PENDING)
+  periodStart DateTime
+  periodEnd   DateTime
+  createdAt   DateTime     @default(now())
+}
+
+model PricingRuleSet {
+  id        String   @id @default(uuid())
+  name      String
+  config    Json
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model FlatRate {
+  id        String @id @default(uuid())
+  fromZone  String
+  toZone    String
+  bidirectional Boolean @default(true)
+  prices    Json
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actor     String
+  action    String
+  entity    String
+  entityId  String
+  data      Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}
+
+enum DeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+model Quote {
+  id              String          @id @default(uuid())
+  partnerId       String
+  partner         Partner         @relation(fields: [partnerId], references: [id])
+  request         Json
+  category        VehicleCategory
+  pickupAt        DateTime
+  distanceKm      Float
+  durationMin     Float
+  priceCents      Int
+  commissionCents Int
+  driverNetCents  Int
+  flatRateId      String?
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdAt       DateTime        @default(now())
+}
+
+/// Outbox : un événement est enregistré dans la même transaction que le changement d'état,
+/// puis livré (avec reprises) par un worker.
+model WebhookDelivery {
+  id            String         @id @default(uuid())
+  partnerId     String
+  partner       Partner        @relation(fields: [partnerId], references: [id])
+  eventType     String
+  payload       Json
+  status        DeliveryStatus @default(PENDING)
+  attempts      Int            @default(0)
+  nextAttemptAt DateTime       @default(now())
+  lastError     String?
+  createdAt     DateTime       @default(now())
+
+  @@index([status, nextAttemptAt])
+}
+
+enum TrackingChannel {
+  SMS
+  EMAIL
+}
+
+model TrackingDelivery {
+  rideId        String
+  ride          Ride           @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  channel       TrackingChannel
+  status        DeliveryStatus @default(PENDING)
+  attempts      Int            @default(0)
+  nextAttemptAt DateTime       @default(now())
+  sandbox       Boolean
+
+  @@id([rideId, channel])
+  @@index([status, nextAttemptAt])
+}
+
+enum AdminRole {
+  ADMIN
+  DISPATCHER
+}
+
+/// Comptes du back-office (tour de contrôle). Mot de passe haché (scrypt), jamais stocké en clair.
+model AdminUser {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  name         String
+  role         AdminRole @default(DISPATCHER)
+  passwordHash String
+  active       Boolean   @default(true)
+  /// Incrémenté à chaque changement de mot de passe ou désactivation : invalide les sessions en cours.
+  tokenVersion Int       @default(0)
+  failedLogins Int       @default(0)
+  lockedUntil  DateTime?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+/// Codes à usage unique envoyés par SMS aux chauffeurs. Seule l'empreinte (HMAC) est stockée.
+model OtpCode {
+  id         String    @id @default(uuid())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+/// Messages adressés à un chauffeur (annulation, retard de vol, attribution…). Source de vérité : l'e-mail/SMS n'est qu'un relais.
+model Notification {
+  id        String    @id @default(uuid())
+  driverId  String
+  driver    Driver    @relation(fields: [driverId], references: [id])
+  type      String
+  title     String
+  body      String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([driverId, createdAt])
+}
+
+enum RescueStatus {
+  OPEN
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+/// Appel à l'aide : un chauffeur en difficulté demande à un sauveteur (ciblé) ou à tous (targetId nul) de reprendre sa mission.
+model RescueRequest {
+  id          String       @id @default(uuid())
+  rideId      String
+  ride        Ride         @relation(fields: [rideId], references: [id])
+  requesterId String
+  requester   Driver       @relation("RescueRequester", fields: [requesterId], references: [id])
+  targetId    String?
+  target      Driver?      @relation("RescueTarget", fields: [targetId], references: [id])
+  rescuerId   String?
+  rescuer     Driver?      @relation("RescueRescuer", fields: [rescuerId], references: [id])
+  reason      String
+  bonusCents  Int          @default(0)
+  status      RescueStatus @default(OPEN)
+  expiresAt   DateTime
+  createdAt   DateTime     @default(now())
+  resolvedAt  DateTime?
+  // Diffusion par vagues (appel à tous) : sauveteurs classés du plus proche au plus éloigné du lieu de prise en charge au moment de l'appel,
+  // la mission s'ouvre à `waveSize` d'entre eux toutes les `waveSeconds` secondes. waveSeconds = 0 : tous en même temps.
+  queue        String[]    @default([])
+  waveSize     Int         @default(1)
+  waveSeconds  Int         @default(0)
+  notifiedWave Int         @default(0)
+
+  @@index([status, expiresAt])
+  @@index([requesterId, createdAt])
+}
+
+enum PenaltyKind {
+  GIVE_BACK
+  RESCUE
+}
+
+/// Pénalité financière d'un chauffeur qui rend une mission ou fait appel à un sauveteur (barème progressif selon le délai avant la prise en charge).
+model DriverPenalty {
+  id            String      @id @default(uuid())
+  driverId      String
+  driver        Driver      @relation(fields: [driverId], references: [id])
+  rideId        String
+  kind          PenaltyKind
+  amountCents   Int
+  minutesBefore Int
+  weight        Float       @default(1)
+  sanction      String?
+  waivedAt      DateTime?
+  waivedBy      String?
+  waiveReason   String?
+  createdAt     DateTime    @default(now())
+
+  @@index([driverId, createdAt])
+}
+
+enum VehicleFuel {
+  THERMAL
+  HYBRID
+  ELECTRIC
+}
+
+enum IdentityKind {
+  REFERENCE
+  SHIFT
+  SPOT // vérification aléatoire en cours de service
+}
+
+enum IdentityStatus {
+  PENDING
+  VALID
+  REJECTED
+  REQUESTED // vérification demandée, selfie pas encore reçu
+  MISSED // pas de réponse avant l'échéance
+}
+
+/// Selfie du chauffeur : le premier (REFERENCE) est validé par un humain en le comparant à la pièce d'identité ; les suivants (SHIFT) sont conservés 30 jours
+/// pour dissuader le prêt de compte et permettre un contrôle a posteriori. Aucune reconnaissance faciale automatique (donnée biométrique : RGPD art. 9).
+model IdentityCheck {
+  id         String         @id @default(uuid())
+  driverId   String
+  driver     Driver         @relation(fields: [driverId], references: [id])
+  kind       IdentityKind
+  status     IdentityStatus @default(PENDING)
+  mime       String?
+  image      Bytes?
+  dueAt      DateTime? // échéance d'une vérification demandée
+  answeredAt DateTime?
+  requestedBy String? // « system » (tirage aléatoire) ou l'administrateur
+  reason     String?
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime       @default(now())
+
+  @@index([driverId, createdAt])
+  @@index([status, createdAt])
+}
+
+/// Rappel d'échéance déjà envoyé (une seule fois par document et par palier : 30, 14, 7, 1 jours, puis le jour de l'expiration).
+model DocumentReminder {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  threshold  Int
+  sentAt     DateTime @default(now())
+
+  @@unique([documentId, threshold])
+}
+
+enum IncidentKind {
+  DANGER // agression, menace
+  ACCIDENT
+  BREAKDOWN // panne, véhicule immobilisé
+  CLIENT // comportement d'un client
+  PAYMENT // problème de paiement
+  CONTROL // contrôle routier, verbalisation
+  OTHER
+}
+
+enum IncidentStatus {
+  OPEN
+  ACKNOWLEDGED
+  CLOSED
+}
+
+/// Signalement d'un chauffeur : trace horodatée avec position. L'équipe n'est PAS un service d'urgence : en cas de danger immédiat, le chauffeur est renvoyé vers le 112.
+model Incident {
+  id         String         @id @default(uuid())
+  driverId   String
+  driver     Driver         @relation(fields: [driverId], references: [id])
+  rideId     String?
+  kind       IncidentKind
+  urgent     Boolean        @default(false)
+  message    String?
+  lat        Float?
+  lng        Float?
+  status     IncidentStatus @default(OPEN)
+  createdAt  DateTime       @default(now())
+  ackedAt    DateTime?
+  ackedBy    String?
+  closedAt   DateTime?
+  closedBy   String?
+  resolution String?
+
+  @@index([status, createdAt])
+  @@index([driverId, createdAt])
+}
+
+/// Code de parrainage : obligatoire pour déposer une candidature. Délivré par l'équipe (cohorte fondatrice, sans propriétaire) ou par un chauffeur actif.
+model ReferralCode {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  ownerDriverId String?
+  owner         Driver?  @relation(fields: [ownerDriverId], references: [id])
+  label         String? // code fondateur : à qui il est destiné
+  maxUses       Int      @default(1)
+  issuedBy      String
+  revokedAt     DateTime?
+  createdAt     DateTime @default(now())
+  applications  Application[]
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  IN_REVIEW
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+/// Candidature de chauffeur. Aucune pièce n'est stockée : le relevé de permis (RII) est consulté puis seul le résultat est noté
+/// (seuil atteint oui/non, pas de suspension oui/non, date et auteur de la vérification).
+model Application {
+  id               String            @id @default(uuid())
+  firstName        String
+  lastName         String
+  phone            String
+  email            String
+  yearsExperience  Int
+  /// Déclaratif, à titre indicatif : [{ name, rating? }]. Jamais un critère éliminatoire à lui seul.
+  otherPlatforms   Json?
+  referralCodeId   String
+  referralCode     ReferralCode      @relation(fields: [referralCodeId], references: [id])
+  status           ApplicationStatus @default(SUBMITTED)
+  consentAt        DateTime
+  cardProValidUntil DateTime?
+  licenceCheckedAt DateTime?
+  licenceCheckedBy String?
+  licencePointsOk  Boolean?
+  licenceNoSuspension Boolean?
+  honorStatementAt DateTime?
+  frenchScore      Int?
+  englishLevel     String?
+  ethicsScore      Int?
+  testsBy          String?
+  testsAt          DateTime?
+  interviewNotes   String?
+  interviewAt      DateTime?
+  interviewBy      String?
+  decisionReason   String?
+  decidedBy        String?
+  decidedAt        DateTime?
+  driverId         String?           @unique
+  driver           Driver?           @relation(fields: [driverId], references: [id])
+  anonymizedAt     DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([status])
+  @@index([phone])
+  @@index([email])
+}
+
+enum ProofKind {
+  NO_SHOW
+  EXCESS_LUGGAGE
+  OTHER
+}
+
+/// Photo-preuve prise sur place par le chauffeur (client absent, bagages en excès…). L'heure `receivedAt` est celle du serveur
+/// (le téléphone ne peut pas la modifier) ; la date incrustée dans l'image vient du téléphone et n'est qu'indicative.
+model RideProof {
+  id             String    @id @default(uuid())
+  rideId         String
+  ride           Ride      @relation(fields: [rideId], references: [id])
+  driverId       String
+  driver         Driver    @relation(fields: [driverId], references: [id])
+  kind           ProofKind
+  note           String?
+  mime           String
+  image          Bytes
+  imageSha256    String
+  receivedAt     DateTime  @default(now())
+  deviceTakenAt  DateTime?
+  lat            Float
+  lng            Float
+  accuracyM      Float?
+  address        String? // adresse lue par le téléphone au moment de la prise de vue
+  distanceToPickupM Int
+  flags          String[]
+  createdAt      DateTime  @default(now())
+
+  @@index([rideId, receivedAt])
+}
+
+enum MeetingPointStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Point de rendez-vous photographié par un chauffeur (porte, pilier, panneau d'un terminal), montré au voyageur une fois validé par l'équipe.
+model MeetingPoint {
+  id          String             @id @default(uuid())
+  label       String
+  note        String?
+  lat         Float
+  lng         Float
+  accuracyM   Float?
+  mime        String
+  image       Bytes
+  imageSha256 String
+  status      MeetingPointStatus @default(PENDING)
+  submittedBy String
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  createdAt   DateTime           @default(now())
+
+  @@index([status])
+}
+
+enum LostItemStatus {
+  OPEN      // signalé par le voyageur, en attente de la réponse du chauffeur
+  FOUND     // le chauffeur l'a retrouvé : l'équipe organise la restitution
+  NOT_FOUND // le chauffeur ne l'a pas trouvé
+  RETURNED  // rendu au voyageur (clôture par l'équipe)
+  CLOSED    // clos sans restitution (clôture par l'équipe)
+}
+
+/// Objet oublié signalé par le voyageur depuis sa page de suivi. Ni téléphone ni adresse ne sont échangés directement :
+/// l'équipe coordonne la restitution.
+model LostItem {
+  id          String         @id @default(uuid())
+  rideId      String
+  ride        Ride           @relation(fields: [rideId], references: [id])
+  driverId    String?
+  description String
+  status      LostItemStatus @default(OPEN)
+  driverNote  String?
+  answeredAt  DateTime?
+  closedBy    String?
+  closedAt    DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([status, createdAt])
+  @@index([driverId, status])
+}
+
+/// Prime de parrainage : versée au parrain sur les premières courses terminées de son filleul, prise sur la commission
+/// (jamais sur le prix client ni sur le net du filleul). Un seul niveau : le parrain du parrain ne touche rien.
+model ReferralReward {
+  id          String   @id @default(uuid())
+  sponsorId   String
+  sponsor     Driver   @relation("RewardSponsor", fields: [sponsorId], references: [id])
+  filleulId   String
+  filleul     Driver   @relation("RewardFilleul", fields: [filleulId], references: [id])
+  rideId      String   @unique
+  ride        Ride     @relation(fields: [rideId], references: [id])
+  amountCents Int
+  createdAt   DateTime @default(now())
+
+  @@index([sponsorId, createdAt])
+  @@index([filleulId])
+}
+
+enum PoolStatus {
+  OPEN
+  TAKEN
+  CANCELLED
+}
+
+/// Mise en commun entre sociétés : une société confie une mission de l'un de ses chauffeurs à une autre société partenaire.
+/// La part reversée à la société d'origine est figée au moment où la mission est confiée (POOL_SHARE_PERCENT, à confirmer).
+model RidePool {
+  id              String     @id @default(uuid())
+  rideId          String
+  ride            Ride       @relation(fields: [rideId], references: [id])
+  fromCompanyId   String
+  fromCompany     Company    @relation("PoolFrom", fields: [fromCompanyId], references: [id])
+  fromDriverId    String
+  sharePercent    Int        @default(0)
+  status          PoolStatus @default(OPEN)
+  toCompanyId     String?
+  toCompany       Company?   @relation("PoolTo", fields: [toCompanyId], references: [id])
+  toDriverId      String?
+  shareCents      Int        @default(0)
+  createdAt       DateTime   @default(now())
+  takenAt         DateTime?
+
+  @@index([status, createdAt])
+  @@index([rideId])
+}
