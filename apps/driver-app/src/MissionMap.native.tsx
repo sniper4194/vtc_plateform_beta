@@ -1,12 +1,21 @@
 import { useEffect, useRef } from "react";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import Constants from "expo-constants";
 import { c } from "./theme";
-import type { MissionMapProps } from "./MissionMap";
+import { MissionSchema, type MissionMapProps } from "./MissionSchema";
 
-export type { MapPoint, MissionMapProps } from "./MissionMap";
+export type { MapPoint, MissionMapProps } from "./MissionSchema";
+
+/** Vrai si l'APK a été construit avec une clé Google Maps (GOOGLE_MAPS_API_KEY). */
+export const hasGoogleMapsKey = () => Boolean((Constants.expoConfig as any)?.android?.config?.googleMaps?.apiKey);
 
 /** Carte Google Maps (SDK mobile). Le tracé est une ligne droite vers l'étape en cours : pas d'itinéraire routier ici. */
-export function MissionMap({ pickup, dropoff, driver, target }: MissionMapProps) {
+export function MissionMap(props: MissionMapProps) {
+  // Sans clé, la carte Google fait planter l'application (« API key not found », journal Android du parcours no-show) : schéma à la place.
+  return hasGoogleMapsKey() ? <GoogleMissionMap {...props} /> : <MissionSchema {...props} />;
+}
+
+function GoogleMissionMap({ pickup, dropoff, driver, target }: MissionMapProps) {
   const ref = useRef<MapView>(null);
   const to = target === "pickup" ? pickup : dropoff;
   const key = [pickup.lat, pickup.lng, dropoff.lat, dropoff.lng, driver?.lat, driver?.lng].join(",");

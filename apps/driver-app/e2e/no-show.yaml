@@ -29,6 +29,11 @@ appId: com.clicab.driver
     text: "(?i)(While using the app|Only this time|Allow|Autoriser.*)"
     optional: true
 - takeScreenshot: 2-mode-mission
+# La carte Google sans clé plantait ~10 s après l'ouverture : on attend pour s'assurer que le mode mission tient.
+- extendedWaitUntil:
+    notVisible: "(?i)xxxxxxxx-jamais-affiche"
+    timeout: 15000
+- takeScreenshot: 2b-mode-mission-apres-15s
 - scrollUntilVisible:
     element: "(?i)un souci.*"
     direction: DOWN
