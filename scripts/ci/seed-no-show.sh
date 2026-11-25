@@ -2,7 +2,7 @@
 # Prépare une mission « sur place » depuis 20 min (prise en charge passée) pour le chauffeur de test : le bouton no-show est actif.
 set -eu
 PHONE="+33611223355"
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<SQL
+psql "${DATABASE_URL%%\?*}" -v ON_ERROR_STOP=1 <<SQL
 WITH d AS (SELECT id FROM "Driver" WHERE phone = '$PHONE'),
      v AS (SELECT id FROM "Vehicle" WHERE "driverId" = (SELECT id FROM d) LIMIT 1),
      r AS (SELECT id FROM "Ride" WHERE status = 'DISPATCHING' ORDER BY "createdAt" LIMIT 1)
