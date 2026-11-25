@@ -97,6 +97,7 @@ model Partner {
   bookings         Booking[]
   quotes           Quote[]
   deliveries       WebhookDelivery[]
+  crmAccount       CrmAccount?
 }
 
 model ApiKey {
@@ -837,4 +838,57 @@ model RidePool {
 
   @@index([status, createdAt])
   @@index([rideId])
+}
+
+enum CrmStage {
+  PROSPECT
+  CONTACTED
+  OFFER
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum CrmKind {
+  HOTEL
+  COMPANY
+  AGENCY
+  CONCIERGE
+  OTHER
+}
+
+enum CrmInteractionKind {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+}
+
+model CrmAccount {
+  id             String   @id @default(uuid())
+  name           String
+  kind           CrmKind  @default(OTHER)
+  stage          CrmStage @default(PROSPECT)
+  contactName    String?
+  email          String?
+  phone          String?
+  nextAction     String?
+  nextActionAt   DateTime?
+  partnerId      String?  @unique
+  partner        Partner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  interactions   CrmInteraction[]
+  @@index([stage, nextActionAt])
+}
+
+model CrmInteraction {
+  id        String @id @default(uuid())
+  accountId String
+  account   CrmAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  kind      CrmInteractionKind
+  note      String
+  actor     String
+  createdAt DateTime @default(now())
+  @@index([accountId, createdAt])
 }
