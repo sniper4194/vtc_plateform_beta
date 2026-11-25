@@ -6,8 +6,8 @@ on:
   # Construit à chaque modification de l'application sur cette branche, et à la demande (adresse de l'API en option :
   # elle se change de toute façon sur l'écran de connexion de l'application).
   push:
-    branches: [claude/optimistic-maxwell-sagq8e]
-    paths: ["apps/driver-app/**", ".github/workflows/android-apk.yml", "pnpm-lock.yaml"]
+    branches: [main, codex/pilote-clicab, claude/optimistic-maxwell-sagq8e]
+    paths: ["apps/driver-app/**", "apps/api/**", "scripts/ci/**", ".github/workflows/android-apk.yml", "pnpm-lock.yaml"]
   workflow_dispatch:
     inputs:
       api_url:
@@ -156,16 +156,7 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: |
-            adb install -r apk/*.apk
-            adb logcat -c
-            maestro test --format junit --output maestro.xml --debug-output maestro-debug apps/driver-app/e2e/no-show.yaml || echo "PARCOURS INTERROMPU"
-            sleep 8
-            adb logcat -d > logcat-no-show.txt
-            adb logcat -d -b crash > crash-no-show.txt || true
-            echo "=== Plantages ===" ; cat crash-no-show.txt
-            echo "=== Erreurs ===" ; grep -E "FATAL|AndroidRuntime|ReactNativeJS|JavascriptException|IllegalState|API key" logcat-no-show.txt | head -120 || true
-            adb shell pidof com.clicab.driver || echo "APPLICATION ARRÊTÉE"
+          script: bash scripts/ci/run-no-show.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -173,6 +164,7 @@ jobs:
           path: |
             logcat-no-show.txt
             crash-no-show.txt
+            maestro.xml
             maestro-debug
             api.log
             *.png

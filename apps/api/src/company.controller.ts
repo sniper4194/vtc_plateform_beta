@@ -145,7 +145,7 @@ export class CompanyController {
       orderBy: { cancelledAt: "asc" },
     });
     const compRows = cancelled.map((r) => ({
-      kind: "ANNULATION" as const, rideId: r.id, pickupAt: r.pickupAt, at: r.cancelledAt!, reference: `R-${r.ref}`, driver: `${r.driver!.firstName} ${r.driver!.lastName}`, driverId: r.driver!.id,
+      kind: "ANNULATION" as const, rideId: r.id, pickupAt: r.pickupAt, at: r.cancelledAt!, reference: `R-${r.ref}`, internalReference: `R-${r.ref}`, driver: `${r.driver!.firstName} ${r.driver!.lastName}`, driverId: r.driver!.id,
       route: `${r.pickupAddress} → ${r.dropoffAddress}`, grossCents: r.cancellationFeeCents, commissionCents: r.cancellationFeeCents - r.driverCompensationCents, netCents: r.driverCompensationCents,
     }));
     const pens = await this.prisma.driverPenalty.findMany({
@@ -157,7 +157,7 @@ export class CompanyController {
     const penRows = pens.map((p) => {
       const r = rideOf.get(p.rideId)!;
       return {
-        kind: "PENALITE" as const, rideId: p.rideId, pickupAt: r.pickupAt, at: p.createdAt, reference: `R-${r.ref}`, driver: `${p.driver.firstName} ${p.driver.lastName}`, driverId: p.driver.id,
+        kind: "PENALITE" as const, rideId: p.rideId, pickupAt: r.pickupAt, at: p.createdAt, reference: `R-${r.ref}`, internalReference: `R-${r.ref}`, driver: `${p.driver.firstName} ${p.driver.lastName}`, driverId: p.driver.id,
         route: `${p.kind === "RESCUE" ? "Pénalité (sauveteur)" : "Pénalité (mission rendue)"} · ${r.pickupAddress} → ${r.dropoffAddress}`, grossCents: 0, commissionCents: 0, netCents: -p.amountCents,
       };
     });
@@ -169,11 +169,11 @@ export class CompanyController {
     const poolDrivers = await this.prisma.driver.findMany({ where: { id: { in: pools.map((p) => p.fromDriverId) } }, select: { id: true, firstName: true, lastName: true } });
     const nameOf = new Map(poolDrivers.map((d) => [d.id, `${d.firstName} ${d.lastName}`]));
     const poolRows = pools.map((p) => ({
-      kind: "MISE_EN_COMMUN" as const, rideId: p.rideId, pickupAt: p.ride.pickupAt, at: p.ride.pickupAt, reference: `R-${p.ride.ref}`, driver: nameOf.get(p.fromDriverId) ?? "?", driverId: p.fromDriverId,
+      kind: "MISE_EN_COMMUN" as const, rideId: p.rideId, pickupAt: p.ride.pickupAt, at: p.ride.pickupAt, reference: `R-${p.ride.ref}`, internalReference: `R-${p.ride.ref}`, driver: nameOf.get(p.fromDriverId) ?? "?", driverId: p.fromDriverId,
       route: `Confiée à ${p.toCompany?.name ?? "une société partenaire"} (${p.sharePercent} %) · ${p.ride.pickupAddress} → ${p.ride.dropoffAddress}`, grossCents: 0, commissionCents: 0, netCents: p.shareCents,
     }));
     const rows = [...rides.map((r) => ({
-      kind: "COURSE" as const, rideId: r.id, pickupAt: r.pickupAt, at: r.pickupAt, reference: r.booking.externalReference ?? `R-${r.ref}`, driver: `${r.driver!.firstName} ${r.driver!.lastName}`, driverId: r.driver!.id,
+      kind: "COURSE" as const, rideId: r.id, pickupAt: r.pickupAt, at: r.pickupAt, reference: r.booking.externalReference ?? `R-${r.ref}`, internalReference: `R-${r.ref}`, driver: `${r.driver!.firstName} ${r.driver!.lastName}`, driverId: r.driver!.id,
       route: `${r.pickupAddress} → ${r.dropoffAddress}`, grossCents: r.priceCents, commissionCents: r.commissionCents, netCents: r.driverNetCents,
     })), ...compRows, ...penRows, ...poolRows].sort((a, b) => a.at.getTime() - b.at.getTime());
     const sum = (k: "grossCents" | "commissionCents" | "netCents") => rows.reduce((s, r) => s + r[k], 0);
@@ -196,8 +196,8 @@ export class CompanyController {
   async paymentsCsv(@Req() req: any, @Query() q: Record<string, string>, @Res() res: any) {
     const { from, to } = period(q.from, q.to, 15);
     const s = await this.statement(req.company.id, from, to);
-    const head = ["date", "type", "reference", "chauffeur", "trajet", "brut_eur", "commission_eur", "net_eur"];
-    const lines = [head.join(";"), ...s.rows.map((r) => [r.at.toISOString(), r.kind, r.reference, r.driver, r.route, r.grossCents / 100, r.commissionCents / 100, r.netCents / 100].map(csvCell).join(";"))];
+    const head = ["date", "type", "reference", "chauffeur", "trajet", "brut_eur", "commission_eur", "net_eur", "reference_clicab"];
+    const lines = [head.join(";"), ...s.rows.map((r) => [r.at.toISOString(), r.kind, r.reference, r.driver, r.route, r.grossCents / 100, r.commissionCents / 100, r.netCents / 100, r.internalReference].map(csvCell).join(";"))];
     res.setHeader("content-type", "text/csv; charset=utf-8");
     res.setHeader("content-disposition", 'attachment; filename="releve-paiements.csv"');
     res.send("﻿" + lines.join("\n"));

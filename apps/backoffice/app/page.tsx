@@ -154,6 +154,44 @@ function RideProofs({ rideId }: { rideId: string }) {
   );
 }
 
+type TrackingDelivery = { channel: "SMS" | "EMAIL"; status: "PENDING" | "DELIVERED" | "FAILED" };
+const TRACKING_LABEL = { PENDING: "en attente", DELIVERED: "envoyé", FAILED: "en échec" };
+
+function TrackingDeliveries({ rideId, deliveries, onDone, onError }: {
+  rideId: string;
+  deliveries: TrackingDelivery[];
+  onDone: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function retry() {
+    setBusy(true);
+    try {
+      const { queued } = await api<{ queued: number }>(`/admin/rides/${rideId}/tracking/retry`, {});
+      onError(queued ? "" : "Aucun envoi de suivi à relancer.");
+      await onDone();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "La relance a échoué.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="chips">
+      {deliveries.map(({ channel, status }) => (
+        <span key={channel} className={`chip ${status === "FAILED" ? "bad" : ""}`}>
+          Suivi {channel === "SMS" ? "SMS" : "e-mail"} · {TRACKING_LABEL[status]}
+        </span>
+      ))}
+      {deliveries.some(({ status }) => status === "FAILED") && (
+        <button className="btn" disabled={busy} onClick={retry}>Relancer le suivi</button>
+      )}
+    </div>
+  );
+}
+
 function Board() {
   const rides = useLoad<any[]>("/admin/rides");
   const drivers = useLoad<any[]>("/admin/drivers?status=ACTIVE", 15000);
@@ -207,6 +245,7 @@ function Board() {
                         {r.driver && <span className="chip ok">Marge {eur(r.priceCents - r.driverNetCents).replace(",00", "")}</span>}
                       </div>
                     )}
+                    {!!r.trackingDeliveries?.length && <TrackingDeliveries rideId={r.id} deliveries={r.trackingDeliveries} onDone={rides.reload} onError={setErr} />}
                     {r.booking.flightNumber && (
                       <div className="flightrow">
                         <span className={`chip ${r.flightStatus === "CANCELLED" ? "bad" : r.flightDelayMin > 0 ? "ok" : ""}`}>✈ {r.booking.flightNumber}{r.flightStatus === "CANCELLED" ? " · annulé" : r.flightStatus === "LANDED" ? " · posé" : r.flightDelayMin > 0 ? ` · +${r.flightDelayMin} min` : r.flightStatus === "EARLY" ? ` · −${r.flightEarlyMin} min` : ""}</span>
@@ -433,11 +472,25 @@ function Partners() {
   const [url, setUrl] = useState("");
   const [created, setCreated] = useState<any>(null);
   const [err, setErr] = useState("");
+  const [partnerId, setPartnerId] = useState("");
+  const [statementError, setStatementError] = useState("");
+  const partners = useLoad<{ id: string; name: string }[]>("/admin/partners", 15000);
   const hooks = useLoad<any[]>("/admin/webhooks", 8000);
   async function create(e: React.FormEvent) {
     e.preventDefault();
-    try { setCreated(await api("/admin/partners", { name, webhookUrl: url || undefined })); setErr(""); setName(""); setUrl(""); }
+    try { setCreated(await api("/admin/partners", { name, webhookUrl: url || undefined })); setErr(""); setName(""); setUrl(""); void partners.reload(); }
     catch (e: any) { setErr(e.message); }
+  }
+  async function downloadStatement() {
+    try {
+      const url = await adminBlobUrl(`/admin/partners/${partnerId}/statement.csv`);
+      const link = Object.assign(document.createElement("a"), { href: url, download: "releve-partenaire.csv" });
+      link.click();
+      URL.revokeObjectURL(url);
+      setStatementError("");
+    } catch (error) {
+      setStatementError(error instanceof Error ? error.message : "Téléchargement impossible.");
+    }
   }
   return (
     <>
@@ -458,6 +511,17 @@ function Partners() {
           </div>
         )}
       </form>
+      <div className="card">
+        <h3>Relevé partenaire des 30 derniers jours</h3>
+        <div className="row">
+          <select aria-label="Partenaire du relevé" value={partnerId} onChange={(event) => setPartnerId(event.target.value)}>
+            <option value="">Choisir un partenaire</option>
+            {partners.data?.map((partner) => <option key={partner.id} value={partner.id}>{partner.name}</option>)}
+          </select>
+          <button className="btn" disabled={!partnerId} onClick={downloadStatement}>Télécharger le CSV</button>
+        </div>
+        {(statementError || partners.error) && <div className="err">{statementError || partners.error}</div>}
+      </div>
       <div className="card">
         <h3>Courrier sortant (webhooks)</h3>
         <table>
@@ -608,7 +672,10 @@ export default function Home() {
   const rescues = useLoad<any[]>("/admin/rescues?open=1", 8000);
   const pendingIds = useLoad<any[]>("/admin/identity-checks?status=PENDING", 8000);
   const openInc = useLoad<any[]>("/admin/incidents?status=OPEN", 6000);
-  const alarm = useAlarm(alerts.data, authed);
+  const urgentIncidents = (openInc.data ?? [])
+    .filter((incident) => incident.urgent)
+    .map((incident) => ({ reason: "URGENT_INCIDENT", rideId: incident.id }));
+  const alarm = useAlarm([...(alerts.data ?? []), ...urgentIncidents], authed);
   const sync = () => { setAuthed(Boolean(getToken())); setUserState(getUser()); };
   useEffect(() => {
     sync(); setReady(true);

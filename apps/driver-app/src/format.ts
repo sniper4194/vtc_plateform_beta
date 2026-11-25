@@ -72,6 +72,7 @@ export const MISSION_TITLE: Record<string, string> = {
   ARRIVED: "Le client est attendu",
   IN_PROGRESS: "Course en cours",
   COMPLETED: "Mission terminée",
+  NO_SHOW: "Client absent",
   CANCELLED_BY_PARTNER: "Mission annulée",
   CANCELLED_BY_CLIENT: "Mission annulée",
 };

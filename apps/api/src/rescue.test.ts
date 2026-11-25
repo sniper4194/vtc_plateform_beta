@@ -1,3 +1,4 @@
+import { NotificationsService } from "./notifications";
 import { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
@@ -749,6 +750,47 @@ describe("vérification d'identité par selfie", () => {
       await mkBooking(p, {}, "trk-5", { passenger: pass });
       await new Promise((r) => setTimeout(r, 200));
       expect(sent.sms).toHaveLength(2);
+    } finally {
+      sms.provider = oldSms; mail.provider = oldMail; delete process.env.TRACKING_NOTIFY_SANDBOX;
+    }
+  });
+
+  it("retente seulement le canal de suivi en échec et permet au back-office de le relancer", async () => {
+    process.env.TRACKING_NOTIFY_SANDBOX = "1";
+    const sms = app.get(SmsService), mail = app.get(EmailService);
+    const oldSms = sms.provider, oldMail = mail.provider;
+    let smsAttempts = 0, emails = 0;
+    try {
+      sms.provider = { send: async () => { smsAttempts++; throw new Error("panne SMS"); } };
+      mail.provider = { send: async () => { emails++; } };
+      const p = await mkPartner(false);
+      const { res } = await mkBooking(p, {}, "trk-retry", {
+        passenger: { firstName: "Ana", lastName: "Silva", phone: "+351900000000", email: "ana@exemple.fr", language: "fr" },
+      });
+      const ride = await prisma.ride.findFirstOrThrow({ where: { bookingId: res.json.id } });
+      const smsKey = { rideId_channel: { rideId: ride.id, channel: "SMS" as const } };
+      const deliveries = () => prisma.trackingDelivery.findMany({ where: { rideId: ride.id } });
+      await expect.poll(async () => (await deliveries()).map(({ channel, status, attempts }) => ({ channel, status, attempts })))
+        .toEqual(expect.arrayContaining([
+          { channel: "SMS", status: "PENDING", attempts: 1 },
+          { channel: "EMAIL", status: "DELIVERED", attempts: 1 },
+        ]));
+
+      const notifications = app.get(NotificationsService);
+      await prisma.trackingDelivery.update({ where: smsKey, data: { attempts: 7, nextAttemptAt: new Date(0) } });
+      await Promise.all([notifications.deliverTrackingLinks(), notifications.deliverTrackingLinks()]);
+      expect(smsAttempts).toBe(2);
+      expect((await prisma.trackingDelivery.findUniqueOrThrow({ where: smsKey })).status).toBe("FAILED");
+
+      sms.provider = { send: async () => { smsAttempts++; } };
+      const path = `/admin/rides/${ride.id}/tracking/retry`;
+      expect((await call(path, { body: {} })).status).toBe(401);
+      expect((await call(path, { admin: true, body: {} })).json).toEqual({ queued: 1 });
+      expect((await call(path, { admin: true, body: {} })).json).toEqual({ queued: 0 });
+      await notifications.deliverTrackingLinks();
+      expect(smsAttempts).toBe(3);
+      expect(emails).toBe(1);
+      expect((await deliveries()).every(({ status }) => status === "DELIVERED")).toBe(true);
     } finally {
       sms.provider = oldSms; mail.provider = oldMail; delete process.env.TRACKING_NOTIFY_SANDBOX;
     }

@@ -300,6 +300,7 @@ model Ride {
   vehicle        Vehicle?        @relation(fields: [vehicleId], references: [id])
   version        Int             @default(0) // verrou optimiste
   events         RideEvent[]
+  trackingDeliveries TrackingDelivery[]
   offers         DispatchOffer[]
   rescues        RescueRequest[]
   ratings        Rating[]
@@ -421,6 +422,24 @@ model WebhookDelivery {
   lastError     String?
   createdAt     DateTime       @default(now())
 
+  @@index([status, nextAttemptAt])
+}
+
+enum TrackingChannel {
+  SMS
+  EMAIL
+}
+
+model TrackingDelivery {
+  rideId        String
+  ride          Ride           @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  channel       TrackingChannel
+  status        DeliveryStatus @default(PENDING)
+  attempts      Int            @default(0)
+  nextAttemptAt DateTime       @default(now())
+  sandbox       Boolean
+
+  @@id([rideId, channel])
   @@index([status, nextAttemptAt])
 }
 

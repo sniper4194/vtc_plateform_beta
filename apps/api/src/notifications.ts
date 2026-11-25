@@ -1,8 +1,10 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Booking, Partner, Prisma, TrackingChannel } from "@prisma/client";
 import { EmailService } from "./email";
 import { passengerAlertSms, trackingMessage } from "./messages";
 import { SmsService } from "./sms";
 import { PrismaService } from "./prisma";
+import { backoffSeconds, MAX_DELIVERY_ATTEMPTS } from "./webhooks.service";
 
 export const fmtDateTime = (d: Date) =>
   d.toLocaleString("fr-FR", { timeZone: "Europe/Paris", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -40,29 +42,82 @@ export class NotificationsService {
     }
   }
 
-  /**
-   * Envoie au voyageur son lien de suivi par SMS et par e-mail (chaque canal indépendamment : l'échec de l'un n'empêche pas l'autre).
-   * Ne lève jamais. Les clés de test (sandbox) n'envoient rien, sauf TRACKING_NOTIFY_SANDBOX=1. Marque la réservation si au moins un canal a abouti.
-   */
-  async trackingLink(rideId: string, sandbox: boolean) {
-    try {
-      if (sandbox && process.env.TRACKING_NOTIFY_SANDBOX !== "1") return;
-      const ride = await this.prisma.ride.findUnique({ where: { id: rideId }, include: { booking: { include: { partner: true } } } });
-      const b = ride?.booking;
-      if (!ride || !b?.trackingToken || b.trackingSentAt || b.partner?.notifyPassenger === false) return;
-      const url = `${(process.env.TRACKING_BASE_URL ?? "http://localhost:3002").replace(/\/$/, "")}/suivi/${b.trackingToken}`;
-      const m = trackingMessage({ firstName: b.passengerFirstName, language: b.passengerLanguage, reference: `R-${ride.ref}`, pickupAt: ride.pickupAt, pickup: ride.pickupAddress, dropoff: ride.dropoffAddress, url });
+  /** Enregistre les envois dans la transaction de réservation. */
+  async enqueueTrackingLink(db: Prisma.TransactionClient, rideId: string, booking: Booking, partner: Partner, sandbox: boolean) {
+    if (!booking.trackingToken || partner.notifyPassenger === false || (sandbox && process.env.TRACKING_NOTIFY_SANDBOX !== "1")) return;
+    const channels: TrackingChannel[] = [];
+    if (booking.passengerPhone && this.sms.provider) channels.push("SMS");
+    if (booking.passengerEmail && this.email.provider) channels.push("EMAIL");
+    if (channels.length) await db.trackingDelivery.createMany({ data: channels.map((channel) => ({ rideId, channel, sandbox })) });
+  }
+
+  async deliverTrackingLinks(rideId?: string) {
+    const due = await this.prisma.trackingDelivery.findMany({
+      where: { rideId, status: "PENDING", nextAttemptAt: { lte: new Date() } },
+      include: { ride: { include: { booking: { include: { partner: true } } } } },
+      orderBy: { nextAttemptAt: "asc" },
+      take: 20,
+    });
+    for (const delivery of due) {
+      const { ride, channel } = delivery;
+      const booking = ride.booking;
+      const key = { rideId: ride.id, channel, status: "PENDING" as const };
+      const leaseUntil = new Date(Date.now() + 60_000);
+      const claim = await this.prisma.trackingDelivery.updateMany({
+        where: { ...key, nextAttemptAt: delivery.nextAttemptAt },
+        data: { nextAttemptAt: leaseUntil },
+      });
+      if (claim.count !== 1) continue;
+
+      const canSend = booking.trackingToken && booking.partner?.notifyPassenger !== false &&
+        (!delivery.sandbox || process.env.TRACKING_NOTIFY_SANDBOX === "1");
+      const attempts = delivery.attempts + 1;
       let sent = false;
-      if (b.passengerPhone && this.sms.provider) {
-        try { await this.sms.provider.send(b.passengerPhone, m.sms); sent = true; } catch (e: any) { this.log.warn(`SMS de suivi ${rideId} : ${e?.message ?? e}`); }
+      if (canSend) {
+        const url = `${(process.env.TRACKING_BASE_URL ?? "http://localhost:3002").replace(/\/$/, "")}/suivi/${booking.trackingToken}`;
+        const message = trackingMessage({ firstName: booking.passengerFirstName, language: booking.passengerLanguage, reference: `R-${ride.ref}`, pickupAt: ride.pickupAt, pickup: ride.pickupAddress, dropoff: ride.dropoffAddress, url });
+        try {
+          if (channel === "SMS" && this.sms.provider) {
+            await this.sms.provider.send(booking.passengerPhone, message.sms);
+            sent = true;
+          }
+          if (channel === "EMAIL" && this.email.provider && booking.passengerEmail) {
+            await this.email.provider.send({ to: booking.passengerEmail, subject: message.subject, text: message.text });
+            sent = true;
+          }
+        } catch {
+          this.log.warn(`Échec du lien de suivi ${ride.id} (${channel}, tentative ${attempts})`);
+        }
       }
-      if (b.passengerEmail && this.email.provider) {
-        try { await this.email.provider.send({ to: b.passengerEmail, subject: m.subject, text: m.text }); sent = true; } catch (e: any) { this.log.warn(`e-mail de suivi ${rideId} : ${e?.message ?? e}`); }
-      }
-      if (sent) await this.prisma.booking.update({ where: { id: b.id }, data: { trackingSentAt: new Date() } });
-    } catch (e: any) {
-      this.log.warn(`lien de suivi ${rideId} : ${e?.message ?? e}`);
+      await this.prisma.$transaction(async (db) => {
+        const result = await db.trackingDelivery.updateMany({
+          where: { ...key, nextAttemptAt: leaseUntil },
+          data: {
+            attempts,
+            status: sent ? "DELIVERED" : !canSend || attempts >= MAX_DELIVERY_ATTEMPTS ? "FAILED" : "PENDING",
+            nextAttemptAt: new Date(Date.now() + backoffSeconds(attempts) * 1000),
+          },
+        });
+        if (sent && result.count === 1) {
+          await db.booking.updateMany({
+            where: { id: booking.id, trackingSentAt: null },
+            data: { trackingSentAt: new Date() },
+          });
+        }
+      });
     }
+  }
+
+  async retryTrackingLinks(rideId: string) {
+    return this.prisma.trackingDelivery.updateMany({
+      where: {
+        rideId,
+        status: "FAILED",
+        ...(process.env.TRACKING_NOTIFY_SANDBOX !== "1" ? { sandbox: false } : {}),
+        ride: { booking: { trackingToken: { not: null }, partner: { notifyPassenger: true } } },
+      },
+      data: { status: "PENDING", attempts: 0, nextAttemptAt: new Date() },
+    });
   }
 
   /**

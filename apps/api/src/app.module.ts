@@ -52,6 +52,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(DispatchService) private dispatch: DispatchService,
     @Inject(WebhooksService) private webhooks: WebhooksService,
+    @Inject(NotificationsService) private notifications: NotificationsService,
     @Inject(FlightsService) private flights: FlightsService,
     @Inject(RescueService) private rescue: RescueService,
     @Inject(IdentityService) private identity: IdentityService,
@@ -73,6 +74,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
         await this.deadlines.sweep();
         await this.recruitment.sweep();
         await this.webhooks.deliverDue();
+        await this.notifications.deliverTrackingLinks();
         await this.flights.poll();
       } catch (e: any) {
         this.log.error(e?.message ?? e);

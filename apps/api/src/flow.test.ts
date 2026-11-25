@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { AppModule } from "./app.module";
 import { BookingsService, cancellationFeeCents } from "./bookings.service";
 import { DISPATCH, DispatchService } from "./dispatch.service";
-import { signWebhook } from "./security";
+import { generateApiKey, signWebhook } from "./security";
 import { WebhooksService } from "./webhooks.service";
 import { FlightsService } from "./flights.service";
 import { RoutingService } from "./routing";
@@ -1362,3 +1362,155 @@ describe("échelle de prix chauffeur", () => {
     expect(pay.totals).toMatchObject({ netCents: 3740, grossCents: 5500 });
   });
 });
+
+it("exporte les montants des courses réelles du partenaire et exclut les courses de test", async () => {
+  const partner = await mkPartner(false);
+  const liveKey = generateApiKey(false);
+  await prisma.apiKey.create({ data: { partnerId: partner.partnerId, keyHash: liveKey.hash, prefix: liveKey.prefix, sandbox: false } });
+  const driver = await mkDriver();
+  const completed = await mkBooking({ apiKey: liveKey.key }, {}, "releve-complete", { externalReference: "=FORMULE" });
+  await assignTo(completed.res.json.rideId, driver.id);
+  for (const action of ["en-route", "arrived", "start", "complete"]) {
+    expect((await act(driver, completed.res.json.rideId, action)).status).toBe(201);
+  }
+  const cancelled = await mkBooking({ apiKey: liveKey.key }, {
+    pickupAt: new Date(Date.now() + 5 * 3600_000).toISOString(),
+  }, "releve-cancelled");
+  await assignTo(cancelled.res.json.rideId, driver.id);
+  expect((await call(`/v1/bookings/${cancelled.res.json.id}`, { token: liveKey.key, method: "DELETE" })).status).toBe(200);
+  const sandbox = await mkBooking(partner, {}, "releve-sandbox");
+  expect((await call(`/v1/bookings/${sandbox.res.json.id}`, { token: partner.apiKey, method: "DELETE" })).status).toBe(200);
+
+  const path = `/admin/partners/${partner.partnerId}/statement.csv?from=${inDays(-1)}&to=${inDays(5)}`;
+  expect((await call(path)).status).toBe(401);
+  const response = await fetch(base + path, { headers: { "x-admin-token": "test-admin-token-test-admin-token" } });
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toContain("text/csv");
+  const lines = (await response.text()).split("\n");
+  expect(lines).toHaveLength(3);
+  const completedRide = await prisma.ride.findUniqueOrThrow({ where: { id: completed.res.json.rideId } });
+  const cancelledRide = await prisma.ride.findUniqueOrThrow({ where: { id: cancelled.res.json.rideId } });
+  expect(lines[1]).toContain(`COMPLETED;${completedRide.id};R-${completedRide.ref};'=FORMULE;${(completedRide.priceCents / 100).toFixed(2)};${(completedRide.driverNetCents / 100).toFixed(2)};EUR`);
+  expect(lines[2]).toContain(`CANCELLED_BY_PARTNER;${cancelledRide.id};R-${cancelledRide.ref};BK-1;${(cancelledRide.cancellationFeeCents / 100).toFixed(2)};${(cancelledRide.driverCompensationCents / 100).toFixed(2)};EUR`);
+});
+
+it("absorbe un rush de 100 courses et conserve les notifications et alertes attendues", async () => {
+  const partner = await mkPartner(false);
+  const drivers = [];
+  for (let i = 0; i < 10; i++) drivers.push(await mkDriver());
+
+  const durations = { quote: [] as number[], booking: [] as number[] };
+  async function measure<T>(stage: keyof typeof durations, request: () => Promise<T>) {
+    const start = performance.now();
+    try { return await request(); } finally { durations[stage].push(performance.now() - start); }
+  }
+  const concurrency = Number(process.env.RUSH_CONCURRENCY ?? 10);
+  expect(Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 100).toBe(true);
+  async function batches<T>(rows: T[], run: (row: T) => Promise<void>, size = 10) {
+    for (let i = 0; i < rows.length; i += size) await Promise.all(rows.slice(i, i + size).map(run));
+  }
+
+  const start = Date.now();
+  const slots = Array.from({ length: 100 }, (_, i) => i);
+  const bookings: { index: number; id: string; rideId: string; ref: number }[] = [];
+  await batches(slots, async (index) => {
+    const token = partner.apiKey;
+    const quote = await measure("quote", () => call("/v1/quotes", {
+      token,
+      body: {
+        pickup: CDG, dropoff: PARIS,
+        pickupAt: new Date(start + (48 + 6 * Math.floor(index / 10)) * 3600_000).toISOString(),
+        category: index >= 85 && index < 95 ? "VAN" : "BERLINE",
+        passengers: 2, flightNumber: "AF1234",
+      },
+    }));
+    expect(quote.status).toBe(201);
+    const body = { quoteId: quote.json.quoteId, externalReference: `RUSH-${index}`, passenger: { firstName: "Ana", lastName: "Silva", phone: "+351900000000" } };
+    const request = () => call("/v1/bookings", { token, headers: { "idempotency-key": `rush-${index}` }, body });
+    const result = await measure("booking", request);
+    expect(result.status).toBe(201);
+    if (index % 10 === 0) expect((await request()).json.id).toBe(result.json.id);
+    bookings[index] = { index, id: result.json.id, rideId: result.json.rideId, ref: result.json.ref };
+  }, concurrency);
+  const bookingElapsedMs = Date.now() - start;
+  expect(await prisma.booking.count()).toBe(100);
+
+  const offered = await Promise.all(drivers.map(async (driver) => (await call("/driver/offers", { token: driver.token })).json));
+  const visibleOffers = await prisma.dispatchOffer.findMany({
+    where: { id: { in: offered.flat().map((offer) => offer.offerId) } }, select: { rideId: true },
+  });
+  expect(new Set(visibleOffers.map((offer) => offer.rideId)).size).toBe(90);
+  const withDriver = bookings.filter(({ index }) => index < 85 || index >= 95);
+  await batches(withDriver, async ({ index, rideId }) => {
+    const assignment = await call(`/admin/rides/${rideId}/assign`, { admin: true, body: { driverId: drivers[index % drivers.length].id } });
+    expect(assignment.status, JSON.stringify(assignment.json)).toBe(201);
+  });
+
+  const email = app.get(EmailService);
+  const oldProvider = email.provider;
+  const sentEmails: string[] = [];
+  email.provider = { send: async (message) => { sentEmails.push(message.subject); } };
+  try {
+    await batches(bookings.slice(0, 85), async ({ index, id, rideId }) => {
+      const driver = drivers[index % drivers.length];
+      if (index >= 60 && index < 75) {
+        const result = await call(`/v1/bookings/${id}`, { token: partner.apiKey, method: "DELETE" });
+        expect(result.status).toBe(200);
+        return;
+      }
+      for (const action of ["en-route", "arrived"]) expect((await act(driver, rideId, action)).status).toBe(201);
+      if (index < 60) {
+        for (const action of ["start", "complete"]) expect((await act(driver, rideId, action)).status).toBe(201);
+      } else {
+        expect((await act(driver, rideId, "no-show")).status).toBe(409);
+        const past = new Date(Date.now() - 40 * 60_000);
+        await prisma.ride.update({ where: { id: rideId }, data: { pickupAt: past } });
+        await prisma.rideEvent.updateMany({ where: { rideId, type: "ride.arrived" }, data: { createdAt: past } });
+        expect((await act(driver, rideId, "no-show")).status).toBe(201);
+      }
+    });
+  } finally {
+    email.provider = oldProvider;
+  }
+  expect(sentEmails).toHaveLength(15);
+
+  const incident = await call("/driver/incidents", { token: drivers[5].token, body: { kind: "DANGER", rideId: bookings[95].rideId } });
+  expect(incident.status).toBe(201);
+  const open = await call("/admin/incidents?status=OPEN", { admin: true });
+  expect(open.json).toEqual([expect.objectContaining({ id: incident.json.id, urgent: true })]);
+  expect((await call(`/admin/incidents/${incident.json.id}/ack`, { admin: true, body: {} })).status).toBe(201);
+  expect((await call(`/admin/incidents/${incident.json.id}/close`, { admin: true, body: { resolution: "Assistance envoyée" } })).status).toBe(201);
+  expect((await call("/admin/incidents?status=OPEN", { admin: true })).json).toHaveLength(0);
+
+  for (const { rideId } of bookings.slice(95)) {
+    expect((await call(`/admin/rides/${rideId}/flight`, { admin: true, body: { status: "CANCELLED" } })).status).toBe(201);
+  }
+  for (let round = 1; round <= DISPATCH.maxRounds + 1; round++) {
+    await dispatch.sweep(new Date(start + round * 3600_000));
+  }
+  const alerts = await call("/admin/alerts", { admin: true });
+  expect(alerts.status).toBe(200);
+  const alertIds = (reason: string) => alerts.json.filter((a: { reason: string }) => a.reason === reason).map((a: { rideId: string }) => a.rideId).sort();
+  expect(alertIds("NO_DRIVER")).toEqual(bookings.slice(85, 95).map((b) => b.rideId).sort());
+  expect(alertIds("FLIGHT_CANCELLED")).toEqual(bookings.slice(95).map((b) => b.rideId).sort());
+
+  const inboxes = await Promise.all(drivers.map(async (driver) => (await call("/driver/notifications", { token: driver.token })).json));
+  const items = inboxes.flatMap((inbox) => inbox.items);
+  expect(items.filter((n) => n.type === "ASSIGNED_BY_DISPATCH")).toHaveLength(90);
+  expect(items.filter((n) => n.type === "RIDE_CANCELLED")).toHaveLength(15);
+  expect(items.filter((n) => n.type === "FLIGHT_CANCELLED")).toHaveLength(5);
+  expect(items.filter((n) => n.type === "INCIDENT_RECEIVED")).toHaveLength(1);
+  expect(items.filter((n) => n.type === "INCIDENT_ACK")).toHaveLength(1);
+  expect(items.filter((n) => n.type === "INCIDENT_CLOSED")).toHaveLength(1);
+  for (const [i, driver] of drivers.entries()) {
+    expect(inboxes[i].items.filter((n: { type: string }) => n.type === "ASSIGNED_BY_DISPATCH")).toHaveLength(withDriver.filter((b) => b.index % 10 === i).length);
+    expect((await call("/driver/notifications/read", { token: driver.token, body: {} })).json.marked).toBe(inboxes[i].unread);
+    expect((await call("/driver/notifications", { token: driver.token })).json.unread).toBe(0);
+  }
+  const statuses = await prisma.ride.groupBy({ by: ["status"], _count: true });
+  expect(Object.fromEntries(statuses.map(({ status, _count }) => [status, _count]))).toEqual({
+    COMPLETED: 60, CANCELLED_BY_PARTNER: 15, NO_SHOW: 10, DISPATCHING: 10, ASSIGNED: 5,
+  });
+  const p95 = (values: number[]) => Math.round([...values].sort((a, b) => a - b)[Math.ceil(values.length * 0.95) - 1]);
+  console.info(JSON.stringify({ courses: 100, concurrency, bookingElapsedMs, quoteP95Ms: p95(durations.quote), bookingP95Ms: p95(durations.booking), scenarioElapsedMs: Date.now() - start }));
+}, 90_000);

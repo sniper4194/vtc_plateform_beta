@@ -36,5 +36,7 @@ appId: com.clicab.driver
     direction: DOWN
 - takeScreenshot: 3-avant-no-show
 - tapOn: "(?i)client introuvable.*"
-- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Client absent"
+    timeout: 10000
 - takeScreenshot: 4-apres-no-show

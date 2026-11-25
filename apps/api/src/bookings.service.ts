@@ -1,4 +1,4 @@
-import { HttpException, Inject, Injectable } from "@nestjs/common";
+import { HttpException, Inject, Injectable, Logger } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 import { Partner } from "@prisma/client";
 import { BookingRequest, canTransition } from "@vtc/shared";
@@ -31,6 +31,7 @@ export function driverCompensationCents(feeCents: number, ride: { priceCents: nu
 
 @Injectable()
 export class BookingsService {
+  private log = new Logger(BookingsService.name);
   constructor(
     @Inject(PrismaService) private prisma: PrismaService,
     @Inject(DispatchService) private dispatch: DispatchService,
@@ -95,6 +96,7 @@ export class BookingsService {
         });
         await tx.rideEvent.create({ data: { rideId: ride.id, type: "booking.confirmed", actor: `partner:${partner.id}`, payload: { sandbox } } });
         await this.webhooks.enqueue(tx, ride.id, "booking.confirmed");
+        await this.notif.enqueueTrackingLink(tx, ride.id, booking, partner, sandbox);
         return ride.id;
       });
     } catch (e) {
@@ -104,8 +106,8 @@ export class BookingsService {
       if (won) return { created: false, booking: await this.get(partner, won.id) };
       throw e;
     }
+    void this.notif.deliverTrackingLinks(rideId).catch((error) => this.log.warn(`Livraison du lien de suivi ${rideId} : ${error.name}`));
     await this.dispatch.start(rideId);
-    void this.notif.trackingLink(rideId, sandbox); // SMS + e-mail au voyageur, sans retarder la réponse au partenaire
     const ride = await this.prisma.ride.findUniqueOrThrow({ where: { id: rideId }, include });
     return { created: true, booking: bookingView(ride) };
   }

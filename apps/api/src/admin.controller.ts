@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { DispatchService } from "./dispatch.service";
@@ -7,6 +7,8 @@ import { FlightsService } from "./flights.service";
 import { period } from "./company.controller";
 import { checkVehicle } from "./vehicle-rules";
 import { PerformanceService } from "./performance.service";
+import { NotificationsService } from "./notifications";
+import { csvCell } from "./metrics";
 import { parse } from "./http";
 import { PrismaService } from "./prisma";
 import { AdminUserCreateSchema, PasswordResetSchema, AssignSchema, CompanyCreateSchema, DriverCreateSchema, FlightUpdateSchema, PartnerCreateSchema, ReviewSchema } from "./schemas";
@@ -24,6 +26,7 @@ export class AdminController {
     @Inject(FlightsService) private flights: FlightsService,
     @Inject(PerformanceService) private perf: PerformanceService,
     @Inject(AuthService) private auth: AuthService,
+    @Inject(NotificationsService) private notifications: NotificationsService,
   ) {}
 
   // ---- équipe (comptes du back-office) : administrateurs uniquement ----
@@ -60,6 +63,12 @@ export class AdminController {
     return { ok: true };
   }
 
+  @Get("partners")
+  @AdminOnly()
+  partners() {
+    return this.prisma.partner.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
+  }
+
   /** Crée un partenaire ; la clé API et le secret webhook ne sont affichés QU'UNE FOIS. */
   @Post("partners")
   @AdminOnly()
@@ -72,6 +81,43 @@ export class AdminController {
     const k = generateApiKey(true);
     await this.prisma.apiKey.create({ data: { partnerId: partner.id, keyHash: k.hash, prefix: k.prefix, sandbox: true } });
     return { partnerId: partner.id, apiKey: k.key, webhookSecret };
+  }
+
+  /** Relevé de rapprochement du pilote B2B, à partir des courses réelles du partenaire. */
+  @Get("partners/:id/statement.csv")
+  @AdminOnly()
+  async partnerStatement(@Param("id") id: string, @Query("from") start: string, @Query("to") end: string, @Res() res: any) {
+    const { from, to } = period(start, end, 30);
+    if (!(await this.prisma.partner.findUnique({ where: { id }, select: { id: true } }))) {
+      throw new HttpException("Partenaire introuvable", 404);
+    }
+    const rides = await this.prisma.ride.findMany({
+      where: {
+        booking: { partnerId: id },
+        events: { some: { type: "booking.confirmed", payload: { path: ["sandbox"], equals: false } } },
+        OR: [
+          { status: "COMPLETED", pickupAt: { gte: from, lt: to } },
+          { status: { in: ["CANCELLED_BY_PARTNER", "CANCELLED_BY_CLIENT"] }, cancelledAt: { gte: from, lt: to } },
+        ],
+      },
+      select: {
+        id: true, ref: true, status: true, pickupAt: true, cancelledAt: true, priceCents: true,
+        cancellationFeeCents: true, driverNetCents: true, driverCompensationCents: true,
+        booking: { select: { externalReference: true } },
+      },
+      orderBy: { ref: "asc" },
+    });
+    const rows = rides.map((ride) => {
+      const completed = ride.status === "COMPLETED";
+      const at = completed ? ride.pickupAt : ride.cancelledAt!;
+      const gross = completed ? ride.priceCents : ride.cancellationFeeCents;
+      const net = completed ? ride.driverNetCents : ride.driverCompensationCents;
+      return [at.toISOString(), ride.status, ride.id, `R-${ride.ref}`, ride.booking.externalReference,
+        (gross / 100).toFixed(2), (net / 100).toFixed(2), "EUR"].map(csvCell).join(";");
+    });
+    res.setHeader("content-type", "text/csv; charset=utf-8");
+    res.setHeader("content-disposition", 'attachment; filename="releve-partenaire.csv"');
+    res.send("\uFEFF" + ["date;statut;course_id;course;reference_partenaire;montant_partenaire;montant_chauffeur;devise", ...rows].join("\n"));
   }
 
   @Post("drivers")
@@ -136,7 +182,7 @@ export class AdminController {
   rides(@Query("status") status?: string) {
     return this.prisma.ride.findMany({
       where: status ? { status: status as any } : {},
-      include: { booking: { include: { partner: true } }, driver: true, vehicle: true, offers: true },
+      include: { booking: { include: { partner: true } }, driver: true, vehicle: true, offers: true, trackingDeliveries: { select: { channel: true, status: true } } },
       orderBy: { pickupAt: "asc" },
       take: 200,
     });
@@ -145,6 +191,12 @@ export class AdminController {
   @Get("rides/:id/events")
   events(@Param("id") id: string) {
     return this.prisma.rideEvent.findMany({ where: { rideId: id }, orderBy: { createdAt: "asc" } });
+  }
+
+  @Post("rides/:id/tracking/retry")
+  async retryTracking(@Param("id") id: string) {
+    const result = await this.notifications.retryTrackingLinks(id);
+    return { queued: result.count };
   }
 
   @Post("rides/:id/assign")

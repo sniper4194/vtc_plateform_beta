@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 /** Clés des alertes qui méritent l'alarme : course à risque (sans chauffeur, prise en charge proche), sans chauffeur après tous les tours, vol annulé. */
 export const alarmKeys = (alerts: { reason: string; rideId: string }[]) =>
-  alerts.filter((a) => a.reason === "NO_DRIVER" || a.reason === "AT_RISK" || a.reason === "FLIGHT_CANCELLED").map((a) => `${a.reason}:${a.rideId}`);
+  alerts.filter((a) => a.reason === "NO_DRIVER" || a.reason === "AT_RISK" || a.reason === "FLIGHT_CANCELLED" || a.reason === "URGENT_INCIDENT").map((a) => `${a.reason}:${a.rideId}`);
 
 const KEY = "clicab_alarme_coupee";
 
@@ -21,11 +21,12 @@ function play(set: (p: SoundProblem) => void) {
 
 export function useAlarm(alerts: { reason: string; rideId: string }[] | null, enabled: boolean) {
   const seen = useRef(new Set<string>());
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState<boolean | null>(null);
   const [blocked, setBlocked] = useState<SoundProblem>(null);
-  useEffect(() => { try { setMuted(localStorage.getItem(KEY) === "1"); } catch { /* stockage indisponible : alarme active */ } }, []);
+  useEffect(() => { try { setMuted(localStorage.getItem(KEY) === "1"); } catch { setMuted(false); } }, []);
   useEffect(() => {
-    if (!enabled || !alerts) return;
+    if (!enabled) { seen.current.clear(); return; }
+    if (!alerts || muted === null) return;
     const keys = alarmKeys(alerts);
     const fresh = keys.filter((k) => !seen.current.has(k));
     keys.forEach((k) => seen.current.add(k));
@@ -33,13 +34,13 @@ export function useAlarm(alerts: { reason: string; rideId: string }[] | null, en
   }, [alerts, enabled, muted]);
   const toggle = () => setMuted((m) => { try { localStorage.setItem(KEY, m ? "0" : "1"); } catch { /* sans incidence */ } return !m; });
   const test = () => play(setBlocked);
-  return { muted, toggle, test, blocked };
+  return { muted: muted === true, toggle, test, blocked };
 }
 
 export function AlarmButton({ alarm }: { alarm: ReturnType<typeof useAlarm> }) {
   return (
     <span className="row" style={{ gap: 6 }}>
-      <button className={`btn ${alarm.muted ? "" : "primary"}`} onClick={alarm.toggle} title="Alarme des courses en souffrance">
+      <button className={`btn ${alarm.muted ? "" : "primary"}`} onClick={alarm.toggle} title="Alarme de la tour de contrôle">
         {alarm.muted ? "🔕 Alarme coupée" : "🔔 Alarme"}
       </button>
       {!alarm.muted && <button className="btn" onClick={alarm.test} title="Écouter l'alarme">Tester</button>}
