@@ -48,10 +48,22 @@ const webOrigin = process.env.BACKOFFICE_URL ?? "http://127.0.0.1:5301";
       return route.fulfill({ headers, json: [] });
     });
     await page.goto(webOrigin);
+    const themeSelector = page.getByRole("combobox", { name: "Thème de la tour de contrôle" });
+    const classique = page.locator('.regulator[data-theme="classique"]');
+    const original = page.locator('.regulator[data-theme="original"]');
+
+    await page.getByRole("button", { name: /^Classique/ }).click();
+    await classique.locator('input[type="email"]').waitFor();
+    await page.reload();
+    await classique.locator('input[type="email"]').waitFor();
+    await themeSelector.selectOption("original");
+    await original.locator('input[type="email"]').waitFor();
     await page.locator('input[type="email"]').fill("test@example.test");
     await page.locator('input[type="password"]').fill("test-local");
     await page.locator('form').getByRole("button").click();
     await page.getByRole("button", { name: "Quitter" }).waitFor();
+    await themeSelector.selectOption("classique");
+    await classique.getByRole("button", { name: "Tableau", exact: true }).waitFor();
     await page.clock.fastForward(9000);
     assert.equal(await page.evaluate(() => window.alarmStarted), 0);
 
@@ -68,16 +80,19 @@ const webOrigin = process.env.BACKOFFICE_URL ?? "http://127.0.0.1:5301";
     assert.equal(await page.evaluate(() => window.alarmStarted), 2);
     assert.ok(audioRequests > 0);
 
-    await page.locator("select").selectOption("driver-1");
+    const assignDriver = page.locator('select').filter({ has: page.locator('option[value="driver-1"]') });
+    await assignDriver.selectOption("driver-1");
     await page.getByRole("button", { name: "OK", exact: true }).click();
-    await page.waitForFunction(() => document.querySelectorAll("select").length === 0);
+    await assignDriver.waitFor({ state: "detached" });
     assert.ok(assigned);
     assert.equal(apiErrors.length, 0);
 
     await page.getByRole("button", { name: /^Alertes/ }).click();
     await page.getByRole("button", { name: /prendre en charge/i }).click();
     assert.equal(incidents.length, 0);
-    console.log("OK Chromium : audio MP3 joué, incident urgent et rafale d’alertes sans répétition, attribution et prise en charge.");
+    await page.getByRole("button", { name: "Quitter" }).click();
+    await classique.locator('input[type="email"]').waitFor();
+    console.log("OK Chromium : choix et conservation du thème, connexion, alarme, attribution et prise en charge.");
   } finally {
     await browser.close();
   }

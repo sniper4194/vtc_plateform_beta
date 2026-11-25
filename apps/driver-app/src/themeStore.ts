@@ -1,15 +1,30 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
-import { parseTheme, type ThemeMode } from "./theme";
+import { parseTheme, parseThemeStyle, type ThemeMode, type ThemeStyle } from "./theme";
 
-const KEY = "theme_mode";
+const MODE_KEY = "theme_mode";
+const STYLE_KEY = "theme_style";
 
-/** Préférence d'affichage, conservée sur l'appareil (localStorage sur le web, SecureStore sur mobile). */
-export async function loadThemeMode(): Promise<ThemeMode> {
+async function read(key: string) {
   try {
-    return parseTheme(Platform.OS === "web" ? globalThis.localStorage?.getItem(KEY) : await SecureStore.getItemAsync(KEY));
-  } catch { return "light"; }
+    return Platform.OS === "web" ? globalThis.localStorage?.getItem(key) : await SecureStore.getItemAsync(key);
+  } catch { return null; }
 }
-export async function saveThemeMode(m: ThemeMode) {
-  try { if (Platform.OS === "web") globalThis.localStorage?.setItem(KEY, m); else await SecureStore.setItemAsync(KEY, m); } catch { /* préférence non critique */ }
+
+async function write(key: string, value: string) {
+  try {
+    if (Platform.OS === "web") globalThis.localStorage?.setItem(key, value);
+    else await SecureStore.setItemAsync(key, value);
+  } catch { /* préférence non critique */ }
 }
+
+export async function loadThemeMode(): Promise<ThemeMode> {
+  return parseTheme(await read(MODE_KEY));
+}
+
+export async function loadThemeStyle(): Promise<ThemeStyle | null> {
+  return parseThemeStyle(await read(STYLE_KEY));
+}
+
+export const saveThemeMode = (mode: ThemeMode) => write(MODE_KEY, mode);
+export const saveThemeStyle = (style: ThemeStyle) => write(STYLE_KEY, style);

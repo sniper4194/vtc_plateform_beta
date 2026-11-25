@@ -9,8 +9,11 @@ import { Reliability } from "./reliability";
 import { Carbon } from "./carbon";
 import { HostedPages } from "./hosted";
 import { LostItems } from "./lost-items";
+import "./regulator-theme.css";
 
 type Tab = "rides" | "alerts" | "perf" | "drivers" | "lost" | "recruitment" | "meeting" | "companies" | "partners" | "team" | "account";
+type RegulatorTheme = "original" | "classique";
+const THEME_KEY = "clicab-regulator-theme";
 const OPEN_FLIGHT = ["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
 const COLUMNS: { title: string; statuses: string[]; tone: string }[] = [
   { title: "À attribuer", statuses: ["DISPATCHING"], tone: "yel" },
@@ -48,7 +51,34 @@ function DriverPhoto({ id }: { id: string }) {
     : <div title="Aucune photo" style={{ ...box, display: "grid", placeItems: "center", background: "#eee", fontSize: 12 }} className="muted">—</div>;
 }
 
-function Login({ onOk }: { onOk: () => void }) {
+function ThemePicker({ theme, onTheme }: { theme: RegulatorTheme; onTheme: (theme: RegulatorTheme) => void }) {
+  return (
+    <label className="regulator-theme-picker">
+      <span>Thème</span>
+      <select aria-label="Thème de la tour de contrôle" value={theme} onChange={(event) => onTheme(event.target.value === "classique" ? "classique" : "original")}>
+        <option value="original">Original</option>
+        <option value="classique">Classique</option>
+      </select>
+    </label>
+  );
+}
+
+function InitialThemeChoice({ onTheme }: { onTheme: (theme: RegulatorTheme) => void }) {
+  return (
+    <div className="regulator regulator-signed-out" data-theme="classique">
+      <main className="regulator-login regulator-theme-choice">
+        <div className="brand">CliCab<small>Espace régulateur</small></div>
+        <h1>Choisir un thème</h1>
+        <div className="row">
+          <button type="button" className="btn primary" onClick={() => onTheme("original")}>Original</button>
+          <button type="button" className="btn" onClick={() => onTheme("classique")}>Classique</button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function Login({ onOk, theme, onTheme }: { onOk: () => void; theme: RegulatorTheme; onTheme: (theme: RegulatorTheme) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
@@ -61,16 +91,18 @@ function Login({ onOk }: { onOk: () => void }) {
     finally { setBusy(false); }
   }
   return (
-    <main style={{ maxWidth: 460, marginTop: 70 }}>
-      <div className="brand" style={{ fontSize: 64, marginBottom: 24 }}>CliCab<small>tour de contrôle</small></div>
+    <main className="regulator-login">
+      <div className="brand">CliCab<small>{theme === "classique" ? "Espace régulateur" : "tour de contrôle"}</small></div>
       <form className="card" onSubmit={submit}>
-        <div className="cond muted">E-mail</div>
-        <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: "100%", margin: "6px 0 12px" }} autoFocus />
-        <div className="cond muted">Mot de passe</div>
-        <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: "100%", margin: "6px 0" }} />
-        {err && <div className="err">{err}</div>}
-        <button className="btn primary" disabled={!email || !password || busy}>{busy ? "Connexion…" : "Entrer"}</button>
+        {theme === "classique" && <h1>Bon retour !</h1>}
+        <label className="cond muted" htmlFor="regulator-email">E-mail</label>
+        <input id="regulator-email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus={theme === "original"} />
+        <label className="cond muted" htmlFor="regulator-password">Mot de passe</label>
+        <input id="regulator-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        {err && <div role="alert" className="err">{err}</div>}
+        <button className="btn primary" disabled={!email || !password || busy}>{busy ? "Connexion…" : theme === "classique" ? "Se connecter" : "Entrer"}</button>
       </form>
+      <ThemePicker theme={theme} onTheme={onTheme} />
     </main>
   );
 }
@@ -665,6 +697,7 @@ function AlertsTab() {
 
 export default function Home() {
   const [ready, setReady] = useState(false);
+  const [theme, setTheme] = useState<RegulatorTheme | null>(null);
   const [authed, setAuthed] = useState(false);
   const [user, setUserState] = useState<AdminSession | null>(null);
   const [tab, setTab] = useState<Tab>("rides");
@@ -678,13 +711,24 @@ export default function Home() {
   const alarm = useAlarm([...(alerts.data ?? []), ...urgentIncidents], authed);
   const sync = () => { setAuthed(Boolean(getToken())); setUserState(getUser()); };
   useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem(THEME_KEY);
+      if (savedTheme === "classique" || savedTheme === "original") setTheme(savedTheme);
+    } catch { /* Le choix reste utilisable pendant la session. */ }
     sync(); setReady(true);
     const expired = () => sync();
     window.addEventListener("vtc-auth-expired", expired);
     return () => window.removeEventListener("vtc-auth-expired", expired);
   }, []);
+  const changeTheme = (next: RegulatorTheme) => {
+    setTheme(next);
+    try { localStorage.setItem(THEME_KEY, next); } catch { /* Le choix reste utilisable pendant la session. */ }
+  };
   if (!ready) return null;
-  if (!authed) return <Login onOk={sync} />;
+  if (theme === null) return <InitialThemeChoice onTheme={changeTheme} />;
+  if (!authed) {
+    return <div className="regulator regulator-signed-out" data-theme={theme}><Login onOk={sync} theme={theme} onTheme={changeTheme} /></div>;
+  }
   const isAdmin = user?.role === "ADMIN";
   const tabs: [Tab, string][] = [
     ["rides", "Tableau"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"], ["lost", "Objets oubliés"],
@@ -692,17 +736,18 @@ export default function Home() {
   ];
   const nAlerts = (alerts.data?.length ?? 0) + (rescues.data?.length ?? 0) + (pendingIds.data?.length ?? 0) + (openInc.data?.length ?? 0);
   return (
-    <>
+    <div className="regulator" data-theme={theme}>
       <header>
         <div className="brand">CliCab<small>tour de contrôle</small></div>
         <nav>
           {tabs.map(([k, l]) => (
-            <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
+            <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)}>
               {l}{k === "alerts" && nAlerts > 0 && <span className="dot">{nAlerts}</span>}
             </button>
           ))}
         </nav>
         <span style={{ marginLeft: "auto" }}><AlarmButton alarm={alarm} /></span>
+        <ThemePicker theme={theme} onTheme={changeTheme} />
         <button className={`btn ${tab === "account" ? "primary" : ""}`} style={{ whiteSpace: "nowrap" }} onClick={() => setTab("account")} title="Mon compte">{user?.name}</button>
         <button className="btn" onClick={() => { clearToken(); sync(); }}>Quitter</button>
       </header>
@@ -719,6 +764,6 @@ export default function Home() {
         {isAdmin && tab === "team" && <Team />}
         {tab === "account" && <Account user={user} />}
       </main>
-    </>
+    </div>
   );
 }

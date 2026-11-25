@@ -11,7 +11,7 @@ import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, Sect
 import { api, ApiError } from "./api";
 import { countdown, eurShort, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
-import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker, ThemeToggle } from "./ui";
+import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker, ThemePickerButton, ThemeToggle } from "./ui";
 import { useFetch } from "./useFetch";
 
 type Notify = (text: string, tone?: "ok" | "bad") => void;
@@ -43,7 +43,7 @@ function Header({ title, right }: { title: string; right?: ReactNode }) {
 }
 
 /* ------------------------------ CAP (accueil) ------------------------------ */
-export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, onToggleTheme }: { goRadar: () => void; onQuit: () => void; notify: Notify; openMission: (id: string) => void; openMessages: () => void; dark: boolean; onToggleTheme: () => void }) {
+export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, onToggleTheme, onChooseTheme }: { goRadar: () => void; onQuit: () => void; notify: Notify; openMission: (id: string) => void; openMessages: () => void; dark: boolean; onToggleTheme: () => void; onChooseTheme: () => void }) {
   const me = useFetch<any>("/driver/me", 15000);
   const home = useFetch<any>("/driver/home");
   const [busy, setBusy] = useState(false);
@@ -78,6 +78,8 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, 
           </Pressable>
         </View>
       </View>
+
+      <ThemePickerButton onPress={onChooseTheme} />
 
       {home.data?.fatigue?.maxMinutes > 0 && home.data.fatigue.minutes24h >= home.data.fatigue.maxMinutes * 0.8 && (
         <Card color={home.data.fatigue.minutes24h >= home.data.fatigue.maxMinutes ? c.red : c.yel}>

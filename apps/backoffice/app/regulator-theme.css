@@ -1,0 +1,388 @@
+.regulator-login {
+  max-width: 460px;
+  margin-top: 70px;
+}
+
+.regulator-login .brand {
+  font-size: 64px;
+  margin-bottom: 24px;
+}
+
+.regulator-login form label {
+  display: block;
+}
+
+.regulator-login form input {
+  width: 100%;
+  margin: 6px 0;
+}
+
+.regulator-login form input[type="email"] {
+  margin-bottom: 12px;
+}
+
+.regulator-theme-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--on-sky);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.regulator-theme-picker select {
+  cursor: pointer;
+}
+
+body:has(.regulator[data-theme="classique"])::after {
+  display: none;
+}
+
+.regulator[data-theme="classique"] {
+  --sky: #eaf1f8;
+  --on-sky: #151827;
+  --blue: #1552a0;
+  --dblue: #123e70;
+  --red: #a52f35;
+  --yel: #f9ae00;
+  --cream: #fdf7e8;
+  --ink: #151827;
+  --muted: #4d566b;
+  --border: #d6dce5;
+  --display: system-ui, sans-serif;
+  --slab: system-ui, sans-serif;
+  --cond: system-ui, sans-serif;
+  --script: system-ui, sans-serif;
+  min-height: 100svh;
+  background: var(--sky);
+  color: var(--ink);
+}
+
+.regulator[data-theme="classique"].regulator-signed-out {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--ink);
+}
+
+.regulator[data-theme="classique"] .regulator-login {
+  width: 100%;
+  max-width: 460px;
+  margin: 0;
+  padding: 38px 36px 26px;
+  border-radius: 26px;
+  background: var(--cream);
+  box-shadow: 0 24px 55px #070b1780;
+}
+
+.regulator[data-theme="classique"] .regulator-login .brand {
+  margin: 0 0 25px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #ddd9d0;
+  font-size: 42px;
+  text-align: center;
+}
+
+.regulator[data-theme="classique"] .regulator-login h1 {
+  margin: 0 0 19px;
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: -.035em;
+}
+
+.regulator[data-theme="classique"] .regulator-login form {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  margin: 0;
+  padding: 0;
+}
+
+.regulator[data-theme="classique"] .regulator-login form label {
+  font: 600 14px/1.4 system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.regulator[data-theme="classique"] .regulator-login form input {
+  min-height: 48px;
+}
+
+.regulator[data-theme="classique"] .regulator-login form .btn {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 15px;
+  font-size: 15px;
+}
+
+.regulator[data-theme="classique"] .regulator-login .regulator-theme-picker {
+  display: flex;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+.regulator[data-theme="classique"] .regulator-theme-choice {
+  text-align: center;
+}
+
+.regulator[data-theme="classique"] .regulator-theme-choice .row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.regulator[data-theme="classique"] .regulator-theme-choice .btn {
+  min-height: 44px;
+}
+
+.regulator[data-theme="classique"] .brand {
+  color: var(--blue);
+  font-size: 31px;
+  font-weight: 800;
+  letter-spacing: -.05em;
+  text-shadow: none;
+}
+
+.regulator[data-theme="classique"] .brand small {
+  margin-top: 9px;
+  color: var(--muted);
+  font: 650 11px/1.5 system-ui, sans-serif;
+  letter-spacing: .095em;
+  text-transform: uppercase;
+}
+
+.regulator[data-theme="classique"] > header {
+  gap: 14px;
+  padding-block: 18px;
+  background: var(--ink);
+  color: var(--cream);
+  box-shadow: 0 3px 12px #12203926;
+}
+
+.regulator[data-theme="classique"] > header .brand {
+  color: #9fc8ff;
+  white-space: nowrap;
+}
+
+.regulator[data-theme="classique"] > header .brand small,
+.regulator[data-theme="classique"] > header .regulator-theme-picker {
+  color: #e2ebf8;
+}
+
+.regulator[data-theme="classique"] nav {
+  gap: 6px;
+}
+
+.regulator[data-theme="classique"] nav button {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--cream);
+  font-weight: 650;
+}
+
+.regulator[data-theme="classique"] nav button:hover,
+.regulator[data-theme="classique"] nav button:focus-visible {
+  background: #2c3854;
+}
+
+.regulator[data-theme="classique"] nav button.on {
+  background: var(--yel);
+  color: var(--ink);
+  transform: none;
+}
+
+.regulator[data-theme="classique"] nav .dot {
+  border-color: var(--ink);
+  font-weight: 700;
+}
+
+.regulator[data-theme="classique"] > main {
+  padding-top: 22px;
+}
+
+.regulator[data-theme="classique"] .card {
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  box-shadow: 0 4px 16px #18243c12;
+}
+
+.regulator[data-theme="classique"] .card.yel {
+  background: #fff2ce;
+  border-color: #eed8a0;
+}
+
+.regulator[data-theme="classique"] .card:has(> table) {
+  overflow-x: auto;
+}
+
+.regulator[data-theme="classique"] .card h3,
+.regulator[data-theme="classique"] .title,
+.regulator[data-theme="classique"] .col h2 {
+  font-weight: 750;
+  text-shadow: none;
+}
+
+.regulator[data-theme="classique"] .title {
+  font-size: 29px;
+  letter-spacing: -.025em;
+}
+
+.regulator[data-theme="classique"] .kpis {
+  gap: 12px;
+}
+
+.regulator[data-theme="classique"] .sticker {
+  width: auto;
+  min-width: 135px;
+  height: 77px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transform: none;
+  animation: none;
+  box-shadow: 0 3px 10px #18243c12;
+}
+
+.regulator[data-theme="classique"] .sticker b {
+  font-size: 30px;
+  font-weight: 750;
+  text-shadow: none;
+}
+
+.regulator[data-theme="classique"] .sticker .cond {
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.regulator[data-theme="classique"] .s1 { background: #fff2ce; }
+.regulator[data-theme="classique"] .s2 { background: #fbe5e8; }
+.regulator[data-theme="classique"] .s2,
+.regulator[data-theme="classique"] .s2 b { color: var(--red); }
+.regulator[data-theme="classique"] .s2.alert { border-color: var(--red); }
+.regulator[data-theme="classique"] .s4 { background: var(--dblue); }
+
+.regulator[data-theme="classique"] .col h2 {
+  font-size: 19px;
+}
+
+.regulator[data-theme="classique"] .col h2 .n {
+  height: 26px;
+  min-width: 26px;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  transform: none;
+}
+
+.regulator[data-theme="classique"] .ride .when { font-size: 16px; font-weight: 700; }
+.regulator[data-theme="classique"] .ride .price {
+  height: 61px;
+  width: 61px;
+  border: 1px solid #eed8a0;
+  border-radius: 9px;
+  transform: none;
+}
+.regulator[data-theme="classique"] .ride .price b { font-size: 16px; font-weight: 700; text-shadow: none; }
+.regulator[data-theme="classique"] .route { font-weight: 650; }
+.regulator[data-theme="classique"] .route .rail i,
+.regulator[data-theme="classique"] .route .rail em { border-width: 1px; }
+.regulator[data-theme="classique"] .route .rail u { border-width: 2px; }
+
+.regulator[data-theme="classique"] .chip {
+  border-width: 1px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .035em;
+}
+
+.regulator[data-theme="classique"] .chip.ok,
+.regulator[data-theme="classique"] .chip.bad,
+.regulator[data-theme="classique"] .chip.blue {
+  border-color: transparent;
+}
+
+.regulator[data-theme="classique"] .ride .alertbar {
+  border-width: 1px;
+}
+
+.regulator[data-theme="classique"] :is(button.btn, select, input, textarea) {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font: 500 14px/1.4 system-ui, sans-serif;
+}
+
+.regulator[data-theme="classique"] button.btn {
+  font-weight: 700;
+  box-shadow: 0 1px 3px #151b3126;
+}
+
+.regulator[data-theme="classique"] button.btn.primary,
+.regulator[data-theme="classique"] button.btn.danger {
+  border-color: transparent;
+}
+
+.regulator[data-theme="classique"] button.btn:active {
+  transform: translateY(1px);
+}
+
+.regulator[data-theme="classique"] :is(button, select, input, textarea, a):focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.regulator[data-theme="classique"] > header :is(button, select, a):focus-visible {
+  outline-color: #9fc8ff;
+}
+
+.regulator[data-theme="classique"] :is(th, td) {
+  border-bottom: 1px solid var(--border);
+}
+
+.regulator[data-theme="classique"] th { font-weight: 650; }
+.regulator[data-theme="classique"] .grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
+
+@media (max-width: 600px) {
+  .regulator[data-theme="classique"].regulator-signed-out {
+    padding: 11px;
+  }
+
+  .regulator[data-theme="classique"] .regulator-login {
+    min-height: calc(100svh - 22px);
+    padding: clamp(35px, 11vh, 90px) 23px 28px;
+  }
+
+  .regulator[data-theme="classique"] > header {
+    gap: 10px;
+  }
+
+  .regulator[data-theme="classique"] nav {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .regulator[data-theme="classique"] nav button {
+    flex: 0 0 auto;
+  }
+
+  .regulator[data-theme="classique"] nav .dot {
+    top: 0;
+    right: -3px;
+    font-size: 11px;
+    padding: 0 4px;
+  }
+
+  .regulator[data-theme="classique"] .kpis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .regulator[data-theme="classique"] .sticker {
+    min-width: 0;
+  }
+}

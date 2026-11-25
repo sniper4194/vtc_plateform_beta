@@ -2,7 +2,7 @@
   "expo": {
     "name": "CliCab Chauffeur",
     "slug": "clicab-driver",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "plugins": [
@@ -44,7 +44,7 @@
     },
     "android": {
       "package": "com.clicab.driver",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
