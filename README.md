@@ -273,8 +273,8 @@ Guide pas à pas : [docs/MISE_EN_LIGNE.md](docs/MISE_EN_LIGNE.md). Le script `sc
 
 ## Sons
 
-- **Nouvelle course** (application chauffeur) : bulle « 🚖 Nouvelle course : départ → arrivée · prix » et son `assets/sounds/nouvelle-course.mp3`.
-- **Atterrissage** (application chauffeur) : quand le vol d'une mission se pose, bulle « ✈ Vol … atterri » et son `assets/sounds/atterrissage.mp3`.
+- **Nouvelle course** (application chauffeur) : bulle « 🚖 Nouvelle course : départ → arrivée · prix » et son de nouvelle course.
+- **Atterrissage** (application chauffeur) : quand le vol d'une mission se pose, bulle « ✈ Vol … atterri » et son d’atterrissage.
 - **Alarme de la tour de contrôle** (back-office) : quand une course reste sans chauffeur après tous les tours de dispatch (en souffrance) ou qu'un vol est annulé, l'alarme `public/sounds/alarme.mp3` sonne une fois par alerte. Bouton « 🔔 Alarme » pour la couper (choix retenu par le navigateur) et « Tester ». Les navigateurs n'autorisent le son qu'après un premier clic sur la page.
 
-Vérification toutes les 10 s, **application ouverte uniquement** : application fermée, il faudra les notifications push (point 2 de la feuille de route), qui pourront reprendre ces sons. Les fichiers fournis étaient en « MPEG Layer II », peu lu par les navigateurs et Android : ils ont été convertis en MP3 classique, sans changement du son.
+L’application chauffeur demande l’autorisation de notification au premier démarrage sur Android et iOS. Les nouvelles offres et les atterrissages déclenchent automatiquement une notification locale avec le son correspondant. Si les notifications système sont désactivées, la bulle et le son restent disponibles dans l’application. La vérification a lieu toutes les 10 s, application ouverte. La réception application fermée nécessite un service de notifications push.

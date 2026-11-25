@@ -10,6 +10,7 @@ import { ActivityIndicator, Pressable, SafeAreaView, TextInput, View } from "rea
 import { api, getApiUrl, loadApiUrl, loadToken, saveApiUrl, saveToken } from "./src/api";
 import { reportCrash } from "./src/crashReport";
 import { ErrorBoundary } from "./src/ErrorBoundary";
+import { requestDriverNotifications } from "./src/driverNotifications";
 import { useLandingAlert } from "./src/useLandingAlert";
 import { SpotPrompt } from "./src/identity";
 import { MissionScreen } from "./src/mission";
@@ -123,15 +124,24 @@ function Root() {
   const [fontsLoaded] = useFonts({ RozhaOne_400Regular, AlfaSlabOne_400Regular, Anton_400Regular, KaushanScript_400Regular });
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [notificationsReady, setNotificationsReady] = useState(false);
   const [tab, setTab] = useState<Tab>("cap");
   const [missionId, setMissionId] = useState<string | null>(null);
   const [showMessages, setShowMessages] = useState(false);
   const toast = useToast();
-  useLandingAlert(authed, toast.show);
+  useLandingAlert(authed && notificationsReady, toast.show);
 
   useEffect(() => {
     Promise.all([loadThemeMode(), loadApiUrl().then(() => loadToken())]).then(([m, t]) => { applyTheme(m); setMode(m); setAuthed(Boolean(t)); setReady(true); });
   }, []);
+  useEffect(() => {
+    if (!ready || !fontsLoaded) return;
+    let active = true;
+    void requestDriverNotifications().finally(() => {
+      if (active) setNotificationsReady(true);
+    });
+    return () => { active = false; };
+  }, [ready, fontsLoaded]);
   // Les couleurs sont lues à chaque rendu : on change la palette puis on remonte l'arbre (clé = thème) pour tout repeindre.
   const dark = mode === "dark";
   function toggleTheme() {
@@ -141,7 +151,7 @@ function Root() {
 
   // Position envoyée toutes les 30 s pour trier les offres par proximité.
   useEffect(() => {
-    if (!authed) return;
+    if (!authed || !notificationsReady) return;
     let stop = false;
     async function ping() {
       try {
@@ -154,7 +164,7 @@ function Root() {
     ping();
     const t = setInterval(ping, 30_000);
     return () => { stop = true; clearInterval(t); };
-  }, [authed]);
+  }, [authed, notificationsReady]);
 
   if (!ready || !fontsLoaded) return <View style={{ flex: 1, backgroundColor: c.sky, justifyContent: "center" }}><ActivityIndicator color={c.onSky} /></View>;
   if (!authed) return <Login key={mode} onDone={() => setAuthed(true)} dark={dark} onToggleTheme={toggleTheme} />;

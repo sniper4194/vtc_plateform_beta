@@ -4,10 +4,19 @@ appId: com.clicab.driver
 ---
 - launchApp:
     clearState: true
+    permissions:
+      notifications: unset
+- extendedWaitUntil:
+    visible:
+      id: ".*:id/permission_allow_button"
+    timeout: 15000
+- tapOn:
+    id: ".*:id/permission_allow_button"
 - tapOn: "(?i).*\\(changer\\).*"
 - tapOn: "https://api.clicab.fr"
 - eraseText: 40
 - inputText: "http://10.0.2.2:3000"
+- hideKeyboard
 - tapOn: "Enregistrer"
 - tapOn: "06 12 34 56 78"
 - inputText: "0611223355"
