@@ -15,7 +15,7 @@ cat crash-no-show.txt
 echo "=== Erreurs ==="
 grep -E "FATAL|AndroidRuntime|ReactNativeJS|JavascriptException|IllegalState|API key" logcat-no-show.txt | head -120 || true
 
-if ! adb shell pidof com.clicab.driver || grep -Eq 'Process: com\.clicab\.driver(,|$)' crash-no-show.txt; then
+if ! adb shell pidof com.clicab.driver || grep -Eq 'FATAL EXCEPTION|Process: com\.clicab\.driver(,|$)' crash-no-show.txt; then
   echo "::error::L’application chauffeur s’est arrêtée ou a planté pendant le parcours no-show."
   exit 1
 fi

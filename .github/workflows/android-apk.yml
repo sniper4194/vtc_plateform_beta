@@ -6,7 +6,7 @@ on:
   # Construit à chaque modification de l'application sur cette branche, et à la demande (adresse de l'API en option :
   # elle se change de toute façon sur l'écran de connexion de l'application).
   push:
-    branches: [main, codex/pilote-clicab, claude/optimistic-maxwell-sagq8e]
+    branches: [main, codex/pilote-clicab, claude/optimistic-maxwell-sagq8e, release/crm-sav]
     paths: ["apps/driver-app/**", "apps/api/**", "scripts/ci/**", ".github/workflows/android-apk.yml", "pnpm-lock.yaml"]
   workflow_dispatch:
     inputs:

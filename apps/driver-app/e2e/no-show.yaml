@@ -12,19 +12,32 @@ appId: com.clicab.driver
     timeout: 15000
 - tapOn:
     id: ".*:id/permission_allow_button"
+- extendedWaitUntil:
+    visible: "(?i).*\\(changer\\).*"
+    timeout: 20000
 - tapOn: "(?i).*\\(changer\\).*"
+- extendedWaitUntil:
+    visible: "(?i)adresse du serveur"
+    timeout: 10000
 - tapOn: "https://api.clicab.fr"
 - eraseText: 40
 - inputText: "http://10.0.2.2:3000"
-- hideKeyboard
-- tapOn: "Enregistrer"
+- pressKey: Enter  # ferme le clavier (la touche Retour mettait parfois l'application en arrière-plan)
+- takeScreenshot: 0-serveur
+- extendedWaitUntil:
+    visible: "(?i)enregistrer"
+    timeout: 10000
+- tapOn: "(?i)enregistrer"
+- extendedWaitUntil:
+    visible: "(?i).*10\\.0\\.2\\.2.*"
+    timeout: 10000
 - tapOn: "06 12 34 56 78"
 - inputText: "0611223355"
-- hideKeyboard
+- pressKey: Enter  # ferme le clavier (la touche Retour mettait parfois l'application en arrière-plan)
 - tapOn: "Recevoir mon code"
 - tapOn: "••••••"
 - inputText: "000000"
-- hideKeyboard
+- pressKey: Enter  # ferme le clavier (la touche Retour mettait parfois l'application en arrière-plan)
 - tapOn: "C'est parti"
 - tapOn:
     text: "(?i)(While using the app|Only this time|Allow|Autoriser.*)"
@@ -36,6 +49,11 @@ appId: com.clicab.driver
     text: "(?i)(While using the app|Only this time|Allow|Autoriser.*)"
     optional: true
 - takeScreenshot: 2-mode-mission
+# La carte Google sans clé plantait ~10 s après l'ouverture : on attend pour s'assurer que le mode mission tient.
+- extendedWaitUntil:
+    notVisible: "(?i)xxxxxxxx-jamais-affiche"
+    timeout: 15000
+- takeScreenshot: 2b-mode-mission-apres-15s
 - scrollUntilVisible:
     element: "(?i)un souci.*"
     direction: DOWN
