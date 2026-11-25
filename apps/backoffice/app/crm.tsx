@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api, dt } from "../lib/api";
+import { api, dt, eur } from "../lib/api";
 
 const stages = { PROSPECT: "Prospection", CONTACTED: "Contact établi", OFFER: "Offre envoyée", NEGOTIATION: "Négociation", WON: "Contrat signé", LOST: "Perdu" } as const;
 const kinds = { HOTEL: "Hôtel", COMPANY: "Entreprise", AGENCY: "Agence de voyages", CONCIERGE: "Conciergerie", OTHER: "Autre" } as const;
@@ -11,6 +11,40 @@ type Channel = keyof typeof channels;
 type Partner = { id: string; name: string; active: boolean; _count?: { bookings: number } };
 type Interaction = { id: string; kind: Channel; note: string; actor: string; createdAt: string };
 type Account = { id: string; name: string; stage: Stage; kind: Kind; contactName: string | null; email: string | null; phone: string | null; nextAction: string | null; nextActionAt: string | null; partnerId: string | null; partner?: Partner | null; interactions?: Interaction[] };
+type Activity = { linked: false; period: { days: number } } | { linked: true; period: { days: number }; completed: number; cancelled: number; completedCents: number; cancellationCents: number; grossCents: number; driverCents: number; spreadCents: number };
+function PartnerActivity({ id }: { id: string }) {
+  const [days, setDays] = useState("30");
+  const [activity, setActivity] = useState<Activity | null>(null);
+  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setActivity(null); setError("");
+    api<Activity>("/admin/crm/" + id + "/activity?days=" + days).then(r => { if (alive) setActivity(r); }).catch(e => { if (alive) setError(e.message); });
+    return () => { alive = false; };
+  }, [id, days, revision]);
+  return <section style={{ margin: "18px 0" }}>
+    <h3>Activité réelle du partenaire</h3>
+    <div className="row"><label>Période <select value={days} onChange={e => setDays(e.target.value)}><option value="30">30 derniers jours</option><option value="90">90 derniers jours</option><option value="365">365 derniers jours</option></select></label><button className="btn" onClick={() => setRevision(n => n + 1)}>Actualiser</button></div>
+    {error && <p className="err">{error}</p>}
+    {!activity && !error && <p className="muted">Chargement…</p>}
+    {activity && !activity.linked && <p className="muted">Associez un partenaire pour afficher ses indicateurs.</p>}
+    {activity?.linked && <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(165px,1fr))", gap: 10, margin: "12px 0" }}>
+        {[
+          ["Courses terminées", activity.completed],
+          ["Courses annulées", activity.cancelled],
+          ["Montants des courses", eur(activity.completedCents)],
+          ["Frais d'annulation", eur(activity.cancellationCents)],
+          ["Volume d'affaires", eur(activity.grossCents)],
+          ["Rémunération chauffeurs", eur(activity.driverCents)],
+          ["Écart avant charges", eur(activity.spreadCents)],
+        ].map(([label, value]) => <div key={label} style={{ border: "1px solid #aaa", padding: 10, borderRadius: 8 }}><div className="muted">{label}</div><b style={{ fontSize: 22 }}>{value}</b></div>)}
+      </div>
+      <p className="muted" style={{ fontSize: 13 }}>Hors simulation. Courses terminées et frais d'annulation uniquement. Montants opérationnels, pas des encaissements ni un bénéfice comptable ; autres frais et remboursements non inclus.</p>
+    </>}
+  </section>;
+}
 type Listing = { items: Account[]; total: number; pipeline: { stage: Stage; count: number }[]; overdue: number };
 const empty = () => ({ name: "", kind: "OTHER" as Kind, stage: "PROSPECT" as Stage, contactName: "", email: "", phone: "", nextAction: "", nextActionAt: "", partnerId: "" });
 function localDate(value: string | null) {
@@ -73,6 +107,15 @@ export function Crm() {
       setNote("");
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }
+  async function finishFollowUp() {
+    if (!selected?.nextAction || !selected.nextActionAt || !window.confirm("Marquer la relance enregistrée comme effectuée ? Les modifications non enregistrées de la fiche seront abandonnées.")) return;
+    setBusy(true); setError("");
+    try {
+      const id = selected.id;
+      await api("/admin/crm/" + id + "/follow-up/complete", { action: selected.nextAction, at: selected.nextActionAt });
+      refresh(); await open(id);
+    } catch (e: any) { setError(e.message); } finally { setBusy(false); }
+  }
   async function remove() {
     if (!selected || !window.confirm("Supprimer définitivement cette fiche et ses notes ? Le partenaire et ses réservations seront conservés.")) return;
     setBusy(true); setError("");
@@ -124,6 +167,8 @@ export function Crm() {
         </fieldset>
       </form>
       {selected && <>
+        {selected.nextAction && selected.nextActionAt && <div className="row" style={{ margin: "12px 0" }}><span>Relance enregistrée : {selected.nextAction} · {dt(selected.nextActionAt)}</span><button className="btn primary" disabled={busy} onClick={finishFollowUp}>Marquer comme effectuée</button></div>}
+        <PartnerActivity key={selected.id + ":" + (selected.partnerId ?? "")} id={selected.id} />
         <h3>Historique des échanges</h3>
         <form onSubmit={addNote} className="row" style={{ flexWrap: "wrap" }}>
           <select aria-label="Type d'échange" value={channel} onChange={e => setChannel(e.target.value as Channel)}>{Object.entries(channels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>

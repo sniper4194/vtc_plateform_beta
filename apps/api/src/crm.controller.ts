@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "./prisma";
 import { AdminGuard, AdminOnly } from "./security";
 import { parse } from "./http";
-import { accountSchema, interactionSchema, listSchema } from "./crm.schemas";
+import { accountSchema, interactionSchema, listSchema, activitySchema, completeFollowUpSchema } from "./crm.schemas";
 
 const partnerSelect = { id: true, name: true, active: true, _count: { select: { bookings: true } } } as const;
 @Controller("admin/crm")
@@ -35,6 +35,46 @@ export class CrmController {
   @Get("partners")
   partners() {
     return this.prisma.partner.findMany({ select: { id: true, name: true, active: true }, orderBy: { name: "asc" } });
+  }
+
+  /** Même périmètre de production que le relevé partenaire, sans données voyageurs. */
+  @Get(":id/activity")
+  async activity(@Param("id") id: string, @Query() raw: unknown) {
+    const { days } = parse(activitySchema, raw);
+    const account = await this.prisma.crmAccount.findUnique({ where: { id }, select: { partnerId: true } });
+    if (!account) throw new HttpException("Fiche CRM introuvable", 404);
+    const to = new Date();
+    const from = new Date(to.getTime() - Number(days) * 86400_000);
+    const period = { from: from.toISOString(), to: to.toISOString(), days: Number(days) };
+    if (!account.partnerId) return { linked: false as const, period };
+    const real: Prisma.RideWhereInput = {
+      booking: { partnerId: account.partnerId },
+      events: { some: { type: "booking.confirmed", payload: { path: ["sandbox"], equals: false } } },
+    };
+    const [completed, cancelled] = await Promise.all([
+      this.prisma.ride.aggregate({ where: { ...real, status: "COMPLETED", pickupAt: { gte: from, lt: to } }, _count: { _all: true }, _sum: { priceCents: true, driverNetCents: true } }),
+      this.prisma.ride.aggregate({ where: { ...real, status: { in: ["CANCELLED_BY_PARTNER", "CANCELLED_BY_CLIENT"] }, cancelledAt: { gte: from, lt: to } }, _count: { _all: true }, _sum: { cancellationFeeCents: true, driverCompensationCents: true } }),
+    ]);
+    const completedCents = completed._sum.priceCents ?? 0;
+    const cancellationCents = cancelled._sum.cancellationFeeCents ?? 0;
+    const driverCents = (completed._sum.driverNetCents ?? 0) + (cancelled._sum.driverCompensationCents ?? 0);
+    const grossCents = completedCents + cancellationCents;
+    return { linked: true as const, period, completed: completed._count._all, cancelled: cancelled._count._all, completedCents, cancellationCents, grossCents, driverCents, spreadCents: grossCents - driverCents };
+  }
+
+  @Post(":id/follow-up/complete")
+  async completeFollowUp(@Req() req: any, @Param("id") id: string, @Body() raw: unknown) {
+    const { action, at } = parse(completeFollowUpSchema, raw);
+    return this.prisma.$transaction(async tx => {
+      const changed = await tx.crmAccount.updateMany({
+        where: { id, nextAction: action, nextActionAt: at },
+        data: { nextAction: null, nextActionAt: null },
+      });
+      if (changed.count !== 1) throw new HttpException("La relance a changé ou a déjà été traitée. Actualisez la fiche.", 409);
+      await tx.crmInteraction.create({ data: { accountId: id, kind: "NOTE", note: "Relance effectuée : " + action, actor: req.admin.actor } });
+      await tx.auditLog.create({ data: { actor: req.admin.actor, action: "crm.follow_up_completed", entity: "CrmAccount", entityId: id } });
+      return { ok: true };
+    });
   }
 
   @Get(":id")

@@ -25,3 +25,9 @@ export const listSchema = z.object({
   overdue: z.enum(["1", "0"]).optional(),
   page: z.coerce.number().int().min(1).max(10000).default(1),
 }).strict();
+
+export const activitySchema = z.object({ days: z.enum(["30", "90", "365"]).default("30") }).strict();
+export const completeFollowUpSchema = z.object({
+  action: z.string().trim().min(1).max(500),
+  at: z.string().datetime({ offset: true }).transform(s => new Date(s)),
+}).strict();

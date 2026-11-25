@@ -22,3 +22,7 @@ Créer un prospect, programmer une relance passée, vérifier le compteur, enreg
 
 ## Limites et données
 Aucun e-mail ou SMS n'est envoyé automatiquement. Pas de synchronisation de messagerie, de devis CRM, de gestion passagers ni de gestion multi-contact dans cette version. Les partenaires déjà existants peuvent être associés manuellement, pas importés automatiquement. La politique de durée de conservation, la base légale et l'information des contacts doivent être validées avant exploitation de données réelles. Ne pas saisir de données sensibles dans les notes.
+
+## Phase 2 : activité réelle et clôture des relances
+- Indicateurs à 30, 90 ou 365 jours glissants, courses dont booking.confirmed contient sandbox=false. Courses terminées filtrées par pickupAt, annulations par cancelledAt. Litiges, no-show, remboursements et courses sans preuve de production exclus. Le volume d'affaires n'est pas un chiffre d'affaires comptable ; l'écart brut n'est pas un bénéfice.
+- Une relance effectuée est retirée de la liste des échéances, enregistrée dans l'historique et auditée. La vérification de l'action et de la date évite de clôturer une relance modifiée simultanément.
