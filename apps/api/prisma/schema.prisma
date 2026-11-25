@@ -880,6 +880,8 @@ model CrmAccount {
   updatedAt      DateTime @updatedAt
   interactions   CrmInteraction[]
   deals          CrmDeal[]
+  mails          CrmMail[]
+  appointments   CrmAppointment[]
   @@index([stage, nextActionAt])
 }
 
@@ -931,4 +933,52 @@ model CrmDeal {
   updatedAt      DateTime @updatedAt
   @@index([accountId, createdAt])
   @@index([status, renewalOn])
+}
+
+enum CrmMailStatus {
+  DRAFT
+  SENDING
+  ACCEPTED
+  UNKNOWN
+}
+model CrmEmailPermission {
+  email String @id
+  allowed Boolean @default(false)
+  reason String
+  updatedAt DateTime @updatedAt
+}
+model CrmMail {
+  id String @id @default(uuid())
+  accountId String
+  account CrmAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  dealId String?
+  kind String
+  status CrmMailStatus @default(DRAFT)
+  recipient String
+  subject String
+  body String
+  actor String
+  createdAt DateTime @default(now())
+  acceptedAt DateTime?
+  @@index([accountId, createdAt])
+}
+model CrmEmailTemplate {
+  id String @id @default(uuid())
+  name String
+  subject String
+  body String
+  createdAt DateTime @default(now())
+}
+model CrmAppointment {
+  id String @id @default(uuid())
+  accountId String
+  account CrmAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  title String
+  startsAt DateTime
+  endsAt DateTime
+  location String?
+  doneAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([startsAt, doneAt])
+  @@index([accountId, startsAt])
 }
