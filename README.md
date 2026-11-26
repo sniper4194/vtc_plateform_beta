@@ -98,8 +98,10 @@ Pour le simulateur et les démos locales, lancer l'API avec `DRIVER_DEV_OTP=0000
 
 ## Charte graphique
 
-Fond **bleu ciel** `#8fd0f5` avec texte **bleu nuit** `#0b2a4a` posé dessus (contraste 8,7) ; **bleu soutenu** `#1a66c2` pour les boutons et pastilles (texte crème dessus : 4,9) ; jaune `#f7b30a` et rouge `#ee2a14` en accents ; crème `#f5eedd` pour les cartes.
-Le rouge et le jaune ne servent jamais de couleur de texte directement sur le fond ciel (contraste insuffisant). Définition : `apps/driver-app/src/theme.ts` et `apps/backoffice/app/globals.css`.
+Les espaces chauffeur et régulateur proposent **Original** et **Classique** au premier lancement. Classique reprend le panneau crème, les accents bleu nuit et ambre, et une typographie sans empattement. Le choix est mémorisé sur l’appareil du chauffeur ou dans le navigateur du régulateur et reste accessible depuis l’interface.
+
+Le thème **Original** utilise un fond **bleu ciel** `#8fd0f5` avec texte **bleu nuit** `#0b2a4a` posé dessus (contraste 8,7) ; **bleu soutenu** `#1a66c2` pour les boutons et pastilles (texte crème dessus : 4,9) ; jaune `#f7b30a` et rouge `#ee2a14` en accents ; crème `#f5eedd` pour les cartes.
+Le rouge et le jaune ne servent jamais de couleur de texte directement sur le fond ciel (contraste insuffisant). Les styles sont définis dans `apps/driver-app/src/theme.ts`, `apps/backoffice/app/globals.css` et `apps/backoffice/app/regulator-theme.css`.
 
 ## E-mails et messages au chauffeur : acceptation et annulation
 

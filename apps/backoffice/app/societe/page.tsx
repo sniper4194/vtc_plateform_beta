@@ -1,7 +1,9 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { capi, clearCompanyKey, downloadCompanyFile, dt, eur, getCompanyKey, setCompanyKey } from "../../lib/api";
 import { PerformanceView } from "../perf";
+import "../regulator-theme.css";
+import { ThemePicker, useSiteTheme } from "../theme";
 
 type Tab = "perf" | "drivers" | "vehicles" | "rides" | "pool" | "payments";
 
@@ -13,7 +15,7 @@ function useLoad<T>(path: string, every = 8000) {
   return { data, error, reload };
 }
 
-function Login({ onOk }: { onOk: () => void }) {
+function Login({ onOk, picker }: { onOk: () => void; picker: ReactNode }) {
   const [key, setKey] = useState("");
   const [err, setErr] = useState("");
   async function submit(e: React.FormEvent) {
@@ -22,14 +24,15 @@ function Login({ onOk }: { onOk: () => void }) {
     try { await capi("/company/me"); onOk(); } catch (e: any) { clearCompanyKey(); setErr(e.status === 401 ? "Clé invalide" : e.message); }
   }
   return (
-    <main style={{ maxWidth: 460, marginTop: 70 }}>
-      <div className="brand" style={{ fontSize: 56, marginBottom: 24 }}>CliCab<small>espace société</small></div>
+    <main className="regulator-login">
+      <div className="brand">CliCab<small>espace société</small></div>
       <form className="card" onSubmit={submit}>
         <div className="cond muted">Clé d'accès de votre société</div>
         <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="cmp_…" style={{ width: "100%", margin: "8px 0" }} autoFocus />
         {err && <div className="err">{err}</div>}
         <button className="btn primary" disabled={!key}>Entrer</button>
       </form>
+      {picker}
     </main>
   );
 }
@@ -265,19 +268,22 @@ export default function CompanyPortal() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [tab, setTab] = useState<Tab>("perf");
+  const [theme, changeTheme] = useSiteTheme();
   const me = useLoad<any>("/company/me", 60000);
   const drivers = useLoad<any[]>("/company/drivers", 30000);
   useEffect(() => { setAuthed(Boolean(getCompanyKey())); setReady(true); }, []);
   const loadPerf = useCallback((qs: string) => capi(`/company/performance?${qs}`), []);
   if (!ready) return null;
-  if (!authed) return <Login onOk={() => setAuthed(true)} />;
+  const picker = <ThemePicker theme={theme} onTheme={changeTheme} label="Thème de l'espace société" />;
+  if (!authed) return <div className="regulator regulator-signed-out" data-theme={theme}><Login onOk={() => setAuthed(true)} picker={picker} /></div>;
   const tabs: [Tab, string][] = [["perf", "Performance"], ["drivers", "Chauffeurs"], ["vehicles", "Véhicules"], ["rides", "Missions"], ["pool", "Mise en commun"], ["payments", "Paiements"]];
   return (
-    <>
+    <div className="regulator" data-theme={theme}>
       <header>
         <div className="brand">CliCab<small>{me.data?.name ?? "espace société"}</small></div>
         <nav>{tabs.map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}</nav>
-        <button className="btn" style={{ marginLeft: "auto" }} onClick={() => { clearCompanyKey(); setAuthed(false); }}>Quitter</button>
+        <span style={{ marginLeft: "auto" }}>{picker}</span>
+        <button className="btn" onClick={() => { clearCompanyKey(); setAuthed(false); }}>Quitter</button>
       </header>
       <main>
         {tab === "perf" && <PerformanceView load={loadPerf} drivers={(drivers.data ?? []).map((d) => ({ id: d.id, label: `${d.firstName} ${d.lastName}` }))} vehicles={(drivers.data ?? []).flatMap((d) => d.vehicles.map((v: any) => ({ id: v.id, label: `${v.plate} · ${d.firstName}` })))} />}
@@ -287,6 +293,6 @@ export default function CompanyPortal() {
         {tab === "pool" && <Pool />}
         {tab === "payments" && <Payments />}
       </main>
-    </>
+    </div>
   );
 }

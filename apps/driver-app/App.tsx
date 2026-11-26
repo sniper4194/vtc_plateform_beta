@@ -6,7 +6,7 @@ import { Anton_400Regular } from "@expo-google-fonts/anton";
 import { KaushanScript_400Regular } from "@expo-google-fonts/kaushan-script";
 import { RozhaOne_400Regular } from "@expo-google-fonts/rozha-one";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, AppState, Platform, Pressable, SafeAreaView, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, AppState, Modal, Platform, Pressable, SafeAreaView, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { api, ApiError, BiometricError, biometricAvailable, biometricUnavailableMessage, clearSession, getApiUrl, loadApiUrl, loadDevice, loadToken, logout, saveApiUrl, saveDevice, saveHybridToken, unlockBiometric, verifySession } from "./src/api";
 import { reportCrash } from "./src/crashReport";
 import { ErrorBoundary } from "./src/ErrorBoundary";
@@ -16,10 +16,11 @@ import { SpotPrompt } from "./src/identity";
 import { MissionScreen } from "./src/mission";
 import { Earnings } from "./src/earnings";
 import { Agenda, Cap, Messages, Radar } from "./src/screens";
-import { applyTheme, BRAND, c, type ThemeMode } from "./src/theme";
-import { loadThemeMode, saveThemeMode } from "./src/themeStore";
+import { applyTheme, BRAND, c, type ThemeMode, type ThemeStyle } from "./src/theme";
+import { loadThemeMode, loadThemeStyle, saveThemeMode, saveThemeStyle } from "./src/themeStore";
+import { ThemeChoice } from "./src/ThemeChoice";
 import { passwordRules, validNewPassword } from "./src/password-policy";
-import { Btn, Card, Cond, Display, Script, Slab, Sticker, ThemeToggle, useToast } from "./src/ui";
+import { Btn, Card, Cond, Display, Script, Slab, Sticker, ThemePickerButton, ThemeToggle, useToast } from "./src/ui";
 
 type Tab = "radar" | "cap" | "revenus" | "agenda";
 
@@ -43,7 +44,7 @@ function PasswordField({ label, value, onChange, isNew = false, disabled }: { la
   </View>;
 }
 
-function Login({ onDone, dark, onToggleTheme, sessionExpired }: { onDone: () => void; dark: boolean; onToggleTheme: () => void; sessionExpired: boolean }) {
+function Login({ onDone, dark, onToggleTheme, onChooseTheme, sessionExpired }: { onDone: () => void; dark: boolean; onToggleTheme: () => void; onChooseTheme: () => void; sessionExpired: boolean }) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"phone" | "code">("phone");
@@ -156,6 +157,7 @@ function Login({ onDone, dark, onToggleTheme, sessionExpired }: { onDone: () => 
           </View>
           <ThemeToggle dark={dark} onToggle={onToggleTheme} />
         </View>
+        <ThemePickerButton onPress={onChooseTheme} />
         <View style={{ gap: 4 }}>
           <Text style={{ color: c.onSky, fontSize: 24, fontWeight: "700" }}>{step==="code"?"Vérification SMS":method==="activate"?"Activer mon compte":method==="legacy"?"Connexion par code":"Bienvenue"}</Text>
           <Text style={{ color: c.onSky, fontSize: 14 }}>{step==="code"?"Saisissez le code à 6 chiffres.":"Accédez à votre espace chauffeur sécurisé."}</Text>
@@ -251,6 +253,9 @@ const TABS: { key: Tab; label: string; glyph: string }[] = [
 
 function Root() {
   const [mode, setMode] = useState<ThemeMode>("light");
+  // Style d'affichage choisi par le chauffeur : « Original » (affiche rétro) par défaut, « Classique » en option.
+  const [style, setStyle] = useState<ThemeStyle>("original");
+  const [choosingTheme, setChoosingTheme] = useState(false);
   const [fontsLoaded] = useFonts({ RozhaOne_400Regular, AlfaSlabOne_400Regular, Anton_400Regular, KaushanScript_400Regular });
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
@@ -263,9 +268,11 @@ function Root() {
   useLandingAlert(authed && notificationsReady, toast.show);
 
   useEffect(() => {
-    Promise.all([loadThemeMode(), loadApiUrl().then(() => loadToken())]).then(async ([m, saved]) => {
-      applyTheme(m);
+    Promise.all([loadThemeMode(), loadThemeStyle(), loadApiUrl().then(() => loadToken())]).then(async ([m, st, saved]) => {
+      const chosen = st ?? "original";
+      applyTheme(m, chosen);
       setMode(m);
+      setStyle(chosen);
       if (!saved) return;
       try {
         await verifySession();
@@ -292,8 +299,20 @@ function Root() {
   const dark = mode === "dark";
   function toggleTheme() {
     const next: ThemeMode = dark ? "light" : "dark";
-    applyTheme(next); setMode(next); void saveThemeMode(next);
+    applyTheme(next, style); setMode(next); void saveThemeMode(next);
   }
+  function selectTheme(next: ThemeStyle) {
+    applyTheme(mode, next); setStyle(next); setChoosingTheme(false); void saveThemeStyle(next);
+  }
+  const openThemeChoice = () => setChoosingTheme(true);
+  const themePicker = choosingTheme && (
+    <Modal visible animationType="fade" onRequestClose={() => setChoosingTheme(false)}>
+      <ThemeChoice selected={style} onSelect={selectTheme} onClose={() => setChoosingTheme(false)} />
+    </Modal>
+  );
+  const classic = style === "classic";
+  const themeKey = `${style}:${mode}`;
+  const barStyle = classic && !dark ? "dark" : "light";
 
   useEffect(() => {
     if (!authed) return;
@@ -347,10 +366,13 @@ function Root() {
   }, [authed, notificationsReady]);
 
   if (!ready || !fontsLoaded) return <View style={{ flex: 1, backgroundColor: c.sky, justifyContent: "center" }}><ActivityIndicator color={c.onSky} /></View>;
-  if (!authed) return <Login key={mode} onDone={() => { setSessionExpired(false); setAuthed(true); }} sessionExpired={sessionExpired} dark={dark} onToggleTheme={toggleTheme} />;
+  if (!authed) return <>
+    <Login key={themeKey} onDone={() => { setSessionExpired(false); setAuthed(true); }} sessionExpired={sessionExpired} dark={dark} onToggleTheme={toggleTheme} onChooseTheme={openThemeChoice} />
+    {themePicker}
+  </>;
   if (showMessages) {
     return (
-      <SafeAreaView key={mode} style={{ flex: 1, backgroundColor: c.sky }}>
+      <SafeAreaView key={themeKey} style={{ flex: 1, backgroundColor: c.sky }}>
         <StatusBar style={dark ? "light" : "dark"} />
         <Messages onClose={() => setShowMessages(false)} notify={toast.show} openMission={setMissionId} />
         {toast.node}
@@ -361,7 +383,7 @@ function Root() {
   if (missionId) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: c.sky }}>
-        <StatusBar style="light" />
+        <StatusBar style={barStyle} />
         <MissionScreen rideId={missionId} onClose={() => setMissionId(null)} notify={toast.show} />
         {toast.node}
         <SpotPrompt notify={toast.show} />
@@ -369,24 +391,25 @@ function Root() {
     );
   }
   return (
-    <SafeAreaView key={mode} style={{ flex: 1, backgroundColor: c.sky }}>
-      <StatusBar style="light" />
+    <SafeAreaView key={themeKey} style={{ flex: 1, backgroundColor: c.sky }}>
+      <StatusBar style={barStyle} />
       <View style={{ flex: 1 }}>
         {tab === "radar" && <Radar notify={toast.show} />}
-        {tab === "cap" && <Cap dark={dark} onToggleTheme={toggleTheme} goRadar={() => setTab("radar")} onQuit={async () => { try{await logout();}catch{toast.show("Déconnexion locale ; révocation serveur non confirmée.");}finally{setAuthed(false);setMissionId(null);setShowMessages(false);} }} notify={toast.show} openMission={setMissionId} openMessages={() => setShowMessages(true)} />}
+        {tab === "cap" && <Cap dark={dark} onToggleTheme={toggleTheme} onChooseTheme={openThemeChoice} goRadar={() => setTab("radar")} onQuit={async () => { try{await logout();}catch{toast.show("Déconnexion locale ; révocation serveur non confirmée.");}finally{setAuthed(false);setMissionId(null);setShowMessages(false);} }} notify={toast.show} openMission={setMissionId} openMessages={() => setShowMessages(true)} />}
         {tab === "revenus" && <Earnings notify={toast.show} />}
         {tab === "agenda" && <Agenda notify={toast.show} openMission={setMissionId} />}
         {toast.node}
         <SpotPrompt notify={toast.show} />
       </View>
-      <View style={{ flexDirection: "row", backgroundColor: c.cream, borderTopWidth: 3, borderColor: c.ink, paddingVertical: 8 }}>
+      <View style={{ flexDirection: "row", backgroundColor: c.cream, borderTopWidth: classic ? 1 : 3, borderColor: c.line, paddingVertical: 8 }}>
         {TABS.map((t) => (
           <Pressable key={t.key} style={{ flex: 1, alignItems: "center", gap: 2 }} onPress={() => setTab(t.key)} accessibilityRole="tab" accessibilityState={{ selected: tab === t.key }}>
             <Sticker size={38} color={tab === t.key ? c.yel : c.cream} rot={tab === t.key ? -8 : 0}><Slab size={17} color={tab === t.key ? c.ink : c.muted} shadow={null}>{t.glyph}</Slab></Sticker>
-            <Cond size={12} color={tab === t.key ? c.red : c.muted}>{t.label}</Cond>
+            <Cond size={12} color={tab === t.key ? (classic ? c.blue : c.red) : c.muted}>{t.label}</Cond>
           </Pressable>
         ))}
       </View>
+      {themePicker}
     </SafeAreaView>
   );
 }

@@ -1,0 +1,35 @@
+/* Thème « Original » : affiche rétro CliCab (ciel, cartes crème, bord encre, ombre portée dure).
+   Le thème « Classique » est le style sobre de globals.css : ce fichier ne s'applique qu'avec html[data-theme="original"]. */
+html[data-theme="original"] {
+  --ink: #14172b; --muted: #5b5f7a; --line: #14172b; --bg: #8fd0f5; --card: #f5eedd; --navy: #0b2a4a;
+  --blue: #1a66c2; --yel: #f7b30a; --red: #ee2a14; --ok: #0a8f5b; --bad: #ee2a14;
+  --display: "Rozha One", Georgia, serif; --slab: "Alfa Slab One", Georgia, serif; --cond: "Anton", Impact, sans-serif; --script: "Kaushan Script", cursive;
+}
+html[data-theme="original"] body { background: var(--bg); }
+html[data-theme="original"] .brand { font-family: var(--display); font-weight: 400; font-size: 40px; letter-spacing: 0; color: var(--navy); text-shadow: 3px 3px 0 var(--card); padding: 8px 0 16px; line-height: 1; }
+html[data-theme="original"] .brand::before { content: none; }
+html[data-theme="original"] .card { border: 3px solid var(--ink); border-radius: 18px; box-shadow: 5px 5px 0 var(--ink); margin-bottom: 18px; }
+html[data-theme="original"] h1 { font-family: var(--slab); font-weight: 400; letter-spacing: .01em; }
+html[data-theme="original"] h2 { font-family: var(--cond); font-weight: 400; letter-spacing: 1.5px; font-size: 14px; color: var(--muted); }
+html[data-theme="original"] .hero { background: var(--navy); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 5px 5px 0 var(--ink); margin-bottom: 18px; }
+html[data-theme="original"] .hero h1 { color: var(--card); text-shadow: 2px 2px 0 var(--red); }
+html[data-theme="original"] .steps i.on { background: var(--yel); }
+html[data-theme="original"] .photo { border-color: var(--ink); }
+html[data-theme="original"] .driver b { font-family: var(--slab); font-weight: 400; }
+html[data-theme="original"] .plate { border-width: 3px; background: var(--yel); box-shadow: 2px 2px 0 var(--ink); }
+html[data-theme="original"] .row { border-top: 1.5px dashed rgba(20, 23, 43, .35); }
+html[data-theme="original"] .row:first-of-type { border-top: 0; }
+html[data-theme="original"] .flight { border-left: 6px solid var(--blue); }
+html[data-theme="original"] .flight.bad { border-left-color: var(--red); }
+html[data-theme="original"] .field > span, html[data-theme="original"] .field > legend { font-family: var(--cond); font-weight: 400; letter-spacing: 1px; text-transform: uppercase; }
+html[data-theme="original"] input:not([type=checkbox]):not([type=radio]), html[data-theme="original"] textarea, html[data-theme="original"] select { border: 2px solid var(--ink); background: #fff; }
+html[data-theme="original"] .primary { font-family: var(--slab); font-weight: 400; background: var(--yel); color: var(--ink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); }
+html[data-theme="original"] .primary:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink); }
+html[data-theme="original"] .link { color: var(--navy); font-weight: 700; text-decoration: underline; }
+html[data-theme="original"] .meet img { border: 3px solid var(--ink); }
+
+/* Sélecteur de thème en pied de page (les deux thèmes). */
+.theme-switch { padding-top: 0; }
+.theme-switch label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.theme-switch select { width: auto; padding: 6px 10px; font-size: 14px; }
+html[data-theme="original"] .theme-switch label { color: var(--navy); }
