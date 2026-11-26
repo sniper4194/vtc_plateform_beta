@@ -16,10 +16,18 @@ appId: com.clicab.driver
 - extendedWaitUntil:
     visible: "(?i)bienvenue"
     timeout: 20000
-- scrollUntilVisible:
-    element: "Changer le serveur"
-    direction: DOWN
-- tapOn: "Changer le serveur"
+# L'appui pouvait tomber pendant le défilement et ne rien ouvrir (passage 45911807846) : jusqu'à 3 essais.
+- repeat:
+    times: 3
+    while:
+      notVisible: "(?i)adresse du serveur"
+    commands:
+      - scrollUntilVisible:
+          element: "Changer le serveur"
+          direction: DOWN
+      - waitForAnimationToEnd
+      - tapOn: "Changer le serveur"
+      - waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "(?i)adresse du serveur"
     timeout: 10000
