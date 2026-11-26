@@ -76,7 +76,11 @@ export async function api<T = any>(path: string, body?: unknown, method?: "DELET
   }
   const text = await res.text();
   const json = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new ApiError(json?.message ?? `Erreur ${res.status}`, res.status, json?.code);
+  if (!res.ok) {
+    const passwordErrors = path === "/driver/auth/activate" ? json?.errors?.fieldErrors?.password : null;
+    const message = Array.isArray(passwordErrors) && passwordErrors.length ? passwordErrors.join(" ; ") : json?.message ?? `Erreur ${res.status}`;
+    throw new ApiError(message, res.status, json?.code);
+  }
   return json as T;
 }
 

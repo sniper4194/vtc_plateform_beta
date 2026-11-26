@@ -1,12 +1,13 @@
 import {randomBytes,scrypt as rawScrypt,timingSafeEqual} from "node:crypto";
 import {promisify} from "node:util";
 import {z} from "zod";
+import {passwordRules} from "./password-policy";
 const scrypt=promisify(rawScrypt) as (p:string,s:Buffer,k:number,o:object)=>Promise<Buffer>;
 const opts={N:32768,r:8,p:3,maxmem:64*1024*1024};
 export const SESSION_SECONDS=30*86400, DEVICE_MS=90*86400_000;
 export const phoneSchema=z.string().min(6).max(40);
 export const codeSchema=z.string().regex(/^\d{6}$/);
-export const newPassword=z.string().min(15).max(128).refine(p=>p.trim().length>=15,"Utilisez une phrase secrète d'au moins 15 caractères");
+export const newPassword=z.string().superRefine((p,ctx)=>{for(const rule of passwordRules)if(!rule.test(p))ctx.addIssue({code:z.ZodIssueCode.custom,message:rule.label});});
 export const existingPassword=z.string().min(1).max(128);
 export const deviceKey=z.string().regex(/^[0-9a-f]{64}$/);
 export const activateSchema=z.object({phone:phoneSchema,code:codeSchema,password:newPassword}).strict();

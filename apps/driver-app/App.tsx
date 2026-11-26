@@ -6,7 +6,7 @@ import { Anton_400Regular } from "@expo-google-fonts/anton";
 import { KaushanScript_400Regular } from "@expo-google-fonts/kaushan-script";
 import { RozhaOne_400Regular } from "@expo-google-fonts/rozha-one";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, Switch, TextInput, View } from "react-native";
+import { ActivityIndicator, AppState, Pressable, SafeAreaView, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { api, ApiError, biometricAvailable, getApiUrl, loadApiUrl, loadDevice, loadToken, logout, saveApiUrl, saveDevice, saveHybridToken, saveToken, unlockBiometric } from "./src/api";
 import { reportCrash } from "./src/crashReport";
 import { ErrorBoundary } from "./src/ErrorBoundary";
@@ -16,11 +16,32 @@ import { SpotPrompt } from "./src/identity";
 import { MissionScreen } from "./src/mission";
 import { Earnings } from "./src/earnings";
 import { Agenda, Cap, Messages, Radar } from "./src/screens";
-import { applyTheme, BRAND, c, font, type ThemeMode } from "./src/theme";
+import { applyTheme, BRAND, c, type ThemeMode } from "./src/theme";
 import { loadThemeMode, saveThemeMode } from "./src/themeStore";
+import { passwordRules, validNewPassword } from "./src/password-policy";
 import { Btn, Card, Cond, Display, Script, Slab, Sticker, ThemeToggle, useToast } from "./src/ui";
 
 type Tab = "radar" | "cap" | "revenus" | "agenda";
+
+function PasswordField({ label, value, onChange, isNew = false, disabled }: { label: string; value: string; onChange: (v: string) => void; isNew?: boolean; disabled: boolean }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", state => { if (state !== "active") setVisible(false); });
+    return () => sub.remove();
+  }, []);
+  return <View style={{ gap: 5 }}>
+    <Text style={{ color: c.ink, fontSize: 14, fontWeight: "600" }}>{label}</Text>
+    <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: c.ink, borderRadius: 12, backgroundColor: c.white }}>
+      <TextInput style={{ flex: 1, minWidth: 0, color: c.ink, fontSize: 17, paddingHorizontal: 12, paddingVertical: 12 }} accessibilityLabel={label} secureTextEntry={!visible} value={value} onChangeText={onChange} maxLength={128} autoCapitalize="none" autoCorrect={false} autoComplete={isNew ? "new-password" : "current-password"} editable={!disabled}/>
+      <Pressable accessibilityRole="button" accessibilityLabel={visible ? "Masquer " + label.toLowerCase() : "Afficher " + label.toLowerCase()} accessibilityState={{ disabled }} disabled={disabled} onPress={() => setVisible(v => !v)} style={{ width: 48, minHeight: 48, alignItems: "center", justifyContent: "center" }}>
+        <View style={{ width: 24, height: 15, borderRadius: 12, borderWidth: 2, borderColor: c.ink, alignItems: "center", justifyContent: "center" }}>
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.ink }}/>
+          {visible && <View style={{ position: "absolute", width: 27, height: 2, backgroundColor: c.ink, transform: [{ rotate: "-40deg" }] }}/>}
+        </View>
+      </Pressable>
+    </View>
+  </View>;
+}
 
 function Login({ onDone, dark, onToggleTheme }: { onDone: () => void; dark: boolean; onToggleTheme: () => void }) {
   const [phone, setPhone] = useState("");
@@ -53,6 +74,7 @@ function Login({ onDone, dark, onToggleTheme }: { onDone: () => void; dark: bool
   }, [wait]);
 
   async function sendCode() {
+    if(method==="activate"&&(!validNewPassword(password)||password!==confirmPassword)){setErr("Respectez les critères du mot de passe et confirmez-le.");return;}
     setBusy(true); setErr("");
     try {
       const r = await api<{ resendInSeconds: number }>(method==="password"?"/driver/auth/device-code":"/driver/otp", { phone: phone.trim(),...(method==="password"?{password}:{}) });
@@ -62,34 +84,52 @@ function Login({ onDone, dark, onToggleTheme }: { onDone: () => void; dark: bool
   async function submit() {
     setBusy(true); setErr("");
     try {
-      if(method==="activate"){if(password.length<15||password!==confirmPassword)throw new Error("Les mots de passe doivent correspondre et contenir 15 caractères minimum.");const r=await api<{token:string;deviceKey:string}>("/driver/auth/activate",{phone:phone.trim(),code:code.trim(),password});await finish(r);}
+      if(method==="activate"){if(!validNewPassword(password)||password!==confirmPassword)throw new Error("Respectez les critères du mot de passe et confirmez-le.");const r=await api<{token:string;deviceKey:string}>("/driver/auth/activate",{phone:phone.trim(),code:code.trim(),password});await finish(r);}
       else {const r=await api<{ token: string }>("/driver/login", { phone: phone.trim(), code: code.trim() });await saveToken(r.token);onDone();}
     } catch (e: any) { setErr(e.message === "Identifiants invalides" ? "Code incorrect ou expiré" : e.message); } finally { setBusy(false); }
   }
-  const input = { fontFamily: font.slab, fontSize: 18, color: c.ink, paddingVertical: 4 } as const;
+  const input = { fontSize: 18, color: c.ink, paddingVertical: 10 } as const;
+  const passwordReady=validNewPassword(password)&&password===confirmPassword;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.sky }}>
-      <View style={{ position: "absolute", top: -40, right: -50 }}><Sticker size={190} color={c.yel} rot={12}><Display size={60} color={c.blue} shadow={c.red}>V</Display></Sticker></View>
-      <View style={{ position: "absolute", bottom: -60, left: -60 }}><Sticker size={220} color={c.red} rot={-10}><Slab size={22} color={c.yel} shadow={null}>PRIX FIXE</Slab></Sticker></View>
-      <View style={{ position: "absolute", top: 14, left: 16, zIndex: 5 }}><ThemeToggle dark={dark} onToggle={onToggleTheme} /></View>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, paddingTop: 90, gap: 18, paddingBottom: 50 }}>
-        <View>
-          <Display size={70} shadow={c.red}>{BRAND}</Display>
-          <Script size={34}>l'app des chauffeurs</Script>
+      <StatusBar style={dark ? "light" : "dark"} />
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 22, paddingTop: 32, gap: 16, paddingBottom: 48 }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <View style={{ flex: 1, paddingRight: 10 }}>
+            <Display size={42} shadow={c.red}>{BRAND}</Display>
+            <Script size={25}>L'app des chauffeurs</Script>
+          </View>
+          <ThemeToggle dark={dark} onToggle={onToggleTheme} />
         </View>
-        {step==="phone"&&<View style={{gap:8}}>{biometricAvailable()&&<Btn label="Déverrouiller avec la biométrie" disabled={busy} onPress={biometricLogin}/>}<View style={{flexDirection:"row",gap:8}}><View style={{flex:1}}><Btn label="Mot de passe" color={method==="password"?c.yel:undefined} disabled={busy} onPress={()=>choose("password")}/></View><View style={{flex:1}}><Btn label="Activer mon compte" color={method==="activate"?c.yel:undefined} disabled={busy} onPress={()=>choose("activate")}/></View></View></View>}
+        <View style={{ gap: 4 }}>
+          <Text style={{ color: c.onSky, fontSize: 24, fontWeight: "700" }}>{step==="code"?"Vérification SMS":method==="activate"?"Activer mon compte":method==="legacy"?"Connexion par code":"Bienvenue"}</Text>
+          <Text style={{ color: c.onSky, fontSize: 14 }}>{step==="code"?"Saisissez le code à 6 chiffres.":"Accédez à votre espace chauffeur sécurisé."}</Text>
+        </View>
+        {step==="phone"&&<View style={{ flexDirection: "row", gap: 8 }}>
+          {(["password","activate"] as const).map(m=><Pressable key={m} accessibilityRole="tab" accessibilityState={{selected:method===m,disabled:busy}} disabled={busy} onPress={()=>choose(m)} style={{ flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 2, borderColor: c.ink, backgroundColor: method===m?c.yel:c.cream, justifyContent:"center", alignItems:"center", padding:8 }}>
+            <Text style={{ color:c.ink, fontSize:14, fontWeight:"700", textAlign:"center" }}>{m==="password"?"Mot de passe":"Activer mon compte"}</Text>
+          </Pressable>)}
+        </View>}
         {step === "phone" ? (
           <>
             <Card>
               <Cond size={12} color={c.muted}>Téléphone</Cond>
               <TextInput style={input} placeholder="06 12 34 56 78" placeholderTextColor="#9a9ab0" keyboardType="phone-pad" value={phone} onChangeText={setPhone} autoCapitalize="none" autoComplete="tel" />
             </Card>
-            {method==="password"&&<Card><Cond size={12} color={c.muted}>Mot de passe</Cond><TextInput style={input} secureTextEntry value={password} onChangeText={v=>{setPassword(v);setChallenge(false);}} maxLength={128} autoCapitalize="none" autoCorrect={false} autoComplete="current-password"/></Card>}
-            {method==="activate"&&<><Cond size={13}>Première activation ou récupération autorisée par le support.</Cond><Card><Cond size={12}>Nouveau mot de passe (15 caractères minimum)</Cond><TextInput style={input} secureTextEntry value={password} onChangeText={setPassword} maxLength={128} autoCapitalize="none" autoCorrect={false}/><Cond size={12}>Confirmer</Cond><TextInput style={input} secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} maxLength={128} autoCapitalize="none" autoCorrect={false}/></Card></>}
-            {method!=="legacy"&&biometricAvailable()&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Cond size={12}>Protéger la session par biométrie locale</Cond><Switch value={bio} onValueChange={setBio} disabled={busy}/></View>}
-            {err ? <Card color={c.red}><Slab size={14} color={c.cream} shadow={null}>{err}</Slab></Card> : null}
-            {method==="password"?<><Btn label={busy?"Connexion…":"Se connecter"} onPress={passwordLogin} disabled={busy||phone.trim().length<6||!password} color={c.yel}/>{challenge&&<><Cond size={13}>Nouvel appareil ou autorisation expirée. Confirmez votre numéro par SMS.</Cond><Btn label="Vérifier cet appareil par SMS" onPress={sendCode} disabled={busy||wait>0||!password}/></>}<Cond size={12}>Mot de passe oublié ? Contactez le support pour vérifier votre identité et réactiver le compte.</Cond><Btn label="Recevoir mon code" disabled={busy||phone.trim().length<6} onPress={()=>{setMethod("legacy");setPassword("");setConfirmPassword("");setChallenge(false);setErr("");void (async()=>{setBusy(true);try{const r=await api<{resendInSeconds:number}>("/driver/otp",{phone:phone.trim()});setStep("code");setCode("");setWait(r.resendInSeconds??30);}catch(e:any){setErr(e.message);}finally{setBusy(false);}})();}}/></>:<Btn label={busy?"Envoi…":"Recevoir mon code"} onPress={sendCode} disabled={busy||phone.trim().length<6||method==="activate"&&(password.length<15||password!==confirmPassword)||wait>0} color={c.yel}/>}
-            {method==="password"&&<Cond size={11}>L'accès par code seul reste réservé aux comptes non activés.</Cond>}
+            {method==="password"&&<Card><PasswordField key="login" label="Mot de passe" value={password} onChange={v=>{setPassword(v);setChallenge(false);}} disabled={busy}/></Card>}
+            {method==="activate"&&<Card style={{ gap: 12 }}>
+              <Text style={{ color:c.ink, fontSize:13 }}>Première activation ou récupération autorisée par le support.</Text>
+              <PasswordField key="new" label="Nouveau mot de passe" value={password} onChange={setPassword} isNew disabled={busy}/>
+              <View style={{ gap: 5 }}>
+                {passwordRules.map(rule=><Text key={rule.label} style={{ color:rule.test(password)?"#17663d":c.muted, fontSize:13 }}>{rule.test(password)?"✓":"○"}  {rule.label}</Text>)}
+              </View>
+              <PasswordField key="confirm" label="Confirmer le mot de passe" value={confirmPassword} onChange={setConfirmPassword} isNew disabled={busy}/>
+              <Text style={{ color:password&&password===confirmPassword?"#17663d":c.muted, fontSize:13 }}>{password&&password===confirmPassword?"✓":"○"}  Les deux mots de passe correspondent</Text>
+            </Card>}
+            {method!=="legacy"&&biometricAvailable()&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12}}><Text style={{flex:1,color:c.onSky,fontSize:14}}>Protéger ma session par biométrie</Text><Switch accessibilityLabel="Protéger ma session par biométrie" value={bio} onValueChange={setBio} disabled={busy}/></View>}
+            {err ? <Card color={c.red}><Text style={{color:c.white,fontSize:14,fontWeight:"600"}}>{err}</Text></Card> : null}
+            {method==="password"?<><Btn label={busy?"Connexion…":"Se connecter"} onPress={passwordLogin} disabled={busy||phone.trim().length<6||!password} color={c.yel}/>{challenge&&<><Text style={{color:c.onSky,fontSize:14}}>Nouvel appareil ou autorisation expirée. Confirmez votre numéro par SMS.</Text><Btn label="Vérifier cet appareil par SMS" onPress={sendCode} disabled={busy||wait>0||!password}/></>}<Text style={{color:c.onSky,fontSize:13}}>Mot de passe oublié ? Contactez le support pour vérifier votre identité, puis activez de nouveau votre compte.</Text>{biometricAvailable()&&<Btn label="Déverrouillage biométrique" disabled={busy} onPress={biometricLogin}/>}<Btn label="Ancien compte ? Recevoir mon code SMS" disabled={busy||phone.trim().length<6} onPress={()=>{setMethod("legacy");setPassword("");setConfirmPassword("");setChallenge(false);setErr("");void (async()=>{setBusy(true);try{const r=await api<{resendInSeconds:number}>("/driver/otp",{phone:phone.trim()});setStep("code");setCode("");setWait(r.resendInSeconds??30);}catch(e:any){setErr(e.message);}finally{setBusy(false);}})();}}/></>:<Btn label={busy?"Envoi…":"Recevoir mon code"} onPress={sendCode} disabled={busy||phone.trim().length<6||method==="activate"&&!passwordReady||wait>0} color={c.yel}/>}
+            {method==="password"&&<Text style={{color:c.onSky,fontSize:12}}>Le code SMS seul est réservé aux comptes non activés.</Text>}
           </>
         ) : (
           <>
@@ -98,7 +138,7 @@ function Login({ onDone, dark, onToggleTheme }: { onDone: () => void; dark: bool
               <Cond size={12} color={c.muted}>Code à 6 chiffres</Cond>
               <TextInput style={input} placeholder="••••••" placeholderTextColor="#9a9ab0" keyboardType="number-pad" value={code} onChangeText={setCode} maxLength={6} autoComplete="sms-otp" textContentType="oneTimeCode" />
             </Card>
-            {err ? <Card color={c.red}><Slab size={14} color={c.cream} shadow={null}>{err}</Slab></Card> : null}
+            {err ? <Card color={c.red}><Text style={{color:c.white,fontSize:14,fontWeight:"600"}}>{err}</Text></Card> : null}
             <Btn label={busy ? "Connexion…" : "C'est parti"} onPress={method==="password"?passwordLogin:submit} disabled={busy || code.trim().length !== 6} color={c.yel} />
             <View style={{ flexDirection: "row", gap: 12 }}>
               <View style={{ flex: 1 }}><Btn label={wait > 0 ? `Renvoyer (${wait} s)` : "Renvoyer le code"} onPress={sendCode} disabled={busy || wait > 0} /></View>
