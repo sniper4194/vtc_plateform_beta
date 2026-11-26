@@ -21,6 +21,13 @@ if ! adb shell pidof com.clicab.driver || grep -Eq 'FATAL EXCEPTION|Process: com
 fi
 
 if (( maestro_status != 0 )); then
+  # Les captures ne sont lisibles qu'en téléchargeant l'archive : on écrit aussi dans le journal
+  # les textes affichés à l'écran au moment de l'échec, et les dernières lignes du serveur de test.
+  echo "=== Textes à l'écran au moment de l'échec ==="
+  adb shell uiautomator dump /sdcard/ecran.xml >/dev/null 2>&1 || true
+  adb shell cat /sdcard/ecran.xml 2>/dev/null | grep -oE '(text|content-desc)="[^"]+"' | sed 's/&#10;/ /g' | head -80 || true
+  echo "=== Fin du journal du serveur de test ==="
+  tail -40 api.log 2>/dev/null || true
   echo "::error::Le scénario Maestro no-show a échoué (code ${maestro_status})."
 fi
 exit "$maestro_status"
