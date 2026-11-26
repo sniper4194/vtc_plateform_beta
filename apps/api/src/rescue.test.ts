@@ -1,3 +1,4 @@
+import { manualAssignment } from "../test/manual-assignment";
 import { NotificationsService } from "./notifications";
 import { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
@@ -561,8 +562,8 @@ describe("critères du véhicule à l'admission et à l'attribution", () => {
     expect((await call("/driver/offers", { token: requester.token })).json).toHaveLength(1);
     // la même règle protège l'attribution manuelle
     const ride = await prisma.ride.findFirstOrThrow();
-    expect((await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: d.id } })).status).toBe(409);
-    expect((await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: requester.id } })).status).toBe(201);
+    expect((await call(`/admin/rides/${ride.id}/assign`, await manualAssignment(prisma, ride.id, d.id))).status).toBe(409);
+    expect((await call(`/admin/rides/${ride.id}/assign`, await manualAssignment(prisma, ride.id, requester.id))).status).toBe(201);
   });
 });
 

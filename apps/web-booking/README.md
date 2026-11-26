@@ -1,3 +1,7 @@
-# Site de réservation client (Next.js) — phase 1/2
+# Réservation dédiée et suivi voyageur (Next.js)
 
-À initialiser (voir docs/CAHIER_DES_CHARGES.md §3 et §8).
+**Existant.** Réservation via `/reserver/[slug]`, suivi via `/suivi/[token]` et formulaire de candidature chauffeur.
+
+**Cible.** Portail professionnel avec gestion des commandes et interface B2C pour les courses immédiates et programmées. Voir le [cahier des charges](../../docs/CAHIER_DES_CHARGES.md).
+
+**À valider.** Accès professionnel, parcours client, paiement et conditions d’annulation.

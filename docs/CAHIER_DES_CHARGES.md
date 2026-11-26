@@ -1,36 +1,38 @@
-# Plateforme VTC B2B2C — Cahier des charges & architecture (v0.1)
+# CliCab — Cahier des charges
 
-> Document vivant, basé sur les réponses au questionnaire de cadrage et les captures Allocab / Sixt Drive.
-> Les points marqués ⚠️ sont des **risques ou décisions à valider** (juridique, business).
+État de référence TEST : `43bfbb16403f873bc9c45fc891cfec9193366ac8`. Les 18 scénarios de phase 1 sont déclarés validés dans le cadrage de la mission. Les [résultats de l’audit](AUDIT_FONCTIONNEL.md) précisent la couverture disponible.
 
 ## 1. Vision
 
-Plateforme qui **vend des transferts VTC à prix fixe** à des partenaires (Booking.com, Trip.com, agences, entreprises) via une **API B2B** et un site de réservation, puis **dispatche** chaque course à des **chauffeurs indépendants et sociétés VTC partenaires** via une app mobile (bourse de courses + attribution manuelle).
+**Existant.** CliCab distribue des transferts VTC à prix fixe réservés via l’API partenaire ou via des pages de réservation dédiées. Les chauffeurs indépendants et sociétés VTC reçoivent les offres dans l’application chauffeur.
 
-Objectif commercial : obtenir des contrats avec Booking.com / Trip.com. Ils attendent : prix fixe garanti, fiabilité, suivi de vol, multilingue, support 24/7, API stable, facturation propre, gestion des litiges.
+**Cible.** Un socle commun de réservation, tarification, distribution et suivi alimente le B2B2C (plateformes externes autorisées), le B2B (portail professionnel ou API) et le B2C (web et applications Android/iOS, immédiat et programmé).
+
+**À valider.** Contrats et accès techniques des plateformes, dont Transferz. Prix garanti, suivi de vol, multilingue, support 24/7, facturation et litiges restent des exigences commerciales. Voir la [vision stratégique](VISION_STRATEGIQUE.md).
 
 ### Acteurs
 | Acteur | Rôle |
 |---|---|
-| Partenaire B2B (Booking…) | Appelle l'API : devis, réservation, annulation, suivi |
+| Plateforme B2B2C | Intègre devis, réservation, annulation et suivi via une interface autorisée |
+| Client professionnel B2B | Commande et suit ses courses via portail ou API |
 | Voyageur | Réserve via partenaire ou site direct, suit sa course |
 | Chauffeur indépendant | App mobile : accepte/refuse, exécute, est payé |
 | Société VTC | Gère ses chauffeurs/véhicules, reçoit les paiements |
-| Opérateur dispatch | Back-office : attribue manuellement, gère litiges, support |
+| Dispatcheur | Suit les courses et attribue manuellement après accord téléphonique explicite |
 | Admin | Tarifs, partenaires, validation documents, finance |
 
 ## 2. Décisions issues du cadrage
 
 | Sujet | Décision |
 |---|---|
-| Modèle | B2B2C, prix fixe pré-calculé |
+| Modèle | Hybride B2B2C, B2B et B2C, prix fixe pré-calculé pour les transferts |
 | Chauffeurs | Indépendants avec carte VTC + sociétés VTC |
 | Périmètre MVP | App chauffeur, back-office/dispatch, API B2B, site de réservation client |
 | Zone | France entière (vol/gare/aéroport prioritaires, Paris en premier) |
 | Statut juridique | Simple intermédiaire technique ⚠️ (voir §9) |
 | Tarification | Prix fixe, forfaits aéroports/gares, tarifs négociés par partenaire, majorations (nuit, week-end, pic, bagages, attente) |
 | Paiement chauffeurs | Mixte : partenaire prépayé ou facture mensuelle ; reversement chauffeurs moins commission |
-| Dispatch | Bourse « premier qui accepte » (compte à rebours type Allocab) + attribution manuelle ; réservations à l'avance **et** immédiates |
+| Dispatch | Bourse libre, premier chauffeur éligible qui accepte. Attribution manuelle avec accord préalable. |
 | Véhicules | Berline, Berline Business, Van/Minibus 6-8 places, Électrique/Green, mise à disposition horaire, longue distance |
 | Voyageur | Suivi de vol, multilingue, support 24/7, suivi live + SMS/WhatsApp, annulation/avoirs/litiges |
 | Onboarding | Upload + validation manuelle des documents, notation/sanctions, contrat de sous-traitance e-signé |
@@ -39,6 +41,10 @@ Objectif commercial : obtenir des contrats avec Booking.com / Trip.com. Ils atte
 | Phasage | Démo → pilote opérationnel Paris |
 
 ## 3. Fonctionnalités par module
+
+**Existant.** API partenaire avec devis, réservation et annulation, pages dédiées, suivi par lien, bourse et exécution chauffeur, back-office et espace société, CRM et SAV. L’architecture et l’[audit](AUDIT_FONCTIONNEL.md) détaillent les capacités et limites.
+
+**Cible.** Les listes ci-dessous conservent les exigences de cadrage. Les fonctions couvertes seulement en partie ou encore à réaliser sont recensées dans l’audit et la [feuille de route](ROADMAP.md). Les arbitrages ouverts sont suivis dans le [registre des décisions](DECISIONS.md).
 
 ### 3.1 App chauffeur (React Native / Expo) — identité et ergonomie propres
 - **Cap** (accueil) : gains de la quinzaine, potentiel « à l'horizon », missions au programme, bascule En ligne / Hors ligne, véhicule actif.
@@ -50,7 +56,7 @@ Objectif commercial : obtenir des contrats avec Booking.com / Trip.com. Ils atte
 - Plus tard : Tap to Pay, offres partenaires.
 
 ### 3.2 Back-office / dispatch (Next.js)
-- Liste des courses (filtres statut/date/partenaire), carte temps réel, attribution manuelle, relance bourse, réassignation d'urgence.
+- Liste des courses (filtres statut/date/partenaire), carte temps réel, relance bourse et réassignation d’urgence. Toute attribution manuelle, y compris en urgence, exige un accord téléphonique préalable sur la course et sa rémunération. Le dispatch ne crée aucune course.
 - Gestion chauffeurs/sociétés/véhicules : validation des documents, suspension, notes, sanctions.
 - Gestion partenaires B2B : clés API, webhooks, grille tarifaire, commissions, facturation.
 - Moteur de tarification (zones, forfaits, majorations, véhicule).
@@ -70,7 +76,7 @@ Objectif commercial : obtenir des contrats avec Booking.com / Trip.com. Ils atte
 ### 3.5 Transverse
 - **Suivi de vol** (API type AviationStack / FlightAware / AeroDataBox) : ajustement automatique de l'heure de prise en charge (« Heure actualisée »).
 - Notifications : push (FCM/APNs), SMS, e-mail, WhatsApp (Twilio / Meta Cloud API).
-- Notation chauffeur, score de fiabilité, suspension auto après no-show/annulations.
+- Notation chauffeur et score de fiabilité. Le code applique une suspension automatique à certains seuils de récidive. Le rôle de la revue humaine, les conditions de recours et le barème restent à valider.
 - Contrat cadre de sous-traitance + CGU signés électroniquement à l'inscription.
 
 ## 4. Cycle de vie d'une course
@@ -78,11 +84,11 @@ Objectif commercial : obtenir des contrats avec Booking.com / Trip.com. Ils atte
 `created → quoted → confirmed → dispatching → assigned → en_route → arrived → in_progress → completed`
 Branches : `cancelled_by_client`, `cancelled_by_partner`, `driver_cancelled` (→ redispatch), `no_show`, `disputed`, `refunded`.
 
-Dispatch : à la confirmation, la course est publiée dans la bourse (filtrée par zone, catégorie de véhicule, disponibilité) avec un délai d'acceptation (ex. 1 min si imminente, plus long si planifiée) ; en cas d'expiration → élargissement du rayon / alerte opérateur ; l'opérateur peut forcer une attribution. Garde-fous : verrouillage optimiste pour qu'un seul chauffeur gagne, détection de chevauchements de planning.
+Dispatch : à la confirmation, la course est publiée dans la bourse (filtrée par zone, catégorie de véhicule, disponibilité) avec un délai d'acceptation (ex. 1 min si imminente, plus long si planifiée) ; en cas d'expiration → élargissement du rayon / alerte opérateur ; le dispatcheur peut appeler un chauffeur éligible et attribuer la course après son accord verbal sur la course et la rémunération, en enregistrant sa déclaration dans le back-office. La notification chauffeur ne requiert aucune confirmation. Les protections d’exclusivité, de planning et de véhicule s’appliquent. Voir les [règles métier](REGLES_METIER.md).
 
 ## 5. Architecture technique (budget < 500 €/mois)
 
-Monorepo TypeScript (pnpm workspaces + Turborepo) :
+**Existant.** Monorepo TypeScript avec pnpm, NestJS, Prisma, PostgreSQL, Next.js et Expo. Voir [Architecture](ARCHITECTURE.md). Le schéma et les options ci-dessous conservent le cadrage technique historique et les choix à valider.
 
 ```
 apps/
@@ -113,7 +119,7 @@ docs/
 
 Principes : API-first, machine à états explicite pour les courses, événements de domaine + outbox pour fiabiliser webhooks/notifications, toutes les écritures sensibles auditées, **RGPD dès le départ** (minimisation, rétention, DPA, chiffrement des documents chauffeurs).
 
-## 6. Modèle de données (noyau)
+## 6. Modèle de données (existant et entités envisagées)
 
 `Partner`, `ApiKey`, `WebhookEndpoint`, `Customer`, `Booking`, `Ride`, `RideEvent`, `Quote`, `PricingRule` (zone, forfait, majoration, partenaire), `VehicleCategory`, `Company`, `Driver`, `Vehicle`, `Document` (type, expiration, statut), `DriverVehicleAssignment`, `DispatchOffer` (course, chauffeur, expire_at, statut), `Payment`, `Payout`, `Invoice`, `CreditNote`, `Rating`, `Dispute`, `Notification`, `AuditLog`, `FlightWatch`.
 
@@ -122,6 +128,8 @@ Principes : API-first, machine à états explicite pour les courses, événement
 Prix = max(minimum course, forfait si applicable, base + km × tarif + minutes × tarif) × coefficient catégorie × (1 + majorations) × coefficient partenaire, + options (bagages, siège enfant, attente). Le prix est **figé à la réservation** (le chauffeur voit son net, la plateforme sa commission). Moteur pur dans `packages/pricing` avec tests exhaustifs.
 
 ## 8. Roadmap par phases
+
+Cadrage historique et durées indicatives. La [feuille de route](ROADMAP.md) fait référence pour les jalons de la phase 2.
 
 | Phase | Durée indicative | Contenu | Critère de sortie |
 |---|---|---|---|

@@ -1,3 +1,4 @@
+import { manualAssignment } from "../test/manual-assignment";
 import { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
@@ -61,7 +62,7 @@ describe("garde-fou fatigue", () => {
     const tired = await mkDriver();
     const a = await book(p, PARIS, CDG, at(0));
     // la mission est attribuée puis « allongée » à 9 h : le chauffeur a une très longue journée
-    await call(`/admin/rides/${a.id}/assign`, { admin: true, body: { driverId: tired.id } });
+    await call(`/admin/rides/${a.id}/assign`, await manualAssignment(prisma, a.id, tired.id));
     await prisma.ride.update({ where: { id: a.id }, data: { durationMin: 9 * 60 } });
     return tired;
   }
@@ -75,7 +76,7 @@ describe("garde-fou fatigue", () => {
     expect(await offersOf(fresh.id, b.id)).toBe(1);
     const ev = await prisma.rideEvent.findFirstOrThrow({ where: { rideId: b.id, type: "dispatch.round" } });
     expect((ev.payload as any).rested).toBe(1);
-    const assign = await call(`/admin/rides/${b.id}/assign`, { admin: true, body: { driverId: tired.id } });
+    const assign = await call(`/admin/rides/${b.id}/assign`, await manualAssignment(prisma, b.id, tired.id));
     expect(assign.status).toBe(409);
     expect(assign.json.message).toMatch(/Repos nécessaire/);
     // son écran d'accueil le lui montre
@@ -97,7 +98,7 @@ describe("missions de retour", () => {
     const p = (await call("/admin/partners", { admin: true, body: { name: "P" } })).json;
     const d1 = await mkDriver(), d2 = await mkDriver(49.0, 2.54);
     const a = await book(p, PARIS, CDG, at(0)); // Paris → Roissy
-    await call(`/admin/rides/${a.id}/assign`, { admin: true, body: { driverId: d1.id } });
+    await call(`/admin/rides/${a.id}/assign`, await manualAssignment(prisma, a.id, d1.id));
     const end = new Date(at(0)).getTime() + a.durationMin * 60_000;
     const later = await book(p, PARIS, CDG, at(8)); // sans rapport : plus tard, ailleurs
     const back = await book(p, { address: "CDG T2 arrivées", lat: 49.008, lng: 2.55 }, PARIS, new Date(end + 45 * 60_000).toISOString());

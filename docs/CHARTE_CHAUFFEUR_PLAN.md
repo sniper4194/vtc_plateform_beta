@@ -22,6 +22,7 @@
 | Engagement | Dans le produit |
 |---|---|
 | Ponctualité, prévenir le client | Suivi de vol, heure effective, attente de 15 min avant « client absent » |
+| Libre choix des missions | Acceptation libre dans le Radar. En cas d’attribution manuelle, appel et accord préalable sur la course et la rémunération |
 | Honorer les missions | Pénalité progressive si on rend une mission, sanctions de récidive |
 | Prévenir en cas d'impondérable | **Sauveteurs** : relais encadré, pénalité réduite |
 | Agenda à jour | Disponibilité en ligne/hors ligne, détection des chevauchements de missions |

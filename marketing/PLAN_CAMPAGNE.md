@@ -50,7 +50,7 @@ Cibles : chauffeurs et sociétés VTC, partenaires (agences, plateformes), voyag
 
 ### C. Voyageurs
 
-CliCab ne vend pas en direct : le voyageur passe par un partenaire. Pas de publicité grand public pour l'instant. On prépare seulement :
+Les réservations actuelles passent par un partenaire. La campagne prépare les supports de suivi voyageur pour ce canal. La communication grand public relève du futur parcours de réservation directe. [Vision stratégique](../docs/VISION_STRATEGIQUE.md)
 - le post `post-voyageur-carre.png` (à publier sur vos réseaux, pour montrer ce que verront les clients de vos partenaires) ;
 - un référencement local gratuit (Google Business Profile) **si** vous avez une activité et une adresse déclarables (à vérifier).
 

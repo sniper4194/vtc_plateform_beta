@@ -62,4 +62,8 @@ export const AdminUserCreateSchema = z.object({
 });
 export const PasswordResetSchema = z.object({ password: z.string().min(1).max(200) });
 export const ReviewSchema = z.object({ status: z.enum(["APPROVED", "REJECTED"]) });
-export const AssignSchema = z.object({ driverId: z.string().uuid(), priceCents: z.number().int().min(0).max(1_000_000).optional() });
+export const AssignSchema = z.object({
+  driverId: z.string().uuid(),
+  priceCents: z.number().int().min(0).max(1_000_000),
+  verbalConsentConfirmed: z.literal(true),
+});

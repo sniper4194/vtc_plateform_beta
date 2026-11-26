@@ -12,7 +12,7 @@ import { csvCell } from "./metrics";
 import { parse } from "./http";
 import { PrismaService } from "./prisma";
 import { AdminUserCreateSchema, PasswordResetSchema, AssignSchema, CompanyCreateSchema, DriverCreateSchema, FlightUpdateSchema, PartnerCreateSchema, ReviewSchema } from "./schemas";
-import { AdminGuard, AdminOnly, generateApiKey, generateCompanyKey } from "./security";
+import { AdminGuard, AdminIdentity, AdminOnly, generateApiKey, generateCompanyKey } from "./security";
 import { AuthService, publicUser } from "./auth.service";
 import { WebhooksService } from "./webhooks.service";
 
@@ -200,9 +200,8 @@ export class AdminController {
   }
 
   @Post("rides/:id/assign")
-  async assign(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
-    const { driverId, priceCents } = parse(AssignSchema, body);
-    await this.dispatch.adminAssign(id, driverId, req.admin.actor, priceCents);
+  async assign(@Req() req: { admin: AdminIdentity }, @Param("id") id: string, @Body() body: unknown) {
+    await this.dispatch.adminAssign(id, req.admin, parse(AssignSchema, body));
     return { status: "ASSIGNED" };
   }
 

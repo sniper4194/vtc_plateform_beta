@@ -1,3 +1,4 @@
+import { manualAssignment } from "../test/manual-assignment";
 import { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
@@ -72,10 +73,10 @@ describe("besoins particuliers", () => {
     expect(await prisma.dispatchOffer.count({ where: { rideId: ride.id, driverId: plain.id } })).toBe(0);
     const offers = (await call("/driver/offers", { token: equipped.token })).json;
     expect(offers[0].needs).toEqual(["CHILD_SEAT"]); // le chauffeur le voit avant d'accepter
-    const bad = await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: plain.id } });
+    const bad = await call(`/admin/rides/${ride.id}/assign`, await manualAssignment(prisma, ride.id, plain.id));
     expect(bad.status).toBe(409);
     expect(bad.json.message).toMatch(/équipé/);
-    expect((await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: equipped.id } })).status).toBe(201);
+    expect((await call(`/admin/rides/${ride.id}/assign`, await manualAssignment(prisma, ride.id, equipped.id))).status).toBe(201);
     const view = (await call(`/driver/rides/${ride.id}`, { token: equipped.token })).json;
     expect(view.needs).toEqual(["CHILD_SEAT"]);
   });

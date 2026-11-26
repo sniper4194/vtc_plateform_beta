@@ -24,7 +24,7 @@
 ## 2. Ce qu'ils font et que nous ne ferons pas
 - **Tarif indicatif puis définitif** : le partenaire ne sait pas ce qu'il paie. Notre prix fixe est plus lisible.
 - **Majorations de 3 €** (chauffeur choisi, réservation par téléphone) : non pertinent pour un partenaire API.
-- **Paiement par le passager final** : notre modèle est B2B2C, le partenaire reste le client.
+- Pour une réservation B2B2C, le partenaire reste le client contractuel selon le contrat applicable. Le parcours de paiement direct relève du futur canal B2C et reste à valider.
 
 ## 3. Ce que ce texte montre sur nos propres règles
 - Leur barème d'annulation client est **beaucoup plus sévère que le nôtre** (60 à 80 % entre 2 h et 1 h, contre 50 % chez nous jusqu'à 2 h, puis 100 %). Notre barème provisoire est donc dans la fourchette basse du marché ; à négocier selon le poids du partenaire.

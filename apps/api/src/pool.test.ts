@@ -1,3 +1,4 @@
+import { manualAssignment } from "../test/manual-assignment";
 import { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
@@ -78,7 +79,7 @@ describe("mise en commun entre sociétés", () => {
     const da = await companyDriver(a), db = await companyDriver(b);
     const bk = await book(p, undefined, 3);
     const ride = await prisma.ride.findFirstOrThrow({ where: { bookingId: bk.json.id } });
-    await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: da.id } });
+    await call(`/admin/rides/${ride.id}/assign`, await manualAssignment(prisma, ride.id, da.id));
     const before = await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } });
 
     // Réciproque : il faut s'inscrire pour confier
@@ -120,11 +121,11 @@ describe("mise en commun entre sociétés", () => {
     await call("/company/pool/opt-in", { token: a.key, body: { enabled: true } });
     const soon = await book(p, undefined, 0.5);
     const r1 = await prisma.ride.findFirstOrThrow({ where: { bookingId: soon.json.id } });
-    await call(`/admin/rides/${r1.id}/assign`, { admin: true, body: { driverId: da.id } });
+    await call(`/admin/rides/${r1.id}/assign`, await manualAssignment(prisma, r1.id, da.id));
     expect((await call("/company/pool", { token: a.key, body: { rideId: r1.id } })).status).toBe(409);
     const later = await book(p, undefined, 3);
     const r2 = await prisma.ride.findFirstOrThrow({ where: { bookingId: later.json.id } });
-    await call(`/admin/rides/${r2.id}/assign`, { admin: true, body: { driverId: da.id } });
+    await call(`/admin/rides/${r2.id}/assign`, await manualAssignment(prisma, r2.id, da.id));
     expect((await call("/company/pool", { token: a.key, body: { rideId: r2.id } })).status).toBe(201);
     await call("/company/pool/opt-in", { token: a.key, body: { enabled: false } });
     expect(await prisma.ridePool.count({ where: { status: "OPEN" } })).toBe(0);

@@ -1,6 +1,6 @@
 # CliCab : instructions pour Claude
 
-Plateforme VTC à prix fixe : partenaires (agences, plateformes de réservation) → chauffeurs et sociétés VTC → voyageurs. Phase pilote, **pas encore en ligne** (le VPS est vide). Détails : `README.md`, `docs/`.
+Socle de transferts VTC à prix fixe et cible hybride B2B2C, B2B et B2C. Voir `docs/VISION_STRATEGIQUE.md` et `docs/REGLES_METIER.md`. Phase pilote, **pas encore en ligne** (le VPS est vide). Détails : `README.md`, `docs/`.
 
 ## Comment travailler avec l'utilisateur
 - **Répondre en français.** Phrases simples : l'utilisateur est chauffeur VTC expérimenté, pas développeur.

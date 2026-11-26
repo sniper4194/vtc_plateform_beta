@@ -24,6 +24,7 @@ Contact protection des données : `[adresse e-mail dédiée]` · Délégué à l
 | Véhicule : immatriculation, marque, modèle, couleur, catégorie, sièges | Affecter les missions de la bonne catégorie ; informer le passager | Exécution du contrat |
 | **Position géographique** (dernière position, heure) | Proposer les missions proches, guider vers la prise en charge, informer le passager de l'arrivée | Exécution du contrat |
 | Missions : horaires, trajets, statuts, événements, prix, rémunération | Exécuter et facturer le service, relevés de paiement | Exécution du contrat ; obligation légale (comptable) |
+| **Déclaration d’accord téléphonique** : identifiants opérateur, chauffeur et course, mode, horodatage et rémunération | Traçabilité de l’attribution manuelle | Base légale, accès et durée de conservation à valider |
 | **Note moyenne et fiabilité** (calculées) ; notes et commentaires des passagers | Qualité de service, attribution des missions, statut « sauveteur » | Intérêt légitime ; exécution du contrat |
 | **Pénalités, sanctions, appels à l'aide** (qui a demandé, motif, issue) | Appliquer les règles du contrat ; tracer les décisions | Exécution du contrat |
 | Messages envoyés (application, e-mail, SMS) | Confirmations, annulations, alertes | Exécution du contrat |
