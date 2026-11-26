@@ -65,7 +65,7 @@ Démo : chauffeur `06 00 00 00 01` code `000000` ; admin `demo@clicab.local` / `
 - Seuils et montants métier : **variables d'environnement** avec valeur par défaut (voir `.env.example`), jamais en dur sans option.
 
 ## Design (à respecter)
-Deux thèmes au choix de chaque utilisateur, partout (app chauffeur, tour de contrôle, espace société, pages voyageur/candidature/réservation) : **Original** (par défaut) et **Classique** (sobre, polices système). Choix mémorisé sur l'appareil (`theme_style` dans l'app, `clicab-theme` sur le web).
+Deux thèmes au choix de chaque utilisateur, partout (app chauffeur, tour de contrôle, espace société, pages voyageur/candidature/réservation) : **Original** et **Classique** (sobre, polices système). Par défaut : Classique pour la tour de contrôle (choix de l'utilisateur), Original ailleurs. Choix mémorisé sur l'appareil (`theme_style` dans l'app, `clicab-theme` sur le web).
 Original = style affiche rétro : ciel `#8fd0f5`, crème `#f5eedd`, bleu nuit `#0b2a4a`, encre `#14172b`, jaune `#f7b30a`, rouge `#ee2a14`. Polices Rozha One, Alfa Slab One, Anton, Kaushan Script. Dans l'app chauffeur, couleurs retouchées validées par l'utilisateur : ciel `#96d3ed`, encre `#19172a`, rouge `#dc2626`, jaune `#ffbc00`, crème `#f4efdc`. Cartes crème, bord encre de 3 px, ombre portée dure, pastilles. Nom de marque : **CliCab** (pas « ClicCab » ni « Étoile »). La disponibilité de la marque n'est pas vérifiée.
 
 ## Valeurs métier choisies par Claude, à faire confirmer

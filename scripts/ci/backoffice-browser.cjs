@@ -54,7 +54,9 @@ const webOrigin = process.env.BACKOFFICE_URL ?? "http://127.0.0.1:5301";
     const classique = page.locator('.regulator[data-theme="classique"]');
     const original = page.locator('.regulator[data-theme="original"]');
 
-    // Pas d'écran de choix imposé : « Original » par défaut, « Classique » au choix, mémorisé.
+    // La tour de contrôle s'ouvre en « Classique » ; « Original » au choix, mémorisé.
+    await classique.locator('input[type="email"]').waitFor();
+    await themeSelector.selectOption("original");
     await original.locator('input[type="email"]').waitFor();
     await themeSelector.selectOption("classique");
     await classique.locator('input[type="email"]').waitFor();

@@ -717,7 +717,8 @@ function AlertsTab() {
 
 export default function Home() {
   const [ready, setReady] = useState(false);
-  const [theme, changeTheme] = useSiteTheme();
+  // Choix de l'utilisateur : la tour de contrôle s'ouvre en Classique ; Original reste au choix.
+  const [theme, changeTheme] = useSiteTheme("classique");
   const [authed, setAuthed] = useState(false);
   const [user, setUserState] = useState<AdminSession | null>(null);
   const [tab, setTab] = useState<Tab>("rides");

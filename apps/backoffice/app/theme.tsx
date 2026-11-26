@@ -1,18 +1,19 @@
 "use client";
 import { useEffect, useState } from "react";
 
-/** Deux styles au choix de chaque utilisateur : « Original » (affiche rétro, par défaut) et « Classique » (sobre). */
+/** Deux styles au choix de chaque utilisateur : « Original » (affiche rétro) et « Classique » (sobre). Le défaut dépend de l'espace. */
 export type SiteTheme = "original" | "classique";
 // Même clé pour la tour de contrôle et l'espace société : un seul choix par navigateur.
 const THEME_KEY = "clicab-theme";
 
-export const parseSiteTheme = (v: unknown): SiteTheme => (v === "classique" ? "classique" : "original");
+export const parseSiteTheme = (v: unknown, fallback: SiteTheme = "original"): SiteTheme =>
+  v === "classique" || v === "original" ? v : fallback;
 
-export function useSiteTheme(): [SiteTheme, (next: SiteTheme) => void] {
-  const [theme, setTheme] = useState<SiteTheme>("original");
+export function useSiteTheme(fallback: SiteTheme = "original"): [SiteTheme, (next: SiteTheme) => void] {
+  const [theme, setTheme] = useState<SiteTheme>(fallback);
   useEffect(() => {
-    try { setTheme(parseSiteTheme(localStorage.getItem(THEME_KEY))); } catch { /* stockage bloqué : thème par défaut */ }
-  }, []);
+    try { setTheme(parseSiteTheme(localStorage.getItem(THEME_KEY), fallback)); } catch { /* stockage bloqué : thème par défaut */ }
+  }, [fallback]);
   const change = (next: SiteTheme) => {
     setTheme(next);
     try { localStorage.setItem(THEME_KEY, next); } catch { /* le choix reste valable pendant la session */ }
