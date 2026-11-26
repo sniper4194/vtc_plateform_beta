@@ -12,10 +12,14 @@ appId: com.clicab.driver
     timeout: 15000
 - tapOn:
     id: ".*:id/permission_allow_button"
+# Connexion hybride : le lien du serveur est en bas de l'écran et porte l'étiquette « Changer le serveur ».
 - extendedWaitUntil:
-    visible: "(?i).*\\(changer\\).*"
+    visible: "(?i)bienvenue"
     timeout: 20000
-- tapOn: "(?i).*\\(changer\\).*"
+- scrollUntilVisible:
+    element: "Changer le serveur"
+    direction: DOWN
+- tapOn: "Changer le serveur"
 - extendedWaitUntil:
     visible: "(?i)adresse du serveur"
     timeout: 10000
@@ -28,13 +32,21 @@ appId: com.clicab.driver
     visible: "(?i)enregistrer"
     timeout: 10000
 - tapOn: "(?i)enregistrer"
+# Le texte « Serveur : … » est masqué par l'étiquette d'accessibilité du lien : on vérifie que le lien est revenu.
 - extendedWaitUntil:
-    visible: "(?i).*10\\.0\\.2\\.2.*"
+    visible: "Changer le serveur"
     timeout: 10000
+- scrollUntilVisible:
+    element: "06 12 34 56 78"
+    direction: UP
 - tapOn: "06 12 34 56 78"
 - inputText: "0611223355"
 - pressKey: Enter  # ferme le clavier (la touche Retour mettait parfois l'application en arrière-plan)
-- tapOn: "Recevoir mon code"
+# Chauffeur de test non activé (pas de mot de passe) : connexion par code SMS de l'ancien parcours.
+- scrollUntilVisible:
+    element: "(?i)ancien compte.*"
+    direction: DOWN
+- tapOn: "(?i)ancien compte.*"
 - tapOn: "••••••"
 - inputText: "000000"
 - pressKey: Enter  # ferme le clavier (la touche Retour mettait parfois l'application en arrière-plan)
