@@ -1,3 +1,4 @@
+import { manualAssignment } from "../test/manual-assignment";
 import { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
@@ -64,7 +65,7 @@ describe("bourse d'échange entre chauffeurs", () => {
     const owner = await mkDriver(needs);
     const b = await book(p, needs, days);
     const ride = await prisma.ride.findFirstOrThrow({ where: { bookingId: b.json.id } });
-    expect((await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: owner.id } })).status).toBe(201);
+    expect((await call(`/admin/rides/${ride.id}/assign`, await manualAssignment(prisma, ride.id, owner.id))).status).toBe(201);
     return { owner, ride: await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } }) };
   }
 

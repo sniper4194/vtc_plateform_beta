@@ -16,6 +16,8 @@ import { WEBHOOK_BY_STATUS } from "./views";
 import { WebhooksService } from "./webhooks.service";
 import { grantReferralReward } from "./referral-rewards";
 
+import type { AdminIdentity } from "./security";
+
 type Tx = Prisma.TransactionClient;
 
 export const DISPATCH = {
@@ -230,6 +232,7 @@ export class DispatchService {
     await tx.dispatchOffer.updateMany({ where: { rideId: ride.id, status: "PENDING" }, data: { status: "CANCELLED" } });
     await this.event(tx, ride.id, "ride.assigned", actor, { driverId, capCents: cap, acceptedCents: price, ecoBonusCents: eco });
     await this.webhooks.enqueue(tx, ride.id, "driver.assigned");
+    return { ecoBonusCents: eco, driverNetCents: price + eco };
   }
 
   async accept(driverId: string, offerId: string) {
@@ -260,16 +263,29 @@ export class DispatchService {
     if (res.count !== 1) throw new HttpException("Offre introuvable ou déjà traitée", 404);
   }
 
-  async adminAssign(rideId: string, driverId: string, admin = "admin", priceCents?: number) {
+  async adminAssign(
+    rideId: string,
+    { id: dispatcherId, actor }: AdminIdentity,
+    { driverId, priceCents, verbalConsentConfirmed }: { driverId: string; priceCents: number; verbalConsentConfirmed: true },
+  ) {
+    if (!dispatcherId) throw new HttpException("Un compte nominatif est requis pour l’attribution manuelle", 403);
+    if (verbalConsentConfirmed !== true) throw new HttpException("L’accord verbal du chauffeur doit être confirmé", 422);
     await this.prisma.$transaction(async (tx) => {
       const ride = await tx.ride.findUnique({ where: { id: rideId } });
       if (!ride) throw new HttpException("Course introuvable", 404);
       const driver = await tx.driver.findUnique({ where: { id: driverId } });
       if (!driver || driver.status !== "ACTIVE") throw new HttpException("Chauffeur non actif", 409);
-      if (priceCents !== undefined && priceCents > this.capOf(ride)) {
+      if (priceCents > this.capOf(ride)) {
         throw new HttpException({ errors: { priceCents: [`ne peut pas dépasser le plafond de la mission (${this.capOf(ride)} centimes)`] } }, 422);
       }
-      await this.claim(tx, ride, driverId, admin, priceCents);
+      const payment = await this.claim(tx, ride, driverId, actor, priceCents);
+      await this.event(tx, ride.id, "ride.assignment_consent_declared", actor, {
+        dispatcherId,
+        driverId,
+        method: "PHONE",
+        agreedPriceCents: priceCents,
+        ...payment,
+      });
     });
     await this.confirmToDriver(driverId, rideId, true);
   }

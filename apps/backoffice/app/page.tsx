@@ -195,20 +195,63 @@ function TrackingDeliveries({ rideId, deliveries, onDone, onError }: {
   );
 }
 
+function ManualAssignment({ rideId, drivers, capCents, onDone, onError }: {
+  rideId: string;
+  drivers: { id: string; firstName: string; lastName: string; phone?: string }[];
+  capCents: number;
+  onDone: () => void;
+  onError: (message: string) => void;
+}) {
+  const [driverId, setDriverId] = useState("");
+  const [price, setPrice] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const amount = price.trim().replace(",", ".");
+  const priceCents = Math.round(Number(amount) * 100);
+  const canConfirm = Boolean(driverId) && /^\d+(\.\d{1,2})?$/.test(amount) && priceCents <= Math.min(capCents, 1_000_000);
+  const phone = drivers.find((driver) => driver.id === driverId)?.phone;
+
+  async function assign() {
+    if (!canConfirm || !confirmed || busy) return;
+    setBusy(true);
+    setConfirmed(false);
+    try {
+      await api(`/admin/rides/${rideId}/assign`, { driverId, priceCents, verbalConsentConfirmed: true });
+      onDone();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "L’attribution a échoué.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="row" style={{ marginTop: 10 }}>
+        <select aria-label="Chauffeur à appeler" disabled={busy} value={driverId}
+          onChange={(e) => { setDriverId(e.target.value); setConfirmed(false); }}>
+          <option value="">Attribuer à…</option>
+          {drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.firstName} {driver.lastName}</option>)}
+        </select>
+        <input type="text" inputMode="decimal" placeholder="Montant en €" aria-label="Rémunération convenue hors prime écologique en euros"
+          disabled={busy} value={price} onChange={(e) => { setPrice(e.target.value); setConfirmed(false); }} style={{ width: 130 }} />
+        <button className="btn primary" disabled={!canConfirm || !confirmed || busy} onClick={assign}>Attribuer</button>
+      </div>
+      {phone && <p className="muted">Téléphone du chauffeur {phone}</p>}
+      <p className="muted">Rémunération de base en euros. La prime écologique s’ajoute si le véhicule est éligible.</p>
+      <label>
+        <input type="checkbox" checked={confirmed} disabled={!canConfirm || busy} onChange={(e) => setConfirmed(e.target.checked)} />
+        {" "}Je confirme avoir obtenu l'accord verbal du chauffeur par téléphone pour cette course et sa rémunération.
+      </label>
+    </>
+  );
+}
+
 function Board() {
   const rides = useLoad<any[]>("/admin/rides");
   const drivers = useLoad<any[]>("/admin/drivers?status=ACTIVE", 15000);
   const alerts = useLoad<any[]>("/admin/alerts");
-  const [pick, setPick] = useState<Record<string, string>>({});
-  const [priceOf, setPriceOf] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
-  async function assign(rideId: string) {
-    try {
-      const euros = (priceOf[rideId] ?? "").replace(",", ".").trim();
-      await api(`/admin/rides/${rideId}/assign`, { driverId: pick[rideId], ...(euros ? { priceCents: Math.round(Number(euros) * 100) } : {}) });
-      setErr(""); rides.reload(); alerts.reload(); }
-    catch (e: any) { setErr(e.message); }
-  }
   const list = rides.data ?? [];
   const n = (...s: string[]) => list.filter((r) => s.includes(r.status)).length;
   const alerted = new Set((alerts.data ?? []).map((a) => a.rideId));
@@ -261,14 +304,9 @@ function Board() {
                       <>
                         <p className="muted" style={{ margin: "10px 0 6px" }}>{pending} offre(s) en circulation</p>
                         {alerted.has(r.id) && <div className="alertbar">⚠ Personne n'a pris la mission : à vous de jouer</div>}
-                        <div className="row" style={{ marginTop: 10 }}>
-                          <select value={pick[r.id] ?? ""} onChange={(e) => setPick({ ...pick, [r.id]: e.target.value })}>
-                            <option value="">Attribuer à…</option>
-                            {drivers.data?.map((d) => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
-                          </select>
-                          <input type="text" inputMode="decimal" placeholder="Prix € (auto)" value={priceOf[r.id] ?? ""} onChange={(e) => setPriceOf({ ...priceOf, [r.id]: e.target.value })} style={{ width: 110 }} aria-label="Prix imposé en euros (laisser vide pour le prix du moment)" />
-                          <button className="btn primary" disabled={!pick[r.id]} onClick={() => assign(r.id)}>OK</button>
-                        </div>
+                        <ManualAssignment key={`${r.version}:${r.pickupAt}:${r.flightDelayMin}`} rideId={r.id}
+                          drivers={drivers.data ?? []} capCents={r.driverCapCents || r.driverNetCents}
+                          onDone={() => { setErr(""); rides.reload(); alerts.reload(); }} onError={setErr} />
                       </>
                     )}
                   </article>

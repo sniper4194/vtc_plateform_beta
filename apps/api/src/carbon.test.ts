@@ -1,3 +1,4 @@
+import { manualAssignment } from "../test/manual-assignment";
 import { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
@@ -81,7 +82,7 @@ describe("bilan carbone partenaire", () => {
     await prisma.vehicle.updateMany({ where: { driverId: d.id }, data: { fuel: "ELECTRIC" } });
     const b = await book(p);
     const ride = await prisma.ride.findFirstOrThrow({ where: { bookingId: b.json.id } });
-    await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: d.id } });
+    await call(`/admin/rides/${ride.id}/assign`, await manualAssignment(prisma, ride.id, d.id));
     await prisma.ride.update({ where: { id: ride.id }, data: { status: "COMPLETED", pickupAt: new Date(Date.now() - 86400_000) } });
     await book(other); // une course d'un autre partenaire ne doit pas apparaître
 

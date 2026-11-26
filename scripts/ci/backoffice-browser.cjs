@@ -35,9 +35,11 @@ const webOrigin = process.env.BACKOFFICE_URL ?? "http://127.0.0.1:5301";
       if (path === "/admin/alerts") return route.fulfill({ headers, json: alerts });
       if (path === "/admin/incidents") return route.fulfill({ headers, json: incidents });
       if (path === "/admin/rides") return route.fulfill({ headers, json: [{ ...ride, status: assigned ? "ASSIGNED" : "DISPATCHING" }] });
-      if (path === "/admin/drivers") return route.fulfill({ headers, json: [{ id: "driver-1", firstName: "Alice", lastName: "Test" }] });
+      if (path === "/admin/drivers") return route.fulfill({ headers, json: [{ id: "driver-1", firstName: "Alice", lastName: "Test" }, { id: "driver-2", firstName: "Malik", lastName: "Test" }] });
       if (path === "/admin/rides/ride-1/assign") {
-        try { assert.equal(req.postDataJSON().driverId, "driver-1"); } catch (err) { apiErrors.push(err); }
+        try {
+          assert.deepEqual(req.postDataJSON(), { driverId: "driver-2", priceCents: 4100, verbalConsentConfirmed: true });
+        } catch (err) { apiErrors.push(err); }
         assigned = true;
         return route.fulfill({ headers, json: { status: "ASSIGNED" } });
       }
@@ -68,8 +70,23 @@ const webOrigin = process.env.BACKOFFICE_URL ?? "http://127.0.0.1:5301";
     assert.equal(await page.evaluate(() => window.alarmStarted), 2);
     assert.ok(audioRequests > 0);
 
-    await page.locator("select").selectOption("driver-1");
-    await page.getByRole("button", { name: "OK", exact: true }).click();
+    const driver = page.getByRole("combobox", { name: "Chauffeur à appeler" });
+    const amount = page.getByRole("textbox", { name: /rémunération convenue/i });
+    const consent = page.getByRole("checkbox", { name: /accord verbal du chauffeur/i });
+    const assign = page.getByRole("button", { name: "Attribuer", exact: true });
+    await driver.selectOption("driver-1");
+    await amount.fill("40,00");
+    assert.ok(await assign.isDisabled());
+    await consent.check();
+    assert.ok(await assign.isEnabled());
+    await amount.fill("41,00");
+    assert.ok(await assign.isDisabled());
+    await consent.check();
+    await driver.selectOption("driver-2");
+    assert.ok(await assign.isDisabled());
+    assert.equal(assigned, false);
+    await consent.check();
+    await assign.click();
     await page.waitForFunction(() => document.querySelectorAll("select").length === 0);
     assert.ok(assigned);
     assert.equal(apiErrors.length, 0);

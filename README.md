@@ -1,9 +1,11 @@
-# VTC Platform
+# CliCab
 
-Plateforme B2B2C de transferts VTC à prix fixe (API partenaires type Booking.com / Trip.com, app chauffeur, back-office).
+Plateforme de mobilité VTC. Le socle de transferts à prix fixe réunit l’API partenaire, l’application chauffeur et le back-office. Le modèle cible ajoute un portail B2B et la réservation directe B2C.
 
 - Cahier des charges & architecture : [docs/CAHIER_DES_CHARGES.md](docs/CAHIER_DES_CHARGES.md)
 - Spec API partenaires : [docs/openapi.yaml](docs/openapi.yaml)
+
+La [vision stratégique](docs/VISION_STRATEGIQUE.md) et la [matrice d’audit](docs/AUDIT_FONCTIONNEL.md) décrivent les canaux de réservation et leur état.
 
 ## Démarrage
 
@@ -115,7 +117,7 @@ Le prix **proposé** au chauffeur part à 85 % du plafond et monte linéairement
 Exemple (réel, testé) : client 55 € → plafond 44 € → proposé 37,40 € à 3 jours, 40,80 € à 12 h, 43,80 € à 1 h 30, 44 € à moins d'1 h.
 
 - Le prix est **calculé côté serveur** à l'instant de l'acceptation ; le chauffeur ne peut pas l'imposer. Il peut monter entre l'affichage et l'acceptation, jamais baisser.
-- Le dispatch peut imposer un prix à l'attribution manuelle, **jamais au-dessus du plafond**.
+- Le dispatcheur appelle le chauffeur et obtient son accord sur la course et la rémunération. Il saisit le montant convenu, dans la limite du plafond, puis confirme cet accord avant l’attribution. Voir les [règles métier](docs/REGLES_METIER.md).
 - L'indemnité d'annulation suit le prix réellement accepté. Les missions antérieures à l'échelle gardent leur prix net comme plafond.
 - La marge de la plateforme (« Marge plateforme », « Gain échelle ») n'est visible que dans l'administration, jamais côté société ni dans les messages au chauffeur.
 - Réglages : `PRICE_LADDER`, `LADDER_START_RATIO` (jamais sous 30 %), `LADDER_FROM_MIN`, `LADDER_TO_MIN`, `LADDER_STEP_CENTS`.
@@ -217,7 +219,7 @@ Bouton « Signaler un incident » (onglet Cap, et « Un souci ? » dans une miss
 
 ## APK de l'application chauffeur (Android)
 
-Aucun `.apk` n'est fourni dans le dépôt : il se construit à la demande, et il n'a **pas encore été construit** (l'environnement de développement n'a pas le SDK Android).
+L’APK de préproduction est disponible dans les artefacts du workflow « APK CliCab TEST ». Le build de la référence TEST a réussi. Les essais sur téléphone restent distincts de la compilation. [Build de référence](https://github.com/sniper4194/vtc_plateform_beta/actions/runs/45859190062)
 - **Sans compte Expo** : sur GitHub, onglet *Actions* → *APK chauffeur (Android)* → *Run workflow*, en indiquant l'adresse **HTTPS** de l'API. Le fichier `.apk` est téléchargeable à la fin, dans les artefacts du déroulé. Pour une carte, ajouter le secret `GOOGLE_MAPS_API_KEY`.
 - **Avec un compte Expo (gratuit)** : `cd apps/driver-app && npx eas-cli login && npx eas-cli build -p android --profile apk` (changer d'abord l'adresse de l'API dans `eas.json`) ; un lien de téléchargement est fourni.
 - L'APK est signé avec la clé de débogage : bon pour des essais, pas pour Google Play (il faudra une clé de signature propre).

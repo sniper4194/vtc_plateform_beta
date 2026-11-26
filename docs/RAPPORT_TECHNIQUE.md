@@ -80,7 +80,7 @@ Machine à états d'une course (`packages/shared`) : `CREATED → QUOTED → CON
 
 **Prix** : moteur pur et testé (grille et forfaits), **échelle de prix chauffeur** (le prix proposé monte à l'approche de la mission, jusqu'au plafond), rémunération minimale de 9 € net par course, commission réduite si besoin.
 
-**Dispatch** : offres successives par catégorie de véhicule et proximité, acceptation exclusive atomique (un seul gagnant), chevauchements interdits, reprise par un autre chauffeur, attribution manuelle par l'opérateur.
+**Dispatch** : offres successives par catégorie de véhicule et proximité, acceptation exclusive atomique (un seul gagnant), chevauchements interdits, reprise par un autre chauffeur, attribution manuelle après accord téléphonique déclaré par un opérateur identifié. Voir le [contrat de back-office](ARCHITECTURE.md).
 
 **Chauffeurs** : connexion par code SMS à usage unique (limites d'essais et de renvois), documents obligatoires avec échéances et rappels (30, 14, 7, 1 jours, mise hors ligne à l'expiration), critères véhicule à l'admission (âge, places, portes, dimensions, puissance, avec exemptions hybrides, électriques et collection), identité de l'exploitant et justificatif de réservation, revenus par période avec rendement par heure de mission et export CSV, signalement d'incident (alerte à l'équipe).
 
@@ -113,7 +113,7 @@ Pile de production sur un seul serveur (`infra/docker-compose.prod.yml`, guide d
 **Non vérifié en conditions réelles**
 - Les adaptateurs Twilio, Resend, OSRM, Flightradar24 et Stripe n'ont jamais été essayés contre un vrai compte.
 - Le déploiement de production n'a pas été lancé de bout en bout (pas de serveur ni de domaine).
-- L'APK Android n'a jamais été compilé (pas de SDK Android dans l'environnement de développement) ; la génération du projet fonctionne, la compilation est inconnue.
+- La compilation de l’APK CliCab TEST a réussi au SHA de référence. La recette sur appareil pour la présente mission reste à valider. [Build de référence](https://github.com/sniper4194/vtc_plateform_beta/actions/runs/45859190062)
 - L'application n'a pas été testée sur un vrai téléphone avec Expo Go ; elle dépend du SDK 52 d'Expo, alors que l'application Expo Go du Play Store suit des versions plus récentes (message « incompatible SDK »).
 - La caméra n'a été essayée que par le sélecteur de fichier d'un navigateur.
 - Les essais sous Windows n'ont pas pu être faits ici : plusieurs difficultés rencontrées par l'utilisateur (chemin du projet, `pnpm`, pare-feu, anciens serveurs actifs) l'ont été sur sa machine.
@@ -125,7 +125,7 @@ Pile de production sur un seul serveur (`infra/docker-compose.prod.yml`, guide d
 - Pas de position en direct du chauffeur ni de carte pour le voyageur ; pas de « STOP » pour les SMS ; les alertes d'incident n'arrivent que sur le tableau de bord (ni SMS, ni push, ni astreinte).
 - Le rendement horaire ne compte que le temps de mission (de la mise en route à la fin de la course).
 - Aucun paiement ni facturation réels ; Stripe est seulement modélisé.
-- Le site de réservation client (phase 2) n'existe pas ; seule la page de suivi existe.
+- Le suivi et les pages de réservation dédiées aux partenaires existent. Le portail B2B unifié et la réservation directe B2C restent des cibles.
 
 **Points juridiques à faire valider par un professionnel** (je ne suis pas juriste)
 - Statut d'exploitant ou d'intermédiaire et modèle société-chauffeurs (registre des exploitants).

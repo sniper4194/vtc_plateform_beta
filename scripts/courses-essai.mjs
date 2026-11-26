@@ -1,7 +1,7 @@
 // Crée des courses d'ESSAI sur un serveur CliCab (vrai serveur ou démo), pour tester l'application chauffeur.
 // À lancer depuis votre PC (Node 20+) :   node scripts/courses-essai.mjs https://api.clicab.fr
 // Variables : ADMIN_TOKEN (jeton de service du serveur), GOLIVE_PHONE (numéro du chauffeur de test), COURSES (nombre, 10 par défaut).
-// La moitié est attribuée directement au chauffeur (Agenda), l'autre moitié est proposée sur le Radar.
+// Les courses sont distribuées par le Radar. Toute attribution manuelle passe par le back-office après appel et accord.
 // Voyageurs fictifs, téléphone fictif : aucun SMS n'est envoyé aux voyageurs (partenaire « sans envoi »).
 const API = (process.argv[2] ?? "").replace(/\/+$/, "");
 if (!/^https?:\/\//.test(API)) { console.error("Usage : node scripts/courses-essai.mjs https://api.clicab.fr"); process.exit(1); }
@@ -62,8 +62,6 @@ for (let i = 0; i < N; i++) {
     token: partner.apiKey, headers: { "idempotency-key": `essai-${stamp}-${i}` },
     body: { quoteId: q.quoteId, externalReference: `ESSAI-${i + 1}`, passenger: { firstName: first, lastName: last, phone: "+33600000099", language: lang } },
   });
-  let where = "sur le Radar";
-  if (i % 2 === 0) where = await call(`/admin/rides/${b.rideId}/assign`, { body: { driverId: driver.id } }).then(() => "dans votre Agenda", (e) => `sur le Radar (attribution directe refusée : ${e.message.replace(/^.*→ \d+ /, "")})`);
-  console.log(`✔ ${b.reference} · ${new Date(when(i)).toLocaleString("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit" })} · ${from.address} → ${to.address} · ${first} ${last} · ${where}`);
+  console.log(`✔ ${b.reference} · ${new Date(when(i)).toLocaleString("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit" })} · ${from.address} → ${to.address} · ${first} ${last} · sur le Radar`);
 }
 console.log(`\n${N} courses d'essai créées. La première démarre dans 20 minutes.`);

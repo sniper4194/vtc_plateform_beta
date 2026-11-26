@@ -1,3 +1,4 @@
+import { manualAssignment } from "../test/manual-assignment";
 import { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
@@ -368,7 +369,7 @@ describe("dispatch", () => {
     expect(alerts.json[0].rideId).toBe(res.json.rideId);
     const ev = await call(`/admin/rides/${res.json.rideId}/events`, { admin: true });
     expect(ev.json.filter((e: any) => e.type === "dispatch.round")).toHaveLength(DISPATCH.maxRounds);
-    expect((await call(`/admin/rides/${res.json.rideId}/assign`, { admin: true, body: { driverId: d.id } })).status).toBe(201);
+    expect((await call(`/admin/rides/${res.json.rideId}/assign`, await manualAssignment(prisma, res.json.rideId, d.id))).status).toBe(201);
     expect((await call(`/v1/bookings/${res.json.id}`, { token: p.apiKey })).json.status).toBe("ASSIGNED");
     expect((await call("/admin/alerts", { admin: true })).json).toHaveLength(0);
   });
@@ -394,7 +395,7 @@ describe("dispatch", () => {
     const p = await mkPartner();
     const pending = await mkDriver({ docs: false });
     const { res } = await mkBooking(p);
-    expect((await call(`/admin/rides/${res.json.rideId}/assign`, { admin: true, body: { driverId: pending.id } })).status).toBe(409);
+    expect((await call(`/admin/rides/${res.json.rideId}/assign`, await manualAssignment(prisma, res.json.rideId, pending.id))).status).toBe(409);
   });
 });
 
@@ -448,7 +449,7 @@ describe("webhooks : fiabilité", () => {
 /* ============================ Lot 3 : vol, pancarte, société, performance ============================ */
 
 async function assignTo(rideId: string, driverId: string) {
-  expect((await call(`/admin/rides/${rideId}/assign`, { admin: true, body: { driverId } })).status).toBe(201);
+  expect((await call(`/admin/rides/${rideId}/assign`, await manualAssignment(prisma, rideId, driverId))).status).toBe(201);
 }
 const act = (d: { token: string }, rideId: string, a: string) => call(`/driver/rides/${rideId}/${a}`, { token: d.token, body: {} });
 
@@ -804,6 +805,43 @@ describe("comptes back-office", () => {
     try { expect((await call("/admin/rides", { admin: true })).status).toBe(401); } finally { process.env.ADMIN_TOKEN = saved; }
   });
 
+  it("exige le consentement explicite et journalise la déclaration du régulateur après attribution", async () => {
+    const user = await mkUser("consent@exemple.fr", "DISPATCHER");
+    const token = (await login("consent@exemple.fr")).json.token;
+    const p = await mkPartner(false);
+    const driver = await mkDriver();
+    const { res } = await mkBooking(p);
+    const rideId = res.json.rideId;
+    const path = `/admin/rides/${rideId}/assign`;
+    const details = { driverId: driver.id, priceCents: 4000 };
+    const body = { ...details, verbalConsentConfirmed: true };
+    const events = () => prisma.rideEvent.findMany({ where: { rideId, type: "ride.assignment_consent_declared" } });
+
+    expect((await call(path, { body })).status).toBe(401);
+    expect((await call(path, { token: driver.token, body })).status).toBe(401);
+    expect((await call(path, { admin: true, body })).status).toBe(403);
+    expect((await call(path, { token, body: details })).status).toBe(422);
+    for (const value of [false, "true", 1, null]) {
+      expect((await call(path, { token, body: { ...details, verbalConsentConfirmed: value } })).status).toBe(422);
+    }
+    expect((await call(path, { token, body: { driverId: driver.id, verbalConsentConfirmed: true } })).status).toBe(422);
+    expect(await events()).toEqual([]);
+    expect(await prisma.ride.findUniqueOrThrow({ where: { id: rideId } })).toMatchObject({ status: "DISPATCHING", driverId: null });
+
+    const results = await Promise.all([call(path, { token, body }), call(path, { token, body })]);
+    expect(results.map(({ status }) => status).sort()).toEqual([201, 409]);
+    const declarations = await events();
+    expect(declarations).toHaveLength(1);
+    expect(declarations[0]).toMatchObject({
+      rideId,
+      actor: "admin:consent@exemple.fr",
+      createdAt: expect.any(Date),
+      payload: { dispatcherId: user.id, driverId: driver.id, method: "PHONE", agreedPriceCents: 4000, driverNetCents: 4000, ecoBonusCents: 0 },
+    });
+    const inbox = await call("/driver/notifications", { token: driver.token });
+    expect(inbox.json.items.filter((item: { type: string }) => item.type === "ASSIGNED_BY_DISPATCH")).toHaveLength(1);
+  });
+
   it("journalise connexions, échecs et gestion des comptes, avec l'acteur sur les actions", async () => {
     await mkUser("audit@exemple.fr", "ADMIN");
     await login("audit@exemple.fr", "mauvais-mot-de-passe-long");
@@ -811,7 +849,7 @@ describe("comptes back-office", () => {
     const p = await mkPartner(false);
     const d = await mkDriver();
     const { res } = await mkBooking(p);
-    await call(`/admin/rides/${res.json.rideId}/assign`, { ...bearer(t), body: { driverId: d.id } });
+    await call(`/admin/rides/${res.json.rideId}/assign`, { ...bearer(t), body: { driverId: d.id, priceCents: 4000, verbalConsentConfirmed: true } });
     const actions = (await prisma.auditLog.findMany()).map((a) => a.action);
     expect(actions).toEqual(expect.arrayContaining(["user.created", "login.failed", "login.ok"]));
     const ev = await prisma.rideEvent.findFirst({ where: { rideId: res.json.rideId, type: "ride.assigned" } });
@@ -1284,23 +1322,23 @@ describe("échelle de prix chauffeur", () => {
     } finally { email.provider = null; }
   });
 
-  it("le dispatch peut imposer un prix jusqu'au plafond, jamais au-delà", async () => {
+  it("le montant convenu peut atteindre le plafond, jamais le dépasser", async () => {
     const p = await mkPartner();
     const d = await mkDriver();
     const { res } = await mkBooking(p);
-    const over = await call(`/admin/rides/${res.json.rideId}/assign`, { admin: true, body: { driverId: d.id, priceCents: 4401 } });
+    const over = await call(`/admin/rides/${res.json.rideId}/assign`, await manualAssignment(prisma, res.json.rideId, d.id, 4401));
     expect(over.status).toBe(422);
     expect((await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } })).status).toBe("DISPATCHING"); // rien n'a changé
-    expect((await call(`/admin/rides/${res.json.rideId}/assign`, { admin: true, body: { driverId: d.id, priceCents: 4000 } })).status).toBe(201);
+    expect((await call(`/admin/rides/${res.json.rideId}/assign`, await manualAssignment(prisma, res.json.rideId, d.id, 4000))).status).toBe(201);
     expect((await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } }))).toMatchObject({ driverNetCents: 4000, commissionCents: 1500 });
   });
 
-  it("sans prix imposé, l'attribution manuelle applique le prix du moment", async () => {
+  it("l’attribution manuelle conserve le prix convenu au plafond", async () => {
     const p = await mkPartner();
     const d = await mkDriver();
     const { res } = await mkBooking(p);
     await moveTo(res.json.rideId, 20); // urgence : plafond
-    await assignTo(res.json.rideId, d.id);
+    expect((await call(`/admin/rides/${res.json.rideId}/assign`, await manualAssignment(prisma, res.json.rideId, d.id, 4400))).status).toBe(201);
     expect((await prisma.ride.findUniqueOrThrow({ where: { id: res.json.rideId } })).driverNetCents).toBe(4400);
   });
 
@@ -1369,8 +1407,8 @@ it("refuse une deuxième attribution simultanée au même chauffeur sur le même
   const pickupAt = inDays(3);
   const first = await mkBooking(partner, { pickupAt }, "double-attribution-1");
   const second = await mkBooking(partner, { pickupAt }, "double-attribution-2");
-  const results = await Promise.all([first, second].map(({ res }) =>
-    call(`/admin/rides/${res.json.rideId}/assign`, { admin: true, body: { driverId: driver.id } }),
+  const results = await Promise.all([first, second].map(async ({ res }) =>
+    call(`/admin/rides/${res.json.rideId}/assign`, await manualAssignment(prisma, res.json.rideId, driver.id)),
   ));
   expect(results.map(({ status }) => status).sort()).toEqual([201, 409]);
   expect(await prisma.ride.count({ where: { driverId: driver.id, status: "ASSIGNED" } })).toBe(1);
@@ -1455,7 +1493,7 @@ it("absorbe un rush de 100 courses et conserve les notifications et alertes atte
   expect(new Set(visibleOffers.map((offer) => offer.rideId)).size).toBe(90);
   const withDriver = bookings.filter(({ index }) => index < 85 || index >= 95);
   await batches(withDriver, async ({ index, rideId }) => {
-    const assignment = await call(`/admin/rides/${rideId}/assign`, { admin: true, body: { driverId: drivers[index % drivers.length].id } });
+    const assignment = await call(`/admin/rides/${rideId}/assign`, await manualAssignment(prisma, rideId, drivers[index % drivers.length].id));
     expect(assignment.status, JSON.stringify(assignment.json)).toBe(201);
   });
 

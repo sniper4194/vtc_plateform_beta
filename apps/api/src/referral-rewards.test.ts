@@ -1,3 +1,4 @@
+import { manualAssignment } from "../test/manual-assignment";
 import { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
@@ -77,7 +78,7 @@ describe("parrainage récompensé (parcours)", () => {
   async function completedRide(p: { apiKey: string }, d: { id: string; token: string }) {
     const b = await book(p);
     const ride = await prisma.ride.findFirstOrThrow({ where: { bookingId: b.json.id } });
-    await call(`/admin/rides/${ride.id}/assign`, { admin: true, body: { driverId: d.id } });
+    await call(`/admin/rides/${ride.id}/assign`, await manualAssignment(prisma, ride.id, d.id));
     await prisma.ride.update({ where: { id: ride.id }, data: { status: "IN_PROGRESS" } });
     expect((await call(`/driver/rides/${ride.id}/complete`, { token: d.token, body: {} })).status).toBe(201);
     return prisma.ride.findUniqueOrThrow({ where: { id: ride.id } });
