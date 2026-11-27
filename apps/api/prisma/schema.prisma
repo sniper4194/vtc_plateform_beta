@@ -97,6 +97,10 @@ model Partner {
   apiKeys          ApiKey[]
   bookings         Booking[]
   quotes           Quote[]
+  rideImports      RideImport[]
+  importedRides    ImportedRide[]
+  /// Correspondance mémorisée « colonne du fichier CSV → champ CliCab » pour l'import de courses de ce donneur d'ordre
+  csvMapping       Json?
   deliveries       WebhookDelivery[]
   crmAccount       CrmAccount?
   supportTickets SupportTicket[]
@@ -265,6 +269,7 @@ model Ride {
   payOnBoard    Boolean         @default(false)
   lostItems     LostItem[]
   pools         RidePool[]
+  importedFrom  ImportedRide?
   referralReward ReferralReward?
   /// Bourse d'échange : le chauffeur affecté propose la mission à un collègue (sans pénalité, assez tôt). Null = pas à l'échange.
   swapOfferedAt DateTime?
@@ -1115,4 +1120,44 @@ model DriverOtpUsage {
   status String @default("UNKNOWN")
   createdAt DateTime @default(now())
   @@index([createdAt])
+}
+
+/// Fichier CSV de courses déposé par un dispatcheur pour un donneur d'ordre.
+model RideImport {
+  id        String         @id @default(uuid())
+  partnerId String
+  partner   Partner        @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  fileName  String
+  createdBy String?
+  createdAt DateTime       @default(now())
+  rows      ImportedRide[]
+}
+
+enum ImportedRideStatus {
+  PENDING   // en attente : le dispatcheur la met au Radar quand il veut
+  PUBLISHED // course créée et proposée aux chauffeurs
+  DISCARDED // écartée : données du voyageur effacées
+}
+
+/// Ligne importée, gardée hors du Radar jusqu'à ce qu'un dispatcheur la publie.
+model ImportedRide {
+  id          String             @id @default(uuid())
+  importId    String
+  rideImport  RideImport         @relation(fields: [importId], references: [id], onDelete: Cascade)
+  partnerId   String
+  partner     Partner            @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  reference   String?
+  status      ImportedRideStatus @default(PENDING)
+  /// Brouillon lu dans le fichier (voyageur, adresses, date…) ; vidé quand la ligne est écartée
+  data        Json
+  errors      String[]           @default([])
+  pickupAt    DateTime?
+  rideId      String?            @unique
+  ride        Ride?              @relation(fields: [rideId], references: [id], onDelete: SetNull)
+  publishedBy String?
+  publishedAt DateTime?
+  createdAt   DateTime           @default(now())
+
+  @@unique([partnerId, reference])
+  @@index([status, pickupAt])
 }

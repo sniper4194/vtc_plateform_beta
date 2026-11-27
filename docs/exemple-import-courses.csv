@@ -1,0 +1,4 @@
+Booking ID;Date;Heure;Pickup;Dropoff;Passenger;Phone;Flight;Pax;Vehicle type;Price
+TZ-9001;30/11/2026;09:40;Paris CDG Terminal 2E;Gare de Lyon, Paris;Inès Moreau;+33 6 11 22 33 44;AF1234;2;Sedan;68,00 €
+TZ-9002;30/11/2026;14:15;Aéroport d'Orly;Gare du Nord;Jonas Weber;+49 151 2345678;LH1030;1;Minivan;72,50
+TZ-9003;01/01/2020;10:00;Orly;Paris;Li Wei;+33 6 00 00 00 00;;1;Sedan;40

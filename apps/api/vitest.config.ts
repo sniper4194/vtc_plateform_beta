@@ -9,6 +9,7 @@ export default defineConfig({
       DISABLE_WORKERS: "1",
       OTP_IP_PER_MIN: "100000", LOGIN_IP_PER_MIN: "100000", // les limites par IP sont testées explicitement
       IDENTITY_CHECKS: "0", // les tests de parcours se mettent en ligne sans selfie ; le contrôle est testé explicitement
+      GEOCODER: "0", // aucun appel au service d'adresses pendant les tests ; aéroports et gares restent reconnus
       AIRPORT_BADGE_ENABLED: "0", // les tests de parcours partent de CDG sans badge ; la règle du badge aéroport est testée explicitement
       VEHICLE_RULES: "0", // les tests de parcours créent des véhicules sans caractéristiques ; le contrôle est testé explicitement
       PRICE_LADDER: "0", // les tests de parcours supposent un prix stable ; l'échelle est testée explicitement

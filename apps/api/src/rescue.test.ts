@@ -560,6 +560,56 @@ describe("badge d'accès aéroport (facture de parking ADP)", () => {
   });
 });
 
+describe("import de courses CSV d'un donneur d'ordre", () => {
+  const day = new Date(Date.now() + 4 * 86400_000);
+  const dmy = `${String(day.getUTCDate()).padStart(2, "0")}/${String(day.getUTCMonth() + 1).padStart(2, "0")}/${day.getUTCFullYear()}`;
+  const csv = [
+    "Booking ID;Date;Heure;Pickup;Dropoff;Passenger;Phone;Flight;Pax;Price",
+    `TZ-100;${dmy};10:30;Paris CDG Terminal 2E;Gare de Lyon, Paris;Inès Moreau;+33 6 11 22 33 44;AF1234;2;68,00 €`,
+    `TZ-101;${dmy};11:00;12 rue Inconnue, Nulle-Part;Orly;Jonas Weber;+49 151 2345678;;1;`,
+    `TZ-102;01/01/2020;10:00;Orly;Paris;Li Wei;+33 6 00 00 00 00;;1;`,
+  ].join("\n");
+
+  it("aperçu, attente hors Radar, puis mise au Radar par le dispatcheur, une course à la fois", async () => {
+    const p = await mkPartner();
+    const pv = await call("/admin/imports/preview", { admin: true, body: { partnerId: p.partnerId, csv } });
+    expect(pv.status).toBe(201);
+    expect(pv.json.mapping).toMatchObject({ reference: 0, pickupDate: 1, pickupTime: 2, pickupAddress: 3, dropoffAddress: 4, passengerName: 5, passengerPhone: 6, flightNumber: 7, passengers: 8, price: 9 });
+    expect(pv.json.rows[0]).toMatchObject({ reference: "TZ-100", priceCents: 6800, flightNumber: "AF1234", errors: [] });
+    expect(pv.json.rows[2].errors).toContain("prise en charge déjà passée");
+
+    const imp = await call("/admin/imports", { admin: true, body: { partnerId: p.partnerId, fileName: "transferz.csv", csv } });
+    expect(imp.json).toEqual({ created: 3, updated: 0, skipped: 0 });
+    // Rien au Radar tant que le dispatcheur n'a rien publié.
+    expect(await prisma.ride.count({ where: { booking: { partnerId: p.partnerId } } })).toBe(0);
+    const list = (await call("/admin/imports/rides", { admin: true })).json.filter((r: any) => r.partner === "Booking (test)");
+    const row = (ref: string) => list.find((r: any) => r.reference === ref);
+
+    // Ligne en erreur : refusée avec la raison.
+    const late = await call(`/admin/imports/rides/${row("TZ-102").id}/publish`, { admin: true, body: {} });
+    expect(late.status).toBe(422);
+    // Adresse inconnue (service d'adresses coupé en test) : refusée, la ligne reste en attente.
+    const unknown = await call(`/admin/imports/rides/${row("TZ-101").id}/publish`, { admin: true, body: {} });
+    expect(unknown.status).toBe(422);
+    expect(unknown.json.message).toMatch(/Adresse introuvable : départ/);
+
+    const ok = await call(`/admin/imports/rides/${row("TZ-100").id}/publish`, { admin: true, body: {} });
+    expect(ok.status).toBe(201);
+    const ride = await prisma.ride.findUniqueOrThrow({ where: { id: ok.json.rideId }, include: { booking: true } });
+    expect(ride).toMatchObject({ status: "DISPATCHING", priceCents: 6800, pickupAddress: "Paris CDG Terminal 2E" });
+    expect(ride.booking).toMatchObject({ externalReference: "TZ-100", passengerFirstName: "Inès", passengerLastName: "Moreau", flightNumber: "AF1234" });
+    expect(ride.commissionCents + ride.driverNetCents).toBe(6800);
+    expect((await call(`/admin/imports/rides/${row("TZ-100").id}/publish`, { admin: true, body: {} })).status).toBe(409); // pas deux fois
+
+    // Réimport du même fichier : la course publiée n'est pas recréée.
+    expect((await call("/admin/imports", { admin: true, body: { partnerId: p.partnerId, csv } })).json).toEqual({ created: 0, updated: 2, skipped: 1 });
+    // Écarter efface les données du voyageur.
+    expect((await call(`/admin/imports/rides/${row("TZ-102").id}/discard`, { admin: true, body: {} })).status).toBe(201);
+    const gone = await prisma.importedRide.findUniqueOrThrow({ where: { id: row("TZ-102").id } });
+    expect(gone).toMatchObject({ status: "DISCARDED", data: {} });
+  });
+});
+
 describe("paiement à bord par carte", () => {
   it("réservé aux chauffeurs qui déclarent un terminal ; les autres gardent leurs autres courses", async () => {
     const p = await mkPartner();
