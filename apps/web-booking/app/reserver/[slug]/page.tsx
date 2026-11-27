@@ -31,6 +31,7 @@ export default function Reserver({ params }: { params: Promise<{ slug: string }>
   const [quote, setQuote] = useState<Quote | null>(null);
   const [pax, setPax] = useState({ firstName: "", lastName: "", phone: "", email: "", notes: "", consent: false });
   const [needs, setNeeds] = useState<string[]>([]);
+  const [payOnBoard, setPayOnBoard] = useState(false);
   const [done, setDone] = useState<{ reference: string; trackingUrl: string | null; total: string } | null>(null);
 
   useEffect(() => {
@@ -62,7 +63,7 @@ export default function Reserver({ params }: { params: Promise<{ slug: string }>
     setBusy(true);
     try {
       setDone(await post(`/public/book/${slug}/booking`, {
-        quoteId: quote.quoteId, consent: pax.consent, needs, ...(pax.notes.trim() ? { notes: pax.notes.trim() } : {}), ...(trip.code ? { code: trip.code } : {}),
+        quoteId: quote.quoteId, consent: pax.consent, needs, ...(payOnBoard ? { payOnBoard: true } : {}), ...(pax.notes.trim() ? { notes: pax.notes.trim() } : {}), ...(trip.code ? { code: trip.code } : {}),
         passenger: { firstName: pax.firstName, lastName: pax.lastName, phone: pax.phone, ...(pax.email.trim() ? { email: pax.email.trim() } : {}), language: lang },
       }));
     } catch (e) { fail(e); } finally { setBusy(false); }
@@ -128,6 +129,7 @@ export default function Reserver({ params }: { params: Promise<{ slug: string }>
           <fieldset className="field"><legend>{t.needs}</legend>
             {info.needs.map((n) => <label key={n} className="check" style={{ margin: "6px 0" }}><input type="checkbox" checked={needs.includes(n)} onChange={(e) => setNeeds(e.target.checked ? [...needs, n] : needs.filter((x) => x !== n))} /><span>{NEED[lang][n] ?? n}</span></label>)}
           </fieldset>
+          <label className="check"><input type="checkbox" checked={payOnBoard} onChange={(e) => setPayOnBoard(e.target.checked)} /><span>{t.payOnBoard}</span></label>
           <label className="field"><span>{t.notes}</span><textarea rows={2} maxLength={300} value={pax.notes} onChange={(e) => setPax({ ...pax, notes: e.target.value })} /></label>
           <label className="check"><input type="checkbox" checked={pax.consent} onChange={(e) => setPax({ ...pax, consent: e.target.checked })} /><span>{t.consent} <a href={PRIVACY_URL} target="_blank" rel="noreferrer">{t.privacy}</a></span></label>
           {err && <p className="err">{err}</p>}

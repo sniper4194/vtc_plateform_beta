@@ -54,6 +54,7 @@ const BookSchema = z.object({
   code: z.string().max(64).optional(),
   notes: z.string().max(300).optional(),
   needs: z.array(z.enum(NEEDS)).max(NEEDS.length).optional(),
+  payOnBoard: z.boolean().optional(),
   passenger: z.object({
     firstName: z.string().trim().min(1).max(60), lastName: z.string().trim().min(1).max(60),
     phone: z.string().trim().regex(/^\+?[0-9 .-]{6,20}$/, "numéro de téléphone invalide"), email: z.string().email().optional(),
@@ -105,7 +106,7 @@ export class HostedService {
     this.checkCode(p, b.code);
     // Clé d'idempotence propre à chaque envoi : un double clic reste protégé par le devis à usage unique.
     const res = await this.bookings.create(p, `page-${randomBytes(12).toString("hex")}`, {
-      quoteId: b.quoteId, externalReference: "PAGE", notes: b.notes, needs: b.needs,
+      quoteId: b.quoteId, externalReference: "PAGE", notes: b.notes, needs: b.needs, payOnBoard: b.payOnBoard,
       passenger: { firstName: b.passenger.firstName, lastName: b.passenger.lastName, phone: b.passenger.phone, email: b.passenger.email, language: b.passenger.language },
     }, false);
     const v = res.booking as any;

@@ -7,7 +7,7 @@ import { SwapBoard, SwapControl } from "./swap";
 import { LostItemsCard } from "./lostItems";
 import { ReferralCard } from "./referral";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Switch, Text, View } from "react-native";
 import { api, ApiError } from "./api";
 import { countdown, eurShort, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
@@ -80,6 +80,21 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, 
       </View>
 
       <ThemePickerButton onPress={onChooseTheme} />
+
+      {/* Terminal de paiement : facultatif, simple déclaration ; ouvre les courses payées à bord par carte. */}
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Slab size={15} color={c.ink} shadow={null}>Terminal de paiement par carte</Slab>
+            <Text style={{ color: c.muted, fontSize: 13, marginTop: 4 }}>Facultatif. Si vous en avez un, vous recevez aussi les courses payées à bord par carte.</Text>
+          </View>
+          <Switch accessibilityLabel="J'ai un terminal de paiement par carte" value={!!me.data?.cardTerminal} disabled={!me.data}
+            onValueChange={async (enabled) => {
+              try { await api("/driver/card-terminal", { enabled }); await me.reload(); notify(enabled ? "Terminal déclaré : courses payées à bord ouvertes" : "Terminal retiré", "ok"); }
+              catch (e: any) { notify(e.message, "bad"); }
+            }} />
+        </View>
+      </Card>
 
       {home.data?.fatigue?.maxMinutes > 0 && home.data.fatigue.minutes24h >= home.data.fatigue.maxMinutes * 0.8 && (
         <Card color={home.data.fatigue.minutes24h >= home.data.fatigue.maxMinutes ? c.red : c.yel}>
@@ -291,6 +306,7 @@ export function Radar({ notify }: { notify: Notify }) {
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                 <Chip label={`≈ ${eurShort(o.netPerHourCents)}/h`} color={c.yel} />
                 {needLabels(o.needs).map((l) => <Chip key={l} label={`⚠ ${l}`} color={c.red} text={c.cream} />)}
+                {o.payOnBoard && <Chip label={`💳 À encaisser à bord : ${eurShort(o.payOnBoard.collectCents)}`} color={c.yel} />}
                 {o.returnTrip ? <Chip label={`↩ Retour après R-${o.returnTrip.afterRef} · ${o.returnTrip.gapMin} min · ${o.returnTrip.km} km`} color={c.yel} /> : null}
                 {o.priceRising ? <Chip label="Prix en hausse ↗" color={c.cream} /> : null}
                 {o.ecoBonusCents > 0 ? <Chip label={`⚡ dont ${eurShort(o.ecoBonusCents)} prime électrique`} color="#3ddc84" /> : null}

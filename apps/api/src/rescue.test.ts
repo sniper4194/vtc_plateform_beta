@@ -560,6 +560,32 @@ describe("badge d'accès aéroport (facture de parking ADP)", () => {
   });
 });
 
+describe("paiement à bord par carte", () => {
+  it("réservé aux chauffeurs qui déclarent un terminal ; les autres gardent leurs autres courses", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const rideOf = async (b: { res: { json: any } }) => prisma.ride.findFirstOrThrow({ where: { bookingId: b.res.json.id } });
+    const onBoard = await rideOf(await mkBooking(p, {}, `k-${Math.random()}`, { payOnBoard: true }));
+    expect(onBoard.payOnBoard).toBe(true);
+    expect(await prisma.dispatchOffer.count({ where: { rideId: onBoard.id, driverId: d.id } })).toBe(0);
+    const refused = await call(`/admin/rides/${onBoard.id}/assign`, await manualAssignment(prisma, onBoard.id, d.id));
+    expect(refused.status).toBe(409);
+    expect(refused.json.message).toMatch(/terminal de paiement/);
+    const normal = await rideOf(await mkBooking(p));
+    expect(await prisma.dispatchOffer.count({ where: { rideId: normal.id, driverId: d.id } })).toBe(1);
+    // Simple déclaration du chauffeur : la course payée à bord lui est alors proposée, avec le montant à encaisser.
+    expect((await call("/driver/card-terminal", { token: d.token, body: { enabled: true } })).status).toBe(201);
+    expect((await call("/driver/me", { token: d.token })).json.cardTerminal).toBe(true);
+    await dispatch.round(onBoard.id);
+    const offerRow = await prisma.dispatchOffer.findFirstOrThrow({ where: { rideId: onBoard.id, driverId: d.id, status: "PENDING" } });
+    const offer = (await call("/driver/offers", { token: d.token })).json.find((o: any) => o.offerId === offerRow.id);
+    expect(offer.payOnBoard).toEqual({ collectCents: onBoard.priceCents });
+    expect((await call(`/driver/offers/${offer.offerId}/accept`, { token: d.token, body: {} })).status).toBe(201);
+    const mission = await call(`/driver/rides/${onBoard.id}`, { token: d.token });
+    expect(mission.json.payOnBoard).toEqual({ collectCents: onBoard.priceCents, commissionCents: expect.any(Number) });
+  });
+});
+
 describe("critères du véhicule à l'admission et à l'attribution", () => {
   afterEach(() => { process.env.VEHICLE_RULES = "0"; });
   const goodFacts = { fuel: "THERMAL" as const, firstRegistrationAt: new Date(Date.now() - 365 * 86400_000), doors: 4, lengthMm: 4800, widthMm: 1850, powerKw: 120 };

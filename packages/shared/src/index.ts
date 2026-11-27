@@ -65,6 +65,8 @@ export const BookingRequestSchema = z.object({
   flightBufferMin: z.number().int().min(0).max(180).optional(),
   /** Besoins particuliers (siège enfant, rehausseur, fauteuil roulant, animal). */
   needs: z.array(NeedSchema).max(NEEDS.length).optional(),
+  /** Paiement à bord par carte : le voyageur paie le chauffeur, équipé d'un terminal ; seuls ces chauffeurs reçoivent la course. */
+  payOnBoard: z.boolean().optional(),
   passenger: z.object({
     firstName: z.string().min(1),
     lastName: z.string().min(1),

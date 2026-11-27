@@ -48,6 +48,15 @@ export class DriverController {
     return this.auth.legacyLogin(phone,code,req.ip??"unknown");
   }
 
+  /** Terminal de paiement par carte : simple déclaration du chauffeur, requise pour les courses payées à bord. */
+  @Post("card-terminal")
+  @UseGuards(DriverGuard)
+  async cardTerminal(@Req() req: any, @Body() body: unknown) {
+    const { enabled } = parse(z.object({ enabled: z.boolean() }).strict(), body);
+    await this.prisma.driver.update({ where: { id: req.driverId }, data: { cardTerminal: enabled } });
+    return { cardTerminal: enabled };
+  }
+
   @Get("me")
   @UseGuards(DriverGuard)
   async me(@Req() req: any) {
@@ -57,7 +66,7 @@ export class DriverController {
     });
     return {
       id: d.id, firstName: d.firstName, lastName: d.lastName, status: d.status, availability: d.availability,
-      rating: d.rating, vehicles: d.vehicles.map((v) => ({ ...v, compliance: checkVehicle(v) })), documents: d.documents.map((x) => ({ id: x.id, type: x.type, status: x.status, expiresAt: x.expiresAt })),
+      rating: d.rating, cardTerminal: d.cardTerminal, vehicles: d.vehicles.map((v) => ({ ...v, compliance: checkVehicle(v) })), documents: d.documents.map((x) => ({ id: x.id, type: x.type, status: x.status, expiresAt: x.expiresAt })),
     };
   }
 
@@ -229,6 +238,7 @@ export class DriverController {
       netPerHourCents: Math.round((price + eco) / Math.max(o.ride.durationMin / 60, 0.25)),
       flightNumber: o.ride.booking.flightNumber,
       needs: o.ride.needs,
+      payOnBoard: o.ride.payOnBoard ? { collectCents: o.ride.priceCents } : null,
       returnTrip: returnMatch(planned, { pickupLat: o.ride.pickupLat, pickupLng: o.ride.pickupLng, startAt: this.dispatch.slotOf(o.ride).start }),
     };
     });

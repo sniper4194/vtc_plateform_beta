@@ -136,6 +136,8 @@ model Company {
 
 model Driver {
   id            String             @id @default(uuid())
+  /// Terminal de paiement par carte (déclaration du chauffeur, facultatif) : requis pour les courses « paiement à bord ».
+  cardTerminal  Boolean            @default(false)
   companyId     String?
   company       Company?           @relation(fields: [companyId], references: [id])
   firstName     String
@@ -259,6 +261,8 @@ model Booking {
 model Ride {
   /// Besoins particuliers du voyageur (voir NEEDS) : seuls les véhicules équipés reçoivent la mission
   needs         String[]        @default([])
+  /// Paiement à bord par carte : le voyageur règle le chauffeur (terminal de paiement) ; CliCab retient sa commission sur le chiffre d'affaires du chauffeur.
+  payOnBoard    Boolean         @default(false)
   lostItems     LostItem[]
   pools         RidePool[]
   referralReward ReferralReward?

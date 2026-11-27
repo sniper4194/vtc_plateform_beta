@@ -21,6 +21,7 @@ export function bookingView(r: RideFull) {
     signText: r.booking.signText ?? `${r.booking.passengerFirstName} ${r.booking.passengerLastName}`,
     notes: r.booking.notes,
     needs: r.needs,
+    payOnBoard: r.payOnBoard,
     flight: r.booking.flightNumber
       ? {
           number: r.booking.flightNumber,
@@ -88,6 +89,8 @@ export function driverRideView(r: RideFull & { booking: Booking & { partner?: { 
       : null,
     durationMin: Math.round(r.durationMin),
     needs: r.needs,
+    // Paiement à bord par carte : montant à encaisser auprès du voyageur (prix client), commission CliCab retenue ensuite.
+    payOnBoard: r.payOnBoard ? { collectCents: r.priceCents, commissionCents: r.commissionCents } : null,
     swapOfferedAt: r.swapOfferedAt,
     // Limite pour mettre la mission à l'échange (sans pénalité) ; au-delà, rendre ou appeler un sauveteur.
     swapDeadline: new Date(effectivePickup(r.pickupAt, r.flightDelayMin).getTime() - swapMinHours() * 3600_000),

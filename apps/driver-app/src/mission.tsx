@@ -171,6 +171,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
               <Chip label={r.category} />
               <Chip label={`${r.passengers} pers. · ${r.luggage} bag.`} />
               {needLabels(r.needs).map((l) => <Chip key={l} label={`⚠ ${l}`} color={c.red} text={c.cream} />)}
+              {r.payOnBoard && <Chip label={`💳 Paiement à bord par carte : encaissez ${eurShort(r.payOnBoard.collectCents)}`} color={c.yel} />}
               <Chip label={`${eurShort(r.netCents)} net`} color={c.blue} text={c.cream} />
             </View>
             {r.notes ? <Cond size={13} color={c.red}>Consigne : {r.notes}</Cond> : null}

@@ -13,6 +13,7 @@ import { isAtRisk } from "./guarantee";
 import { fatigueBlocks, planningConfig, PlannedRide, returnMatch, Slot } from "./planning";
 import { haversineKm } from "./zones";
 import { assertAirportBadge, driversWithBadge, needsAirportBadge } from "./airport-badge";
+import { assertCardTerminal, driversWithTerminal } from "./card-terminal";
 import { WEBHOOK_BY_STATUS } from "./views";
 import { WebhooksService } from "./webhooks.service";
 import { grantReferralReward } from "./referral-rewards";
@@ -141,7 +142,10 @@ export class DispatchService {
     const vehicleOk = candidates.filter((driver) => firstCompliant(driver.vehicles, ride.category, ride.needs));
     // Prise en charge à l'aéroport : seuls les chauffeurs au badge validé reçoivent l'offre (les autres gardent leurs autres courses).
     const badged = needsAirportBadge(ride) ? await driversWithBadge(this.prisma, vehicleOk.map((d) => d.id)) : null;
-    const compliant = badged ? vehicleOk.filter((d) => badged.has(d.id)) : vehicleOk;
+    const withBadge = badged ? vehicleOk.filter((d) => badged.has(d.id)) : vehicleOk;
+    // Paiement à bord : seuls les chauffeurs équipés d'un terminal reçoivent l'offre.
+    const equipped = ride.payOnBoard ? await driversWithTerminal(this.prisma, withBadge.map((d) => d.id)) : null;
+    const compliant = equipped ? withBadge.filter((d) => equipped.has(d.id)) : withBadge;
     const overlapping = await this.overlappingDrivers(this.prisma, compliant.map((driver) => driver.id), ride);
     const eligible = compliant.filter((driver) => !overlapping.has(driver.id));
     const dist = (d: (typeof eligible)[number]) =>
@@ -221,6 +225,7 @@ export class DispatchService {
     const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: ride.category } }), ride.category, ride.needs);
     if (!vehicle) throw new HttpException(ride.needs.length ? "Aucun véhicule compatible, conforme et équipé pour les besoins du voyageur" : "Aucun véhicule compatible et conforme", 409);
     await assertAirportBadge(tx, driverId, ride);
+    await assertCardTerminal(tx, driverId, ride);
     if (await this.hasOverlap(tx, driverId, ride)) throw new HttpException("Conflit avec une autre course de votre planning", 409);
     if (await this.fatigueBlocked(tx, driverId, ride)) throw new HttpException(`Repos nécessaire : avec cette mission, vous dépasseriez ${planningConfig().maxMissionHours} h de mission sur 24 h`, 409);
     // Prix accepté = prix proposé AU MOMENT de l'acceptation, calculé ici (jamais fourni par le client).
