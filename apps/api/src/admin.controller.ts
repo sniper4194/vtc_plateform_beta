@@ -10,6 +10,7 @@ import { PerformanceService } from "./performance.service";
 import { NotificationsService } from "./notifications";
 import { csvCell } from "./metrics";
 import { parse } from "./http";
+import { z } from "zod";
 import { PrismaService } from "./prisma";
 import { AdminUserCreateSchema, PasswordResetSchema, AssignSchema, CompanyCreateSchema, DriverCreateSchema, FlightUpdateSchema, PartnerCreateSchema, ReviewSchema } from "./schemas";
 import { AdminGuard, AdminIdentity, AdminOnly, generateApiKey, generateCompanyKey } from "./security";
@@ -148,6 +149,26 @@ export class AdminController {
       orderBy: { createdAt: "desc" },
       take: 200,
     }).then((list) => list.map((d) => ({ ...d, vehicles: d.vehicles.map((v) => ({ ...v, compliance: checkVehicle(v) })) })));
+  }
+
+  /**
+   * Badge d'accès aéroport vérifié par l'équipe (facture de parking ADP vue par un humain) : le chauffeur ne peut pas encore
+   * envoyer sa facture depuis l'application. Retirer le badge le refuse ; les départs d'aéroport se ferment aussitôt.
+   */
+  @Post("drivers/:id/airport-badge")
+  @AdminOnly()
+  async airportBadge(@Req() req: { admin: AdminIdentity }, @Param("id") id: string, @Body() body: unknown) {
+    const b = parse(z.object({ verified: z.boolean(), expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).strict(), body);
+    await this.prisma.driver.findUniqueOrThrow({ where: { id } }).catch(() => { throw new HttpException("Chauffeur introuvable", 404); });
+    if (!b.verified) {
+      await this.prisma.document.updateMany({ where: { driverId: id, type: "AIRPORT_BADGE", status: { in: ["APPROVED", "PENDING"] } }, data: { status: "REJECTED", reviewedAt: new Date(), reviewedBy: req.admin.actor } });
+      return { airportBadge: false };
+    }
+    // Fin de validité de la facture (facultative) : fin de journée, heure de Paris approximée par 23:59 UTC.
+    const expiresAt = b.expiresAt ? new Date(`${b.expiresAt}T23:59:00Z`) : null;
+    if (expiresAt && expiresAt <= new Date()) throw new HttpException("Date de fin déjà passée", 422);
+    await this.prisma.document.create({ data: { driverId: id, type: "AIRPORT_BADGE", storageKey: `verifie-par-equipe:${req.admin.actor}`, status: "APPROVED", reviewedAt: new Date(), reviewedBy: req.admin.actor, expiresAt } });
+    return { airportBadge: true, expiresAt };
   }
 
   @Post("documents/:id/review")

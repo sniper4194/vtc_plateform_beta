@@ -333,6 +333,26 @@ function Board() {
   );
 }
 
+/** Badge d'accès aéroport : l'équipe a vu la facture de parking ADP. Sans badge, pas de départ d'aéroport (le chauffeur reste en ligne pour le reste). */
+function AirportBadge({ driver, act }: { driver: any; act: (path: string, body?: unknown) => Promise<void> }) {
+  const [until, setUntil] = useState("");
+  const now = Date.now();
+  const valid = (driver.documents ?? []).filter((x: any) => x.type === "AIRPORT_BADGE" && x.status === "APPROVED" && (!x.expiresAt || new Date(x.expiresAt).getTime() > now));
+  const best = valid.sort((a: any, b: any) => (b.expiresAt ? new Date(b.expiresAt).getTime() : Infinity) - (a.expiresAt ? new Date(a.expiresAt).getTime() : Infinity))[0];
+  return (
+    <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", margin: "8px 0" }}>
+      <span className="cond">Badge aéroport</span>
+      {best ? <span className="chip ok">vérifié{best.expiresAt ? ` jusqu'au ${new Date(best.expiresAt).toLocaleDateString("fr-FR")}` : ""}</span> : <span className="chip bad">non vérifié : pas de départ d'aéroport</span>}
+      {best
+        ? <button className="btn" onClick={() => { if (confirm("Retirer le badge aéroport ? Les départs d'aéroport seront fermés à ce chauffeur.")) act(`/admin/drivers/${driver.id}/airport-badge`, { verified: false }); }}>Retirer le badge</button>
+        : <>
+            <label className="muted" style={{ fontSize: 13 }}>Fin de validité (facultatif) <input type="date" aria-label="Fin de validité du badge" value={until} onChange={(e) => setUntil(e.target.value)} /></label>
+            <button className="btn primary" onClick={() => act(`/admin/drivers/${driver.id}/airport-badge`, { verified: true, ...(until ? { expiresAt: until } : {}) })}>Badge vérifié</button>
+          </>}
+    </div>
+  );
+}
+
 function Drivers({isAdmin}:{isAdmin:boolean}) {
   const drivers = useLoad<any[]>("/admin/drivers", 8000);
   const [msg, setMsg] = useState("");
@@ -361,6 +381,7 @@ function Drivers({isAdmin}:{isAdmin:boolean}) {
             {isAdmin&&<DriverAuthPanel id={d.id}/> }
             <div className="chips">{d.vehicles.map((v: any) => <span className={`chip ${v.compliance?.ok === false ? "bad" : "blue"}`} key={v.id} title={v.compliance?.problems?.join(" · ")}>{v.make} {v.model} · {v.plate}{v.compliance?.ok === false ? " · non conforme" : ""}</span>)}</div>
             {d.vehicles.filter((v: any) => v.compliance?.ok === false).map((v: any) => <div className="muted" key={v.id} style={{ fontSize: 13 }}>{v.plate} : {v.compliance.problems.join(" · ")}</div>)}
+            {isAdmin && <AirportBadge driver={d} act={act} />}
             <div style={{ margin: "12px 0" }}>
               {d.documents.map((x: any) => (
                 <div className="doc" key={x.id}>

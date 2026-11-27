@@ -549,6 +549,24 @@ describe("badge d'accès aéroport (facture de parking ADP)", () => {
     expect(await prisma.dispatchOffer.count({ where: { rideId: fromCdg.rideId, driverId: d.id } })).toBe(1);
   });
 
+  it("la tour peut marquer le badge vérifié puis le retirer", async () => {
+    process.env.AIRPORT_BADGE_ENABLED = "1";
+    const p = await mkPartner();
+    const d = await mkDriver({ lat: 49.0097, lng: 2.5479 });
+    const ok = await call(`/admin/drivers/${d.id}/airport-badge`, { admin: true, body: { verified: true, expiresAt: new Date(Date.now() + 90 * 86400_000).toISOString().slice(0, 10) } });
+    expect(ok.status).toBe(201);
+    const doc = await prisma.document.findFirstOrThrow({ where: { driverId: d.id, type: "AIRPORT_BADGE" } });
+    expect(doc).toMatchObject({ status: "APPROVED", storageKey: expect.stringMatching(/^verifie-par-equipe:/) });
+    const b1 = await mkBooking(p);
+    const r1 = (await prisma.ride.findFirstOrThrow({ where: { bookingId: b1.res.json.id } })).id;
+    expect(await prisma.dispatchOffer.count({ where: { rideId: r1, driverId: d.id } })).toBe(1);
+    expect((await call(`/admin/drivers/${d.id}/airport-badge`, { admin: true, body: { verified: false } })).status).toBe(201);
+    const b2 = await mkBooking(p);
+    const r2 = (await prisma.ride.findFirstOrThrow({ where: { bookingId: b2.res.json.id } })).id;
+    expect(await prisma.dispatchOffer.count({ where: { rideId: r2, driverId: d.id } })).toBe(0);
+    expect((await call(`/admin/drivers/${d.id}/airport-badge`, { admin: true, body: { verified: true, expiresAt: "2020-01-01" } })).status).toBe(422);
+  });
+
   it("une facture échue ne compte plus", async () => {
     process.env.AIRPORT_BADGE_ENABLED = "1";
     const p = await mkPartner();
