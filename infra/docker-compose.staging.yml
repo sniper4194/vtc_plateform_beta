@@ -36,7 +36,8 @@ services:
       IDENTITY_CHECKS: "0"
       IDENTITY_SPOT: "0"
       VEHICLE_RULES: "0"
-      AIRPORT_BADGE_REQUIRED: ${AIRPORT_BADGE_REQUIRED:-1}
+      AIRPORT_BADGE_ENABLED: ${AIRPORT_BADGE_ENABLED:-1}
+      AIRPORT_BADGE_ZONES: ${AIRPORT_BADGE_ZONES-CDG,ORLY,BEAUVAIS}
     networks: [private]
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]

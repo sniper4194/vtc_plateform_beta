@@ -8,6 +8,7 @@ import { PrismaService } from "./prisma";
 import { currentWave, eliteCheck, openTo, planWaveSeconds, RESCUABLE, RESCUE, rescueAcceptedToRequester, rescueBonusCents, rescueExpiredToRequester, rescueRequestMessage } from "./rescue";
 import { firstCompliant } from "./vehicle-rules";
 import { haversineKm } from "./zones";
+import { assertAirportBadge } from "./airport-badge";
 import { WebhooksService } from "./webhooks.service";
 
 const initials = (d: { firstName: string; lastName: string }) => `${d.firstName} ${d.lastName.charAt(0)}.`;
@@ -177,6 +178,7 @@ export class RescueService {
       if (!eliteCheck({ ...d, completedRides }).listed) throw new HttpException("Réservé aux sauveteurs", 403);
       const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: r.ride.category } }), r.ride.category, r.ride.needs);
       if (!vehicle) throw new HttpException("Aucun véhicule compatible et conforme", 409);
+      await assertAirportBadge(tx, driverId, r.ride);
       if (await this.dispatch.hasOverlap(tx, driverId, r.ride)) throw new HttpException("Conflit avec une autre course de votre planning", 409);
       if (await this.dispatch.fatigueBlocked(tx, driverId, r.ride)) throw new HttpException("Repos nécessaire : cette mission vous ferait dépasser le maximum d'heures de mission sur 24 h", 409);
       const claimed = await tx.rescueRequest.updateMany({ where: { id, status: "OPEN" }, data: { status: "ACCEPTED", rescuerId: driverId, resolvedAt: new Date() } });

@@ -523,33 +523,40 @@ describe("pénalités : restitution, sauveteur, récidive", () => {
 });
 
 describe("badge d'accès aéroport (facture de parking ADP)", () => {
-  afterEach(() => { process.env.AIRPORT_BADGE_REQUIRED = "0"; });
+  afterEach(() => { process.env.AIRPORT_BADGE_ENABLED = "0"; });
 
-  it("bloque la validation et la mise en ligne sans badge validé, puis les accepte", async () => {
-    process.env.AIRPORT_BADGE_REQUIRED = "1";
-    const d = await mkDriver({ docs: false });
-    await prisma.document.createMany({ data: ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"].map((type) => ({ driverId: d.id, type: type as any, storageKey: "k", status: "APPROVED" as const })) });
-    const a = await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} });
-    expect(a.status).toBe(409);
-    expect(a.json.missing).toEqual(["AIRPORT_BADGE"]);
-    // Le chauffeur envoie sa facture ; tant qu'elle n'est pas validée par un humain, elle ne compte pas.
+  it("sans badge : reste en ligne, ne reçoit pas les départs d'aéroport et ne peut pas les prendre ; avec badge validé, oui", async () => {
+    process.env.AIRPORT_BADGE_ENABLED = "1";
+    const p = await mkPartner();
+    const d = await mkDriver({ lat: 49.0097, lng: 2.5479 }); // en ligne, à CDG, sans badge : la mise en ligne n'est pas bloquée
+    const rideOf = async (b: { res: { json: any } }) => (await prisma.ride.findFirstOrThrow({ where: { bookingId: b.res.json.id } })).id;
+    const fromCdg = { rideId: await rideOf(await mkBooking(p)) }; // départ CDG ; la création lance une première vague d'offres
+    expect(await prisma.dispatchOffer.count({ where: { rideId: fromCdg.rideId, driverId: d.id } })).toBe(0);
+    const forced = await call(`/admin/rides/${fromCdg.rideId}/assign`, await manualAssignment(prisma, fromCdg.rideId, d.id));
+    expect(forced.status).toBe(409);
+    expect(forced.json.message).toMatch(/Badge d'accès aéroport/);
+    // Une course qui ne part pas d'un aéroport reste accessible.
+    const fromParis = { rideId: await rideOf(await mkBooking(p, { pickup: PARIS, dropoff: CDG })) };
+    expect(await prisma.dispatchOffer.count({ where: { rideId: fromParis.rideId, driverId: d.id } })).toBe(1);
+    // Facture envoyée puis validée par un humain : les départs d'aéroport s'ouvrent.
     const up = await call("/driver/documents", { token: d.token, body: { type: "AIRPORT_BADGE", storageKey: "factures/adp-2026-11.pdf" } });
     expect(up.status).toBe(201);
-    expect((await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} })).json.missing).toEqual(["AIRPORT_BADGE"]);
+    expect((await call(`/admin/rides/${fromCdg.rideId}/assign`, await manualAssignment(prisma, fromCdg.rideId, d.id))).status).toBe(409); // pas encore validée
+    const pending = await call("/driver/deadlines", { token: d.token });
+    expect(pending.json.find((x: any) => x.type === "AIRPORT_BADGE")?.label).toBe("Badge d'accès aéroport (facture parking ADP)");
     expect((await call(`/admin/documents/${up.json.id}/review`, { admin: true, body: { status: "APPROVED" } })).status).toBe(201);
-    expect((await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} })).status).toBe(201);
-    expect((await call("/driver/availability", { token: d.token, body: { availability: "AVAILABLE" } })).status).toBe(201);
-    // Une facture échue ne justifie plus l'accès : mise en ligne impossible jusqu'au renouvellement.
-    await prisma.document.update({ where: { id: up.json.id }, data: { expiresAt: new Date(Date.now() - 86400_000) } });
-    const off = await call("/driver/availability", { token: d.token, body: { availability: "AVAILABLE" } });
-    expect(off.status).toBe(403);
-    expect(off.json.missing).toEqual(["AIRPORT_BADGE"]);
+    await dispatch.round(fromCdg.rideId);
+    expect(await prisma.dispatchOffer.count({ where: { rideId: fromCdg.rideId, driverId: d.id } })).toBe(1);
   });
 
-  it("reste facultatif avec AIRPORT_BADGE_REQUIRED=0", async () => {
-    const d = await mkDriver({ docs: false });
-    await prisma.document.createMany({ data: ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"].map((type) => ({ driverId: d.id, type: type as any, storageKey: "k", status: "APPROVED" as const })) });
-    expect((await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} })).status).toBe(201);
+  it("une facture échue ne compte plus", async () => {
+    process.env.AIRPORT_BADGE_ENABLED = "1";
+    const p = await mkPartner();
+    const d = await mkDriver({ lat: 49.0097, lng: 2.5479 });
+    await prisma.document.create({ data: { driverId: d.id, type: "AIRPORT_BADGE", storageKey: "k", status: "APPROVED", expiresAt: new Date(Date.now() - 86400_000) } });
+    const b = await mkBooking(p);
+    const rideId = (await prisma.ride.findFirstOrThrow({ where: { bookingId: b.res.json.id } })).id;
+    expect(await prisma.dispatchOffer.count({ where: { rideId, driverId: d.id } })).toBe(0);
   });
 });
 

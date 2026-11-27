@@ -10,6 +10,7 @@ import { DriverGuard } from "./security";
 import { firstCompliant } from "./vehicle-rules";
 import { WebhooksService } from "./webhooks.service";
 import { swapMinHours, swapOpen } from "./swap-rules";
+import { assertAirportBadge, driversWithBadge, needsAirportBadge } from "./airport-badge";
 
 export { swapMinHours, swapOpen } from "./swap-rules";
 
@@ -71,6 +72,7 @@ export class SwapService {
   async eligible(db: any, driverId: string, vehicles: Parameters<typeof firstCompliant>[0], ride: Ride, now: Date) {
     if (!swapOpen(effectivePickup(ride.pickupAt, ride.flightDelayMin), now)) return false;
     if (!firstCompliant(vehicles.filter((v) => v.category === ride.category), ride.category, ride.needs)) return false;
+    if (needsAirportBadge(ride) && !(await driversWithBadge(db, [driverId])).has(driverId)) return false;
     if (await this.dispatch.hasOverlap(db, driverId, ride)) return false;
     return !(await this.dispatch.fatigueBlocked(db, driverId, ride));
   }
@@ -86,6 +88,7 @@ export class SwapService {
       if (!me || me.status !== "ACTIVE") throw new HttpException("Compte non actif", 403);
       const vehicle = firstCompliant(me.vehicles, ride.category, ride.needs);
       if (!vehicle) throw new HttpException(ride.needs.length ? "Aucun véhicule compatible, conforme et équipé pour les besoins du voyageur" : "Aucun véhicule compatible et conforme", 409);
+      await assertAirportBadge(tx, driverId, ride);
       if (await this.dispatch.hasOverlap(tx, driverId, ride)) throw new HttpException("Conflit avec une autre course de votre planning", 409);
       if (await this.dispatch.fatigueBlocked(tx, driverId, ride)) throw new HttpException(`Repos nécessaire : avec cette mission, vous dépasseriez ${planningConfig().maxMissionHours} h de mission sur 24 h`, 409);
       const base = ride.driverNetCents - ride.ecoBonusCents;

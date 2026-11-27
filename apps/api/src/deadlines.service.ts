@@ -17,7 +17,9 @@ export class DeadlinesService {
   /** Tableau des échéances d'un chauffeur : un état par document obligatoire (le plus récent valide l'emporte). */
   async list(driverId: string, now = new Date()) {
     const docs = await this.prisma.document.findMany({ where: { driverId }, orderBy: { createdAt: "desc" } });
-    return requiredDocs().map((type) => {
+    // Le badge aéroport n'empêche pas la mise en ligne, mais le chauffeur doit voir son état : sans lui, pas de départ d'aéroport.
+    const shown = [...requiredDocs(), ...(process.env.AIRPORT_BADGE_ENABLED !== "0" ? ["AIRPORT_BADGE"] : [])];
+    return shown.map((type) => {
       const ofType = docs.filter((d) => d.type === type);
       // Le document pris en compte : l'approuvé à l'échéance la plus lointaine, sinon le plus récent.
       const approved = ofType.filter((d) => d.status === "APPROVED").sort((a, b) => (b.expiresAt?.getTime() ?? Infinity) - (a.expiresAt?.getTime() ?? Infinity));
