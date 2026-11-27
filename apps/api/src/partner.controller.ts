@@ -37,6 +37,13 @@ export class PartnerController {
     @Inject(BookingsService) private bookings: BookingsService,
   ) {}
 
+  /** Identité de la session pilote hôtel, uniquement en préproduction. */
+  @Get("hotel-test/session")
+  hotelTestSession(@Req() req: any) {
+    if (process.env.APP_ENV !== "staging" || req.sandbox !== true) throw new HttpException("Portail TEST indisponible", 403);
+    return { name: req.partner.name };
+  }
+
   @Post("quotes")
   quote(@Req() req: any, @Body() body: unknown) {
     return this.quotes.create(req.partner, parse(QuoteRequestSchema, body));
