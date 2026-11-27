@@ -31,8 +31,14 @@ appId: com.clicab.driver
 - extendedWaitUntil:
     visible: "(?i)adresse du serveur"
     timeout: 10000
-- tapOn: "https://api.clicab.fr"
-- eraseText: 40
+# Champs visés par leur identifiant (testID) : viser le texte affiché ratait parfois la saisie sur le petit écran.
+- scrollUntilVisible:
+    element:
+      id: "server-url"
+    direction: DOWN
+- tapOn:
+    id: "server-url"
+- eraseText: 60
 - inputText: "http://10.0.2.2:3000"
 - pressKey: Enter  # ferme le clavier (la touche Retour mettait parfois l'application en arrière-plan)
 - takeScreenshot: 0-serveur
@@ -45,9 +51,11 @@ appId: com.clicab.driver
     visible: "Changer le serveur"
     timeout: 10000
 - scrollUntilVisible:
-    element: "06 12 34 56 78"
+    element:
+      id: "login-phone"
     direction: UP
-- tapOn: "06 12 34 56 78"
+- tapOn:
+    id: "login-phone"
 - inputText: "0611223355"
 - pressKey: Enter  # ferme le clavier (la touche Retour mettait parfois l'application en arrière-plan)
 # Chauffeur de test non activé (pas de mot de passe) : connexion par code SMS de l'ancien parcours.
@@ -55,7 +63,12 @@ appId: com.clicab.driver
     element: "(?i)ancien compte.*"
     direction: DOWN
 - tapOn: "(?i)ancien compte.*"
-- tapOn: "••••••"
+- extendedWaitUntil:
+    visible:
+      id: "login-code"
+    timeout: 15000
+- tapOn:
+    id: "login-code"
 - inputText: "000000"
 - pressKey: Enter  # ferme le clavier (la touche Retour mettait parfois l'application en arrière-plan)
 - tapOn: "C'est parti"

@@ -178,7 +178,7 @@ function Login({ onDone, dark, onToggleTheme, onChooseTheme, sessionExpired }: {
           <>
             <Card>
               <Cond size={12} color={c.muted}>Téléphone</Cond>
-              <TextInput style={input} placeholder="06 12 34 56 78" placeholderTextColor="#9a9ab0" keyboardType="phone-pad" value={phone} onChangeText={setPhone} autoCapitalize="none" autoComplete="tel" />
+              <TextInput testID="login-phone" style={input} placeholder="06 12 34 56 78" placeholderTextColor="#9a9ab0" keyboardType="phone-pad" value={phone} onChangeText={setPhone} autoCapitalize="none" autoComplete="tel" />
             </Card>
             {method==="password"&&<Card><PasswordField key="login" label="Mot de passe" value={password} onChange={v=>{setPassword(v);setChallenge(false);}} disabled={busy}/></Card>}
             {method==="activate"&&<Card style={{ gap: 12 }}>
@@ -215,7 +215,7 @@ function Login({ onDone, dark, onToggleTheme, onChooseTheme, sessionExpired }: {
             <Cond size={13} color={c.onSky}>Code envoyé par SMS au {phone.trim()}</Cond>
             <Card>
               <Cond size={12} color={c.muted}>Code à 6 chiffres</Cond>
-              <TextInput style={input} placeholder="••••••" placeholderTextColor="#9a9ab0" keyboardType="number-pad" value={code} onChangeText={setCode} maxLength={6} autoComplete="sms-otp" textContentType="oneTimeCode" />
+              <TextInput testID="login-code" style={input} placeholder="••••••" placeholderTextColor="#9a9ab0" keyboardType="number-pad" value={code} onChangeText={setCode} maxLength={6} autoComplete="sms-otp" textContentType="oneTimeCode" />
             </Card>
             {err ? <Card color={c.red}><Text style={{color:c.white,fontSize:14,fontWeight:"600"}}>{err}</Text></Card> : null}
             <Btn label={busy ? "Connexion…" : "C'est parti"} onPress={method==="password"?passwordLogin:submit} disabled={busy || code.trim().length !== 6} color={c.yel} />
@@ -228,7 +228,7 @@ function Login({ onDone, dark, onToggleTheme, onChooseTheme, sessionExpired }: {
         {!pendingToken && (editing ? (
           <Card>
             <Cond size={12} color={c.muted}>Adresse du serveur</Cond>
-            <TextInput style={input} placeholder="http://192.168.1.20:3000" placeholderTextColor="#9a9ab0" autoCapitalize="none" autoCorrect={false} keyboardType="url" value={draft} onChangeText={setDraft} />
+            <TextInput testID="server-url" style={input} placeholder="http://192.168.1.20:3000" placeholderTextColor="#9a9ab0" autoCapitalize="none" autoCorrect={false} keyboardType="url" value={draft} onChangeText={setDraft} />
             <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
               <View style={{ flex: 1 }}><Btn label="Enregistrer" onPress={saveServer} disabled={busy} color={c.yel} /></View>
               <View style={{ flex: 1 }}><Btn label="Annuler" onPress={() => { setEditing(false); setErr(""); }} /></View>
