@@ -48,6 +48,7 @@ enum DocumentType {
   INSURANCE
   REGISTRATION_CERT
   TECHNICAL_INSPECTION
+  AIRPORT_BADGE // badge d'accès aéroport, justifié par la facture de parking ADP
   ID
 }
 enum DocumentStatus {

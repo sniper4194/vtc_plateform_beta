@@ -13,6 +13,7 @@ import { Crm } from "./crm";
 import { Support } from "./support";
 import { DriverAuthCosts, DriverAuthPanel } from "./driver-auth";
 import "./regulator-theme.css";
+import { docLabel } from "../lib/documents";
 import { ThemePicker as SharedThemePicker, useSiteTheme, type SiteTheme } from "./theme";
 
 type Tab = "rides" | "alerts" | "perf" | "drivers" | "lost" | "recruitment" | "meeting" | "companies" | "partners" | "crm" | "support" | "team" | "account";
@@ -334,7 +335,7 @@ function Drivers({isAdmin}:{isAdmin:boolean}) {
   const drivers = useLoad<any[]>("/admin/drivers", 8000);
   const [msg, setMsg] = useState("");
   async function act(path: string, body: unknown = {}) {
-    try { await api(path, body); setMsg(""); } catch (e: any) { setMsg(e.body?.missing ? `${e.message} : ${e.body.missing.join(", ")}` : e.message); }
+    try { await api(path, body); setMsg(""); } catch (e: any) { setMsg(e.body?.missing ? `${e.message} : ${e.body.missing.map(docLabel).join(", ")}` : e.message); }
     drivers.reload();
   }
   return (
@@ -361,7 +362,7 @@ function Drivers({isAdmin}:{isAdmin:boolean}) {
             <div style={{ margin: "12px 0" }}>
               {d.documents.map((x: any) => (
                 <div className="doc" key={x.id}>
-                  <span className="cond">{x.type}</span>
+                  <span className="cond">{docLabel(x.type)}</span>
                   <span className={`chip ${x.status === "APPROVED" ? "ok" : x.status === "REJECTED" ? "bad" : ""}`}>{x.status}</span>
                   {x.status === "PENDING" && <>
                     <button className="btn" onClick={() => act(`/admin/documents/${x.id}/review`, { status: "APPROVED" })}>✓</button>

@@ -4,6 +4,7 @@ import { capi, clearCompanyKey, downloadCompanyFile, dt, eur, getCompanyKey, set
 import { PerformanceView } from "../perf";
 import "../regulator-theme.css";
 import { ThemePicker, useSiteTheme } from "../theme";
+import { docLabel } from "../../lib/documents";
 
 type Tab = "perf" | "drivers" | "vehicles" | "rides" | "pool" | "payments";
 
@@ -42,7 +43,7 @@ function Drivers() {
   const [f, setF] = useState({ firstName: "", lastName: "", phone: "", email: "", plate: "", make: "", model: "", category: "BERLINE" });
   const [msg, setMsg] = useState("");
   async function act(path: string) {
-    try { await capi(path, {}); setMsg(""); } catch (e: any) { setMsg(e.body?.missing ? `${e.message} : ${e.body.missing.join(", ")}` : e.message); }
+    try { await capi(path, {}); setMsg(""); } catch (e: any) { setMsg(e.body?.missing ? `${e.message} : ${e.body.missing.map(docLabel).join(", ")}` : e.message); }
     drivers.reload();
   }
   async function add(e: React.FormEvent) {
@@ -78,7 +79,7 @@ function Drivers() {
             </div>
             <div className="muted">{d.phone}</div>
             <div className="chips">{d.vehicles.map((v: any) => <span className="chip blue" key={v.id}>{v.plate}</span>)}</div>
-            {d.missingDocuments.length > 0 && <p className="err" style={{ margin: "10px 0 0" }}>Documents manquants : {d.missingDocuments.join(", ")}</p>}
+            {d.missingDocuments.length > 0 && <p className="err" style={{ margin: "10px 0 0" }}>Documents manquants : {d.missingDocuments.map(docLabel).join(", ")}</p>}
             <div style={{ marginTop: 12 }}>
               {d.status === "ACTIVE" && <button className="btn danger" onClick={() => act(`/company/drivers/${d.id}/suspend`)}>Suspendre</button>}
               {d.status === "SUSPENDED" && <button className="btn primary" onClick={() => act(`/company/drivers/${d.id}/resume`)}>Réactiver</button>}

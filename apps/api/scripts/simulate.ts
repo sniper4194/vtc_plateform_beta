@@ -61,7 +61,7 @@ async function main() {
         vehicle: { plate: `DM-${run.slice(0, 3)}-${i}${i}`, make: "Toyota", model: "Camry", category: "BERLINE" } },
     });
     const { token } = await call("/driver/login", { body: { phone: d.phone, code: process.env.DRIVER_DEV_OTP ?? "000000" } });
-    for (const type of ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"]) {
+    for (const type of ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID", "AIRPORT_BADGE"]) {
       const doc = await call("/driver/documents", { token, body: { type, storageKey: `demo/${d.id}/${type}` } });
       await call(`/admin/documents/${doc.id}/review`, { admin: true, body: { status: "APPROVED" } });
     }

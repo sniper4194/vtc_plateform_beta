@@ -69,7 +69,7 @@ const login = await call("/driver/login", { body: { phone: driver.phone, code } 
 ok("connexion par SMS réussie : le SMS fonctionne");
 
 // 6. Documents (références de test) validés par l'administrateur
-for (const type of ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"]) {
+for (const type of ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID", "AIRPORT_BADGE"]) {
   const d = await call("/driver/documents", { token: login.token, body: { type, storageKey: `golive/${type}` } });
   await call(`/admin/documents/${d.id}/review`, { body: { status: "APPROVED" } });
 }

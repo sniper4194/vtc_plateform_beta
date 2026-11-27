@@ -522,6 +522,37 @@ describe("pénalités : restitution, sauveteur, récidive", () => {
   });
 });
 
+describe("badge d'accès aéroport (facture de parking ADP)", () => {
+  afterEach(() => { process.env.AIRPORT_BADGE_REQUIRED = "0"; });
+
+  it("bloque la validation et la mise en ligne sans badge validé, puis les accepte", async () => {
+    process.env.AIRPORT_BADGE_REQUIRED = "1";
+    const d = await mkDriver({ docs: false });
+    await prisma.document.createMany({ data: ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"].map((type) => ({ driverId: d.id, type: type as any, storageKey: "k", status: "APPROVED" as const })) });
+    const a = await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} });
+    expect(a.status).toBe(409);
+    expect(a.json.missing).toEqual(["AIRPORT_BADGE"]);
+    // Le chauffeur envoie sa facture ; tant qu'elle n'est pas validée par un humain, elle ne compte pas.
+    const up = await call("/driver/documents", { token: d.token, body: { type: "AIRPORT_BADGE", storageKey: "factures/adp-2026-11.pdf" } });
+    expect(up.status).toBe(201);
+    expect((await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} })).json.missing).toEqual(["AIRPORT_BADGE"]);
+    expect((await call(`/admin/documents/${up.json.id}/review`, { admin: true, body: { status: "APPROVED" } })).status).toBe(201);
+    expect((await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} })).status).toBe(201);
+    expect((await call("/driver/availability", { token: d.token, body: { availability: "AVAILABLE" } })).status).toBe(201);
+    // Une facture échue ne justifie plus l'accès : mise en ligne impossible jusqu'au renouvellement.
+    await prisma.document.update({ where: { id: up.json.id }, data: { expiresAt: new Date(Date.now() - 86400_000) } });
+    const off = await call("/driver/availability", { token: d.token, body: { availability: "AVAILABLE" } });
+    expect(off.status).toBe(403);
+    expect(off.json.missing).toEqual(["AIRPORT_BADGE"]);
+  });
+
+  it("reste facultatif avec AIRPORT_BADGE_REQUIRED=0", async () => {
+    const d = await mkDriver({ docs: false });
+    await prisma.document.createMany({ data: ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"].map((type) => ({ driverId: d.id, type: type as any, storageKey: "k", status: "APPROVED" as const })) });
+    expect((await call(`/admin/drivers/${d.id}/approve`, { admin: true, body: {} })).status).toBe(201);
+  });
+});
+
 describe("critères du véhicule à l'admission et à l'attribution", () => {
   afterEach(() => { process.env.VEHICLE_RULES = "0"; });
   const goodFacts = { fuel: "THERMAL" as const, firstRegistrationAt: new Date(Date.now() - 365 * 86400_000), doors: 4, lengthMm: 4800, widthMm: 1850, powerKw: 120 };

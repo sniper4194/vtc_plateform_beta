@@ -5,6 +5,7 @@
 export const DOC_LABEL: Record<string, string> = {
   VTC_CARD: "Carte professionnelle VTC", DRIVING_LICENSE: "Permis de conduire", INSURANCE: "Assurance",
   ID: "Pièce d'identité", REGISTRATION_CERT: "Carte grise", TECHNICAL_INSPECTION: "Contrôle technique", KBIS: "Extrait Kbis",
+  AIRPORT_BADGE: "Badge d'accès aéroport (facture parking ADP)",
 };
 export const THRESHOLDS = [30, 14, 7, 1, 0] as const; // jours avant l'échéance ; 0 = le jour de l'expiration et après
 const DAY = 86400_000;

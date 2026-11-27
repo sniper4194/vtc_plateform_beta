@@ -44,7 +44,7 @@ async function demoCompany(): Promise<void> {
   if (!driver) driver = await call("/company/drivers", { token: DEMO_COMPANY_KEY, body: { firstName: "Camille", lastName: "Société", phone: COMPANY_PHONE, email: "karim.societe@example.com", vehicle: { plate: "DE-002-MO", make: "Mercedes", model: "Classe E", category: "BUSINESS" } } });
   const { token } = await call("/driver/login", { body: { phone: COMPANY_PHONE, code: CODE } });
   const docs = ((await call("/driver/documents", { token }).catch(() => [])) as any[]).map((d) => d.type);
-  for (const type of ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"]) {
+  for (const type of ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID", "AIRPORT_BADGE"]) {
     if (docs.includes(type)) continue;
     const doc = await call("/driver/documents", { token, body: { type, storageKey: `demo/${type}` } });
     await call(`/admin/documents/${doc.id}/review`, { admin: true, body: { status: "APPROVED" } });
@@ -69,7 +69,7 @@ async function main() {
   const { token } = await call("/driver/login", { body: { phone: PHONE, code: CODE } });
   const docs = await call("/driver/documents", { token }).catch(() => []);
   const have = new Set((docs as any[]).map((d) => d.type));
-  for (const type of ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"]) {
+  for (const type of ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID", "AIRPORT_BADGE"]) {
     if (have.has(type)) continue;
     const doc = await call("/driver/documents", { token, body: { type, storageKey: `demo/${type}` } });
     await call(`/admin/documents/${doc.id}/review`, { admin: true, body: { status: "APPROVED" } });

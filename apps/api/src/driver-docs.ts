@@ -4,7 +4,17 @@ import { VEHICLE_RULES } from "./vehicle-rules";
 export const REQUIRED_DOCS = ["VTC_CARD", "DRIVING_LICENSE", "INSURANCE", "ID"] as const;
 
 /** Avec le contrôle du véhicule actif, la carte grise (date de mise en circulation) et le contrôle technique (annuel pour un VTC, d'après la source consultée) deviennent obligatoires. */
-export const requiredDocs = (): string[] => [...REQUIRED_DOCS, ...(VEHICLE_RULES.enabled ? ["REGISTRATION_CERT", "TECHNICAL_INSPECTION"] : [])];
+export const requiredDocs = (): string[] => [
+  ...REQUIRED_DOCS,
+  ...(VEHICLE_RULES.enabled ? ["REGISTRATION_CERT", "TECHNICAL_INSPECTION"] : []),
+  ...(airportBadgeRequired() ? ["AIRPORT_BADGE"] : []),
+];
+
+/**
+ * Badge d'accès aéroport, justifié par la facture de parking Aéroports de Paris : obligatoire à la demande de l'utilisateur
+ * (exigence métier, base légale non vérifiée). AIRPORT_BADGE_REQUIRED=0 le rend facultatif. Lu à chaque appel.
+ */
+export const airportBadgeRequired = () => process.env.AIRPORT_BADGE_REQUIRED !== "0";
 
 /**
  * Identité d'exploitant manquante. Un chauffeur de VTC doit pouvoir justifier (registre des exploitants, REVTC) de qui exploite la course :

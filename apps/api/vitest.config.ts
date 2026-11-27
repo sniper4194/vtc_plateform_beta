@@ -9,6 +9,7 @@ export default defineConfig({
       DISABLE_WORKERS: "1",
       OTP_IP_PER_MIN: "100000", LOGIN_IP_PER_MIN: "100000", // les limites par IP sont testées explicitement
       IDENTITY_CHECKS: "0", // les tests de parcours se mettent en ligne sans selfie ; le contrôle est testé explicitement
+      AIRPORT_BADGE_REQUIRED: "0", // les tests de parcours créent les 4 documents de base ; le badge aéroport est testé explicitement
       VEHICLE_RULES: "0", // les tests de parcours créent des véhicules sans caractéristiques ; le contrôle est testé explicitement
       PRICE_LADDER: "0", // les tests de parcours supposent un prix stable ; l'échelle est testée explicitement
       RESCUE_WAVE_SEC: "0", // les tests d'appel à tous supposent une diffusion simultanée ; les vagues par proximité sont testées explicitement

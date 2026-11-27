@@ -9,7 +9,7 @@ export const phoneField = z.string().min(6).max(30).transform((v, ctx) => { cons
 export const AvailabilitySchema = z.object({ availability: z.enum(["AVAILABLE", "SUSPENDED"]) });
 export const LocationUpdateSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
 export const DocumentUploadSchema = z.object({
-  type: z.enum(["VTC_CARD", "DRIVING_LICENSE", "KBIS", "INSURANCE", "REGISTRATION_CERT", "TECHNICAL_INSPECTION", "ID"]),
+  type: z.enum(["VTC_CARD", "DRIVING_LICENSE", "KBIS", "INSURANCE", "REGISTRATION_CERT", "TECHNICAL_INSPECTION", "AIRPORT_BADGE", "ID"]),
   storageKey: z.string().min(1),
   expiresAt: z.string().datetime().optional(),
 });
