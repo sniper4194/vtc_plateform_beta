@@ -22,6 +22,9 @@ import type { AdminIdentity } from "./security";
 
 type Tx = Prisma.TransactionClient;
 
+/** Ordre des étapes pour la correction par la tour : « client absent » se place après « sur place ». */
+export const REVERT_RANK: Record<string, number> = { ASSIGNED: 1, EN_ROUTE: 2, ARRIVED: 3, IN_PROGRESS: 4, NO_SHOW: 4, COMPLETED: 5 };
+
 export const DISPATCH = {
   maxRounds: 3,
   urgentWithinMin: 120,
@@ -323,6 +326,38 @@ export class DispatchService {
     });
     if (applied) await this.penalties.tell(driverId, ref, "GIVE_BACK", applied);
     await this.round(rideId);
+  }
+
+  /**
+   * Correction d'étape par la tour : le chauffeur s'est trompé (course terminée avant l'arrivée, client absent déclaré à tort…).
+   * Retour vers n'importe quelle étape antérieure (choix de l'utilisateur), jamais vers « à attribuer » (pour cela : réattribuer).
+   * Motif obligatoire, tracé dans l'historique ; le chauffeur et le donneur d'ordre sont prévenus.
+   */
+  async adminRevertStatus(rideId: string, admin: AdminIdentity, to: string, reason: string) {
+    const target = REVERT_RANK[to];
+    if (!target) throw new HttpException("Étape cible non autorisée", 422);
+    let from = "", driverId = "";
+    await this.prisma.$transaction(async (tx) => {
+      const ride = await tx.ride.findUnique({ where: { id: rideId } });
+      if (!ride) throw new HttpException("Course introuvable", 404);
+      const current = REVERT_RANK[ride.status];
+      if (!current || !ride.driverId) throw new HttpException(`Correction impossible depuis l'étape ${ride.status}`, 409);
+      if (target >= current) throw new HttpException("On ne peut revenir qu'à une étape antérieure", 409);
+      const res = await tx.ride.updateMany({ where: { id: rideId, status: ride.status, version: ride.version }, data: { status: to as RideStatus, version: { increment: 1 } } });
+      if (res.count !== 1) throw new HttpException("La course vient de changer, réessayez", 409);
+      // Une course qui n'est plus terminée ne doit plus rapporter de prime de parrainage.
+      if (ride.status === "COMPLETED") await tx.referralReward.deleteMany({ where: { rideId } });
+      await this.event(tx, rideId, "ride.status_corrected", admin.actor, { from: ride.status, to, reason });
+      await this.webhooks.enqueue(tx, rideId, "ride.status_corrected");
+      from = ride.status; driverId = ride.driverId;
+    });
+    const label = (s: string) => ({ ASSIGNED: "Attribuée", EN_ROUTE: "En route", ARRIVED: "Sur place", IN_PROGRESS: "À bord", COMPLETED: "Terminée", NO_SHOW: "Client absent" } as Record<string, string>)[s] ?? s;
+    await this.notif.toDriver(driverId, {
+      type: "status_corrected", title: "Étape de mission corrigée",
+      body: `La tour de contrôle a remis la mission à l'étape « ${label(to)} » (au lieu de « ${label(from)} »). Motif : ${reason}`,
+      data: { rideId },
+    });
+    return { from, to };
   }
 
   async transition(driverId: string, rideId: string, action: DriverAction) {

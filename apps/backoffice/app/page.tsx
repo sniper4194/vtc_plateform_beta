@@ -30,6 +30,46 @@ const STATUS_LABEL: Record<string, string> = {
   DISPATCHING: "En recherche", ASSIGNED: "Attribuée", EN_ROUTE: "En route", ARRIVED: "Sur place", IN_PROGRESS: "À bord",
   COMPLETED: "Terminée", NO_SHOW: "Client absent", CANCELLED_BY_PARTNER: "Annulée", CANCELLED_BY_CLIENT: "Annulée", DISPUTED: "Litige", REFUNDED: "Remboursée",
 };
+/** Ordre des étapes pour la correction par la tour (« client absent » après « sur place »). */
+const REVERT_RANK: Record<string, number> = { ASSIGNED: 1, EN_ROUTE: 2, ARRIVED: 3, IN_PROGRESS: 4, NO_SHOW: 4, COMPLETED: 5 };
+const REVERT_TARGETS = ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"];
+const earlierSteps = (status: string, within?: string[]) =>
+  REVERT_RANK[status] ? REVERT_TARGETS.filter((t) => REVERT_RANK[t] < REVERT_RANK[status] && (!within || within.includes(t))) : [];
+
+/** Fenêtre de correction d'étape : étape cible + motif obligatoire (tracé, envoyé au chauffeur et au donneur d'ordre). */
+function StepFix({ ride, options, onClose, onDone }: { ride: any; options: string[]; onClose: () => void; onDone: () => void }) {
+  const [to, setTo] = useState(options[options.length - 1]);
+  const [reason, setReason] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function submit() {
+    setBusy(true); setErr("");
+    try { await api(`/admin/rides/${ride.id}/revert`, { to, reason }); onDone(); onClose(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  }
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Corriger l'étape" style={{ position: "fixed", inset: 0, background: "rgba(10,15,30,.45)", display: "grid", placeItems: "center", zIndex: 50 }} onClick={onClose}>
+      <div className="card" style={{ width: "min(460px, 92vw)", margin: 0 }} onClick={(e) => e.stopPropagation()}>
+        <h3>Corriger l'étape</h3>
+        <p className="muted" style={{ marginTop: 0 }}>{ride.pickupAddress} → {ride.dropoffAddress}<br />Étape actuelle : <b>{STATUS_LABEL[ride.status] ?? ride.status}</b></p>
+        <label style={{ display: "block", marginBottom: 8 }}>Revenir à{" "}
+          <select aria-label="Étape cible" value={to} onChange={(e) => setTo(e.target.value)}>
+            {options.map((o) => <option key={o} value={o}>{STATUS_LABEL[o]}</option>)}
+          </select>
+        </label>
+        <label style={{ display: "block" }}>Motif (obligatoire, transmis au chauffeur et au donneur d'ordre)
+          <input aria-label="Motif" style={{ width: "100%", marginTop: 4 }} value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} placeholder="ex. course terminée avant l'arrivée à destination" />
+        </label>
+        {err && <div className="err">{err}</div>}
+        <div className="row" style={{ gap: 8, marginTop: 12 }}>
+          <button className="btn primary" disabled={busy || reason.trim().length < 3} onClick={submit}>{busy ? "…" : "Corriger"}</button>
+          <button className="btn" onClick={onClose}>Annuler</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const chipTone = (s: string) => (["COMPLETED", "ASSIGNED"].includes(s) ? "ok" : ["NO_SHOW", "CANCELLED_BY_PARTNER", "CANCELLED_BY_CLIENT", "DISPUTED"].includes(s) ? "bad" : "blue");
 
 function useLoad<T>(path: string, every = 5000) {
@@ -263,6 +303,8 @@ function Board() {
   const drivers = useLoad<any[]>("/admin/drivers?status=ACTIVE", 15000);
   const alerts = useLoad<any[]>("/admin/alerts");
   const [err, setErr] = useState("");
+  const [fix, setFix] = useState<{ ride: any; options: string[] } | null>(null);
+  const [dragging, setDragging] = useState<any>(null);
   const list = rides.data ?? [];
   const n = (...s: string[]) => list.filter((r) => s.includes(r.status)).length;
   const alerted = new Set((alerts.data ?? []).map((a) => a.rideId));
@@ -279,12 +321,22 @@ function Board() {
         {COLUMNS.map((col) => {
           const items = list.filter((r) => col.statuses.includes(r.status));
           return (
-            <section className="col" key={col.title}>
+            <section className="col" key={col.title}
+              style={dragging && earlierSteps(dragging.status, col.statuses).length ? { outline: "3px dashed var(--yel)", outlineOffset: 4, borderRadius: 12 } : undefined}
+              onDragOver={(e) => { if (dragging && earlierSteps(dragging.status, col.statuses).length) e.preventDefault(); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const opts = dragging ? earlierSteps(dragging.status, col.statuses) : [];
+                if (dragging && opts.length) setFix({ ride: dragging, options: opts });
+                setDragging(null);
+              }}>
               <h2>{col.title}<span className="n">{items.length}</span></h2>
               {items.map((r) => {
                 const pending = r.offers.filter((o: any) => o.status === "PENDING").length;
                 return (
-                  <article className="card ride" key={r.id}>
+                  <article className="card ride" key={r.id} draggable={!!earlierSteps(r.status).length && !!r.driver}
+                    onDragStart={() => setDragging(r)} onDragEnd={() => setDragging(null)}
+                    title={earlierSteps(r.status).length && r.driver ? "Glisser vers une colonne précédente pour corriger l'étape" : undefined}>
                     <div className="price"><div><b style={{ fontSize: eur(r.driverNetCents).replace(",00", "").length > 6 ? 15 : 20 }}>{eur(r.driverNetCents).replace(",00", "")}</b><br /><span>net</span></div></div>
                     <div className="when">{dt(r.pickupAt)}</div>
                     <Route from={r.pickupAddress} to={r.dropoffAddress} />
@@ -312,6 +364,7 @@ function Board() {
                     )}
                     {r.driver && <p style={{ margin: "10px 0 0" }}><span className="cond muted">Chauffeur</span><br /><b style={{ fontFamily: "var(--slab)", fontWeight: 400 }}>{r.driver.firstName} {r.driver.lastName}</b></p>}
                     {r.driver && ["ARRIVED", "IN_PROGRESS", "NO_SHOW", "COMPLETED"].includes(r.status) && <RideProofs rideId={r.id} />}
+                    {r.driver && earlierSteps(r.status).length > 0 && <button className="btn" style={{ marginTop: 6 }} onClick={() => setFix({ ride: r, options: earlierSteps(r.status) })}>↶ Corriger l'étape</button>}
                     {r.status === "DISPATCHING" && (
                       <>
                         <p className="muted" style={{ margin: "10px 0 6px" }}>{pending} offre(s) en circulation</p>
@@ -329,6 +382,7 @@ function Board() {
           );
         })}
       </div>
+      {fix && <StepFix ride={fix.ride} options={fix.options} onClose={() => setFix(null)} onDone={rides.reload} />}
     </>
   );
 }

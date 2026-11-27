@@ -578,6 +578,51 @@ describe("badge d'accès aéroport (facture de parking ADP)", () => {
   });
 });
 
+describe("correction d'étape par la tour de contrôle", () => {
+  it("remet une course terminée trop tôt à l'étape « à bord », avec motif, trace, message au chauffeur et webhook", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    await mkBooking(p);
+    const offers = await call("/driver/offers", { token: d.token });
+    expect((await call(`/driver/offers/${offers.json[0].offerId}/accept`, { token: d.token, body: {} })).status).toBe(201);
+    const ride = await prisma.ride.findFirstOrThrow({ where: { driverId: d.id } });
+    await prisma.ride.update({ where: { id: ride.id }, data: { status: "COMPLETED" } });
+
+    expect((await call(`/admin/rides/${ride.id}/revert`, { admin: true, body: { to: "IN_PROGRESS" } })).status).toBe(422); // motif obligatoire
+    const ok = await call(`/admin/rides/${ride.id}/revert`, { admin: true, body: { to: "IN_PROGRESS", reason: "Terminée avant l'arrivée à destination" } });
+    expect(ok.status).toBe(201);
+    expect(ok.json).toEqual({ from: "COMPLETED", to: "IN_PROGRESS" });
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } })).status).toBe("IN_PROGRESS");
+    const ev = await prisma.rideEvent.findFirstOrThrow({ where: { rideId: ride.id, type: "ride.status_corrected" } });
+    expect(ev.payload).toMatchObject({ from: "COMPLETED", to: "IN_PROGRESS", reason: "Terminée avant l'arrivée à destination" });
+    expect(await prisma.notification.count({ where: { driverId: d.id, type: "status_corrected" } })).toBe(1);
+    expect(await prisma.webhookDelivery.count({ where: { eventType: "ride.status_corrected" } })).toBeGreaterThanOrEqual(1);
+    // Le chauffeur reprend normalement depuis l'étape corrigée.
+    expect((await call(`/driver/rides/${ride.id}/complete`, { token: d.token, body: {} })).status).toBe(201);
+
+    // Jamais vers une étape postérieure ou égale, ni « à attribuer ».
+    expect((await call(`/admin/rides/${ride.id}/revert`, { admin: true, body: { to: "DISPATCHING", reason: "test" } })).status).toBe(422);
+    await prisma.ride.update({ where: { id: ride.id }, data: { status: "EN_ROUTE" } });
+    expect((await call(`/admin/rides/${ride.id}/revert`, { admin: true, body: { to: "IN_PROGRESS", reason: "avancer" } })).status).toBe(409);
+  });
+
+  it("annule un « client absent » déclaré à tort et la prime de parrainage d'une course qui n'est plus terminée", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    await mkBooking(p);
+    const offers = await call("/driver/offers", { token: d.token });
+    expect((await call(`/driver/offers/${offers.json[0].offerId}/accept`, { token: d.token, body: {} })).status).toBe(201);
+    const ride = await prisma.ride.findFirstOrThrow({ where: { driverId: d.id } });
+    await prisma.ride.update({ where: { id: ride.id }, data: { status: "NO_SHOW" } });
+    expect((await call(`/admin/rides/${ride.id}/revert`, { admin: true, body: { to: "ARRIVED", reason: "Le client était là" } })).json).toEqual({ from: "NO_SHOW", to: "ARRIVED" });
+    const sponsor = await mkDriver();
+    await prisma.ride.update({ where: { id: ride.id }, data: { status: "COMPLETED" } });
+    await prisma.referralReward.create({ data: { sponsorId: sponsor.id, filleulId: d.id, rideId: ride.id, amountCents: 100 } });
+    expect((await call(`/admin/rides/${ride.id}/revert`, { admin: true, body: { to: "ASSIGNED", reason: "Mauvaise manipulation" } })).status).toBe(201);
+    expect(await prisma.referralReward.count({ where: { rideId: ride.id } })).toBe(0);
+  });
+});
+
 describe("import de courses CSV d'un donneur d'ordre", () => {
   const day = new Date(Date.now() + 4 * 86400_000);
   const dmy = `${String(day.getUTCDate()).padStart(2, "0")}/${String(day.getUTCMonth() + 1).padStart(2, "0")}/${day.getUTCFullYear()}`;

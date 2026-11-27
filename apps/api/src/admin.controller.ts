@@ -220,6 +220,13 @@ export class AdminController {
     return { queued: result.count };
   }
 
+  /** Correction d'étape par le dispatcheur (glisser-déposer au tableau), avec motif obligatoire. */
+  @Post("rides/:id/revert")
+  async revert(@Req() req: { admin: AdminIdentity }, @Param("id") id: string, @Body() body: unknown) {
+    const b = parse(z.object({ to: z.enum(["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"]), reason: z.string().trim().min(3, "motif obligatoire").max(300) }).strict(), body);
+    return this.dispatch.adminRevertStatus(id, req.admin, b.to, b.reason);
+  }
+
   @Post("rides/:id/assign")
   async assign(@Req() req: { admin: AdminIdentity }, @Param("id") id: string, @Body() body: unknown) {
     await this.dispatch.adminAssign(id, req.admin, parse(AssignSchema, body));
