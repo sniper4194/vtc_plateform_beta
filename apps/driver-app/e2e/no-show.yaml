@@ -83,7 +83,10 @@ appId: com.clicab.driver
     direction: DOWN
 - takeScreenshot: 3-avant-no-show
 - tapOn: "(?i)client introuvable.*"
-- extendedWaitUntil:
-    visible: "Client absent"
-    timeout: 10000
+# Le titre « Client absent » est en haut de la fiche, sortie de l'écran par le défilement vers le bouton : on remonte.
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element: "Client absent"
+    direction: UP
+    timeout: 15000
 - takeScreenshot: 4-apres-no-show
