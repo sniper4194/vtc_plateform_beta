@@ -18,6 +18,7 @@ import { OtpService } from "./otp.service";
 import { z } from "zod";
 import { DriverGuard } from "./security";
 import { DriverAuthService } from "./driver-auth.service";
+import { LIVE_STATUSES } from "./live-position";
 
 const ACTION_SET = new Set<DriverAction>(["en-route", "arrived", "start", "complete", "no-show"]);
 
@@ -184,7 +185,9 @@ export class DriverController {
   async location(@Req() req: any, @Body() body: unknown) {
     const { lat, lng } = parse(LocationUpdateSchema, body);
     await this.prisma.driver.update({ where: { id: req.driverId }, data: { lastLat: lat, lastLng: lng, lastSeenAt: new Date() } });
-    return { ok: true };
+    // « live » indique au téléphone s'il doit continuer le partage en arrière-plan (mission en cours) ou l'arrêter.
+    const live = await this.prisma.ride.count({ where: { driverId: req.driverId, status: { in: [...LIVE_STATUSES] } } });
+    return { ok: true, live: live > 0 };
   }
 
   @Post("documents")

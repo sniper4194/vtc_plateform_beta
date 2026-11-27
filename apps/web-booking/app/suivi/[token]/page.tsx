@@ -1,6 +1,7 @@
 "use client";
 import { use, useEffect, useRef, useState } from "react";
 import { API_URL, headline, isCancelled, STEPS, stepIndex, text, type Lang, type Tracking } from "../../../lib/tracking";
+import { DriverMap } from "./DriverMap";
 
 type Texts = ReturnType<typeof text>;
 
@@ -105,6 +106,13 @@ export default function Suivi({ params }: { params: Promise<{ token: string }> }
               {d.plate && <div className="plate" aria-label={t.plate}>{d.plate}</div>}
             </div>
           </div>
+          {d.position && (
+            <>
+              <DriverMap driver={d.position} target={(data.status === "IN_PROGRESS" ? data.dropoffPoint : data.pickupPoint) ?? null}
+                label={`${t.driver} : ${d.firstName}`} targetLabel={data.status === "IN_PROGRESS" ? data.dropoff : data.pickup} />
+              <p className="small">{t.liveNote(d.position.ageSec)}</p>
+            </>
+          )}
           <p className="small">{t.privacy}</p>
         </section>
       )}

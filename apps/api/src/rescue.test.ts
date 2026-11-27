@@ -578,6 +578,35 @@ describe("badge d'accès aéroport (facture de parking ADP)", () => {
   });
 });
 
+describe("position du chauffeur en direct", () => {
+  it("partagée avec le voyageur seulement pendant la course et si elle est récente ; carte de la tour ; arrêt du partage en fin de mission", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    await mkBooking(p);
+    const offers = await call("/driver/offers", { token: d.token });
+    expect((await call(`/driver/offers/${offers.json[0].offerId}/accept`, { token: d.token, body: {} })).status).toBe(201);
+    const ride = await prisma.ride.findFirstOrThrow({ where: { driverId: d.id }, include: { booking: true } });
+    const track = async () => (await call(`/track/${ride.booking.trackingToken}`)).json;
+
+    // Attribuée : le voyageur voit le chauffeur, pas sa position ; le téléphone n'a pas à partager en continu.
+    const loc1 = await call("/driver/location", { token: d.token, body: { lat: 48.87, lng: 2.33 } });
+    expect(loc1.json).toEqual({ ok: true, live: false });
+    expect((await track()).driver.position).toBeNull();
+
+    expect((await call(`/driver/rides/${ride.id}/en-route`, { token: d.token, body: {} })).status).toBe(201);
+    const loc2 = await call("/driver/location", { token: d.token, body: { lat: 48.88, lng: 2.34 } });
+    expect(loc2.json).toEqual({ ok: true, live: true });
+    expect((await track()).driver.position).toMatchObject({ lat: 48.88, lng: 2.34 });
+
+    const live = (await call("/admin/live", { admin: true })).json.find((x: any) => x.id === d.id);
+    expect(live).toMatchObject({ lat: 48.88, lng: 2.34, ride: { id: ride.id, status: "EN_ROUTE" } });
+
+    // Position trop ancienne (le téléphone n'émet plus) : plus montrée au voyageur.
+    await prisma.driver.update({ where: { id: d.id }, data: { lastSeenAt: new Date(Date.now() - 10 * 60_000) } });
+    expect((await track()).driver.position).toBeNull();
+  });
+});
+
 describe("correction d'étape par la tour de contrôle", () => {
   it("remet une course terminée trop tôt à l'étape « à bord », avec motif, trace, message au chauffeur et webhook", async () => {
     const p = await mkPartner();

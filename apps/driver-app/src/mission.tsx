@@ -1,7 +1,8 @@
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
 import { Linking, Modal, Platform, Pressable, ScrollView, View } from "react-native";
-import { api } from "./api";
+import { api, currentSession } from "./api";
+import { backgroundPermissionGranted, liveTrackingRunning, startLiveTracking, stopLiveTracking } from "./liveLocation";
 import { countdown, eurShort, needLabels, flightLabel, isCancelled, MISSION_TITLE, NEXT_ACTION, secondsUntil, timeOf, waitedMin } from "./format";
 import { MissionMap, MapPoint } from "./MissionMap";
 import { c } from "./theme";
@@ -76,6 +77,8 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
         if (perm.status !== "granted" || stop) return;
         const p = await Location.getCurrentPositionAsync({});
         setPos({ lat: p.coords.latitude, lng: p.coords.longitude });
+        // Écran ouvert : la position part aussi vers la tour et le voyageur (suivi en direct), sans attendre le partage en arrière-plan.
+        api("/driver/location", { lat: p.coords.latitude, lng: p.coords.longitude }).catch(() => {});
       } catch { /* la carte fonctionne sans la position du chauffeur */ }
     }
     locate();
@@ -84,6 +87,27 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
   }, []);
 
   const r = ride.data;
+  const liveStatus = !!r && ["EN_ROUTE", "ARRIVED", "IN_PROGRESS"].includes(r.status);
+  const [live, setLive] = useState<"running" | "off" | "denied">("off");
+  useEffect(() => {
+    if (Platform.OS === "web" || !r) return;
+    let gone = false;
+    (async () => {
+      if (!liveStatus) { await stopLiveTracking(); if (!gone) setLive("off"); return; }
+      // Autorisation « Toujours » déjà donnée : le partage démarre seul. Sinon, le chauffeur l'active d'un geste (carte ci-dessous).
+      if (await liveTrackingRunning()) { if (!gone) setLive("running"); return; }
+      if (await backgroundPermissionGranted()) {
+        const res = await startLiveTracking(currentSession(), false);
+        if (!gone) setLive(res === "started" ? "running" : "off");
+      }
+    })();
+    return () => { gone = true; };
+  }, [liveStatus, r?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function enableLive() {
+    const res = await startLiveTracking(currentSession(), true);
+    setLive(res === "started" ? "running" : res === "denied" ? "denied" : "off");
+    if (res === "unavailable") notify("Partage de position indisponible sur cet appareil");
+  }
   if (!r) return <View style={{ flex: 1, backgroundColor: c.sky, justifyContent: "center", alignItems: "center" }}><Cond size={14} color={c.onSky}>{ride.error || "Chargement…"}</Cond></View>;
 
   const target: "pickup" | "dropoff" = r.status === "IN_PROGRESS" ? "dropoff" : "pickup";
@@ -118,6 +142,13 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
         <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
           <Display size={32} color={c.ink} shadow={c.yel}>{MISSION_TITLE[r.status] ?? r.status}</Display>
           <Cond size={12} color={c.muted}>{r.reference}</Cond>
+          {liveStatus && Platform.OS !== "web" && (live === "running"
+            ? <Chip label="📍 Position partagée en direct (même application fermée)" color={c.cream} />
+            : <Card color={c.yel}>
+                <Slab size={14} color={c.ink} shadow={null}>Partager ma position pendant la mission</Slab>
+                <Cond size={11} color={c.ink}>{live === "denied" ? "Autorisez la position « Toujours » dans les réglages du téléphone, puis réessayez." : "La tour et le voyageur vous suivent même si vous passez sur Waze ou Google Maps. Arrêt automatique en fin de mission."}</Cond>
+                <Btn label="Activer le partage" onPress={enableLive} />
+              </Card>)}
           <Slab size={14} color={c.muted} shadow={null}>{place.address}</Slab>
 
           {r.flight && !cancelled && (() => {

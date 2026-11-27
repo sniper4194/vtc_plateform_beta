@@ -10,6 +10,7 @@ import { Carbon } from "./carbon";
 import { HostedPages } from "./hosted";
 import { LostItems } from "./lost-items";
 import { RideImports } from "./imports";
+import { LiveMap } from "./live-map";
 import { Crm } from "./crm";
 import { Support } from "./support";
 import { DriverAuthCosts, DriverAuthPanel } from "./driver-auth";
@@ -17,7 +18,7 @@ import "./regulator-theme.css";
 import { docLabel } from "../lib/documents";
 import { ThemePicker as SharedThemePicker, useSiteTheme, type SiteTheme } from "./theme";
 
-type Tab = "rides" | "imports" | "alerts" | "perf" | "drivers" | "lost" | "recruitment" | "meeting" | "companies" | "partners" | "crm" | "support" | "team" | "account";
+type Tab = "rides" | "live" | "imports" | "alerts" | "perf" | "drivers" | "lost" | "recruitment" | "meeting" | "companies" | "partners" | "crm" | "support" | "team" | "account";
 type RegulatorTheme = SiteTheme;
 const OPEN_FLIGHT = ["DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED"];
 const COLUMNS: { title: string; statuses: string[]; tone: string }[] = [
@@ -821,7 +822,7 @@ export default function Home() {
   }
   const isAdmin = user?.role === "ADMIN";
   const tabs: [Tab, string][] = [
-    ["rides", "Tableau"], ["imports", "Import"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"], ["lost", "Objets oubliés"],
+    ["rides", "Tableau"], ["live", "Carte"], ["imports", "Import"], ["alerts", "Alertes"], ["perf", "Performance"], ["drivers", "Chauffeurs"], ["lost", "Objets oubliés"],
     ...(isAdmin ? ([["recruitment", "Recrutement"], ["meeting", "Points de RDV"], ["companies", "Sociétés"], ["partners", "Partenaires"], ["crm", "CRM"], ["support", "SAV"], ["team", "Équipe"]] as [Tab, string][]) : []),
   ];
   const nAlerts = (alerts.data?.length ?? 0) + (rescues.data?.length ?? 0) + (pendingIds.data?.length ?? 0) + (openInc.data?.length ?? 0);
@@ -848,6 +849,7 @@ export default function Home() {
         {tab === "drivers" && <Drivers isAdmin={isAdmin}/>}
         {tab === "lost" && <LostItems />}
         {tab === "imports" && <RideImports />}
+        {tab === "live" && <LiveMap />}
         {isAdmin && tab === "recruitment" && <Recruitment />}
         {isAdmin && tab === "meeting" && <MeetingPoints />}
         {isAdmin && tab === "companies" && <Companies />}

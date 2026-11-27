@@ -220,6 +220,28 @@ export class AdminController {
     return { queued: result.count };
   }
 
+  /**
+   * Carte en direct de la tour : chauffeurs vus depuis moins de 10 minutes, avec leur mission en cours s'il y en a une.
+   * Uniquement la dernière position connue (pas d'historique).
+   */
+  @Get("live")
+  async live() {
+    const since = new Date(Date.now() - 10 * 60_000);
+    const drivers = await this.prisma.driver.findMany({
+      where: { lastSeenAt: { gte: since }, lastLat: { not: null }, lastLng: { not: null }, status: "ACTIVE" },
+      select: { id: true, firstName: true, lastName: true, availability: true, lastLat: true, lastLng: true, lastSeenAt: true,
+        rides: { where: { status: { in: ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"] } }, orderBy: { pickupAt: "asc" }, take: 1,
+          select: { id: true, ref: true, status: true, pickupAddress: true, dropoffAddress: true, pickupAt: true, pickupLat: true, pickupLng: true, dropoffLat: true, dropoffLng: true } } },
+      take: 500,
+    });
+    const now = Date.now();
+    return drivers.map((d) => ({
+      id: d.id, name: `${d.firstName} ${d.lastName}`, availability: d.availability,
+      lat: d.lastLat, lng: d.lastLng, at: d.lastSeenAt, ageSec: Math.round((now - d.lastSeenAt!.getTime()) / 1000),
+      ride: d.rides[0] ?? null,
+    }));
+  }
+
   /** Correction d'étape par le dispatcheur (glisser-déposer au tableau), avec motif obligatoire. */
   @Post("rides/:id/revert")
   async revert(@Req() req: { admin: AdminIdentity }, @Param("id") id: string, @Body() body: unknown) {

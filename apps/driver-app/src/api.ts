@@ -116,6 +116,8 @@ let apiUrl = DEFAULT_API_URL;
 export const getApiUrl = () => apiUrl;
 
 let token: string | null = null;
+/** Session en mémoire, pour confier une copie temporaire au partage de position en arrière-plan. */
+export const currentSession = () => (token ? { token, apiUrl } : null);
 let sessionMode: "biometric" | "classic" | null = null;
 // SecureStore n'existe pas sur le web (démo/dev) : repli sur sessionStorage.
 const store = {

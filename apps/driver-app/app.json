@@ -18,7 +18,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Votre position sert à vous proposer les courses proches."
+          "locationWhenInUsePermission": "Votre position sert à vous proposer les courses proches.",
+          "locationAlwaysAndWhenInUsePermission": "Pendant une mission, votre position est partagée avec la tour de contrôle et le voyageur, même application fermée. Le partage s'arrête en fin de mission.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [
@@ -54,7 +57,10 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "CAMERA"
+        "CAMERA",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",

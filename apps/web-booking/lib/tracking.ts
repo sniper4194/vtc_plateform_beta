@@ -5,7 +5,8 @@ export interface Tracking {
   language: Lang; reference: string; status: string; passengerFirstName: string;
   pickup: string; dropoff: string; pickupAt: string; signText: string; notes: string | null;
   flight: { number: string; status: string; delayMin: number; earlyMin: number } | null;
-  driver: { firstName: string; vehicle: string | null; plate: string | null; photoUrl: string | null } | null;
+  pickupPoint?: { lat: number; lng: number }; dropoffPoint?: { lat: number; lng: number };
+  driver: { firstName: string; vehicle: string | null; plate: string | null; photoUrl: string | null; position?: { lat: number; lng: number; ageSec: number } | null } | null;
   meetingPoint?: { label: string; note: string | null; photoUrl: string } | null;
   lostItem?: { canReport: boolean; days: number; last: { status: string; reportedAt: string; answeredAt: string | null } | null } | null;
 }
@@ -28,7 +29,7 @@ const T = {
     } as Record<string, string>,
     short: { CONFIRMED: "Confirmée", ASSIGNED: "Attribuée", EN_ROUTE: "En route", ARRIVED: "Sur place", IN_PROGRESS: "En course", COMPLETED: "Terminée" } as Record<Step, string>,
     from: "Prise en charge", to: "Destination", at: "Heure", sign: "Pancarte à votre nom", notes: "Consignes de rendez-vous",
-    driver: "Votre chauffeur", vehicle: "Véhicule", plate: "Plaque", noPhoto: "Photo non communiquée",
+    driver: "Votre chauffeur", liveNote: (s: number) => `Position du chauffeur en direct (il y a ${s < 60 ? `${s} s` : `${Math.round(s / 60)} min`}). Elle n'est visible que pendant la course.`, vehicle: "Véhicule", plate: "Plaque", noPhoto: "Photo non communiquée",
     flight: "Vol", flightStatus: { SCHEDULED: "À l’heure", DELAYED: "Retardé", EARLY: "En avance", LANDED: "Atterri", CANCELLED: "Annulé" } as Record<string, string>,
     flightDelay: (m: number) => `Retard de ${m} min : votre chauffeur s’adapte, l’heure de prise en charge est décalée.`,
     flightEarly: (m: number) => `Atterrissage en avance de ${m} min. L’heure de prise en charge convenue ne change pas.`,
@@ -49,7 +50,7 @@ const T = {
     } as Record<string, string>,
     short: { CONFIRMED: "Confirmed", ASSIGNED: "Assigned", EN_ROUTE: "On the way", ARRIVED: "Arrived", IN_PROGRESS: "In ride", COMPLETED: "Done" } as Record<Step, string>,
     from: "Pick-up", to: "Drop-off", at: "Time", sign: "Name sign", notes: "Meeting instructions",
-    driver: "Your driver", vehicle: "Vehicle", plate: "Plate", noPhoto: "Photo not shared",
+    driver: "Your driver", liveNote: (s: number) => `Live driver position (${s < 60 ? `${s} s` : `${Math.round(s / 60)} min`} ago). Only visible during the ride.`, vehicle: "Vehicle", plate: "Plate", noPhoto: "Photo not shared",
     flight: "Flight", flightStatus: { SCHEDULED: "On time", DELAYED: "Delayed", EARLY: "Early", LANDED: "Landed", CANCELLED: "Cancelled" } as Record<string, string>,
     flightDelay: (m: number) => `Delayed ${m} min: your driver adapts and the pick-up time moves accordingly.`,
     flightEarly: (m: number) => `Landing ${m} min early. The agreed pick-up time does not change.`,

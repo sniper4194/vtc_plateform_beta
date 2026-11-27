@@ -2,6 +2,7 @@ import { Controller, Get, HttpException, Inject, Param, Req, Res } from "@nestjs
 import { SlidingLimiter } from "./hardening";
 import { effectivePickup } from "./metrics";
 import { shareablePhoto } from "./identity.service";
+import { LIVE_STATUSES, livePosition } from "./live-position";
 import { PrismaService } from "./prisma";
 import { MeetingPointService } from "./meeting-points";
 import { lostItemDays, lostItemOpen, LostItemService, travelerView } from "./lost-items";
@@ -51,6 +52,8 @@ export class TrackingController {
       status: ride.status,
       passengerFirstName: b.passengerFirstName,
       pickup: ride.pickupAddress, dropoff: ride.dropoffAddress,
+      // Points de la carte (adresses déjà affichées au voyageur).
+      pickupPoint: { lat: ride.pickupLat, lng: ride.pickupLng }, dropoffPoint: { lat: ride.dropoffLat, lng: ride.dropoffLng },
       pickupAt: effectivePickup(ride.pickupAt, ride.flightDelayMin).toISOString(),
       signText: b.signText ?? `${b.passengerFirstName} ${b.passengerLastName}`,
       notes: b.notes,
@@ -61,6 +64,8 @@ export class TrackingController {
         vehicle: ride.vehicle ? `${ride.vehicle.make} ${ride.vehicle.model}` : null,
         plate: ride.vehicle?.plate ?? null,
         photoUrl: photo ? `/track/${token}/photo` : null,
+        // Position en direct : seulement en route, sur place ou à bord, et récente.
+        position: (LIVE_STATUSES as readonly string[]).includes(ride.status) ? livePosition(ride.driver) : null,
       } : null,
       lostItem: done ? { canReport, days: lostItemDays(), last: item ? travelerView(item) : null } : null,
       meetingPoint: meet ? { label: meet.label, note: meet.note, photoUrl: `/track/${token}/meeting-point/${meet.id}` } : null,

@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, AppState, Modal, Platform, Pressable, SafeAreaView, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { api, ApiError, BiometricError, biometricAvailable, biometricUnavailableMessage, clearSession, getApiUrl, loadApiUrl, loadDevice, loadToken, logout, saveApiUrl, saveDevice, saveHybridToken, unlockBiometric, verifySession } from "./src/api";
 import { reportCrash } from "./src/crashReport";
+// Doit être chargé au démarrage : Android relance la tâche de position en arrière-plan sans ouvrir les écrans.
+import "./src/liveLocation";
 import { ErrorBoundary } from "./src/ErrorBoundary";
 import { requestDriverNotifications } from "./src/driverNotifications";
 import { useLandingAlert } from "./src/useLandingAlert";
