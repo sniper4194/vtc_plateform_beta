@@ -72,7 +72,7 @@ export class SwapService {
   /** Ce chauffeur peut-il faire cette mission (véhicule conforme et équipé, planning libre, repos) ? Sert aussi à la mise en commun. */
   async eligible(db: any, driverId: string, vehicles: Parameters<typeof firstCompliant>[0], ride: Ride, now: Date) {
     if (!swapOpen(effectivePickup(ride.pickupAt, ride.flightDelayMin), now)) return false;
-    if (!firstCompliant(vehicles.filter((v) => v.category === ride.category), ride.category, ride.needs)) return false;
+    if (!firstCompliant(vehicles.filter((v) => v.category === ride.category), ride.category, ride.needs, await db.driver.findUnique({ where: { id: driverId } }))) return false;
     if (needsAirportBadge(ride) && !(await driversWithBadge(db, [driverId])).has(driverId)) return false;
     if (ride.payOnBoard && !(await driversWithTerminal(db, [driverId])).has(driverId)) return false;
     if (await this.dispatch.hasOverlap(db, driverId, ride)) return false;
@@ -88,7 +88,7 @@ export class SwapService {
       if (!swapOpen(effectivePickup(ride.pickupAt, ride.flightDelayMin), now)) throw this.tooLate();
       const me = await tx.driver.findUnique({ where: { id: driverId }, include: { vehicles: { where: { active: true, category: ride.category } } } });
       if (!me || me.status !== "ACTIVE") throw new HttpException("Compte non actif", 403);
-      const vehicle = firstCompliant(me.vehicles, ride.category, ride.needs);
+      const vehicle = firstCompliant(me.vehicles, ride.category, ride.needs, me);
       if (!vehicle) throw new HttpException(ride.needs.length ? "Aucun véhicule compatible, conforme et équipé pour les besoins du voyageur" : "Aucun véhicule compatible et conforme", 409);
       await assertAirportBadge(tx, driverId, ride);
       await assertCardTerminal(tx, driverId, ride);

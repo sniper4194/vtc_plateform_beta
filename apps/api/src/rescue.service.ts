@@ -70,7 +70,7 @@ export class RescueService {
     for (const c of cands) {
       const completedRides = done.get(c.id) ?? 0;
       if (!eliteCheck({ ...c, completedRides }).listed) continue;
-      if (!firstCompliant(c.vehicles, ride.category, ride.needs)) continue;
+      if (!firstCompliant(c.vehicles, ride.category, ride.needs, c)) continue;
       if (await this.dispatch.hasOverlap(this.prisma, c.id, ride)) continue;
       if (await this.dispatch.fatigueBlocked(this.prisma, c.id, ride)) continue; // garde-fou fatigue
       const km = c.lastLat != null && c.lastLng != null ? haversineKm({ lat: c.lastLat, lng: c.lastLng }, { lat: ride.pickupLat, lng: ride.pickupLng }) : null;
@@ -177,7 +177,7 @@ export class RescueService {
       const d = await tx.driver.findUniqueOrThrow({ where: { id: driverId } });
       const completedRides = await tx.ride.count({ where: { driverId, status: "COMPLETED" } });
       if (!eliteCheck({ ...d, completedRides }).listed) throw new HttpException("Réservé aux sauveteurs", 403);
-      const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: r.ride.category } }), r.ride.category, r.ride.needs);
+      const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: r.ride.category } }), r.ride.category, r.ride.needs, d);
       if (!vehicle) throw new HttpException("Aucun véhicule compatible et conforme", 409);
       await assertAirportBadge(tx, driverId, r.ride);
       await assertCardTerminal(tx, driverId, r.ride);

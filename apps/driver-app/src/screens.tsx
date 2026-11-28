@@ -9,7 +9,7 @@ import { ReferralCard } from "./referral";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Switch, Text, View } from "react-native";
 import { api, ApiError } from "./api";
-import { countdown, equipHint, rangeColor, eurShort, NEED_LABEL, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
+import { countdown, equipHint, rangeColor, VEHICLE_NEED_KEYS, WOMEN_COLOR, womenHint, eurShort, NEED_LABEL, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker, ThemePickerButton, ThemeToggle } from "./ui";
 import { useFetch } from "./useFetch";
@@ -90,10 +90,15 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, 
             try { await api("/driver/card-terminal", { enabled }); await me.reload(); notify(enabled ? "Terminal déclaré : courses payées à bord ouvertes" : "Terminal retiré", "ok"); }
             catch (e: any) { notify(e.message, "bad"); }
           }} />
+        <EquipRow label="Je suis une conductrice (CliCab Women)" hint={womenHint(me.data)} value={!!me.data?.womanDeclared} disabled={!me.data}
+          onChange={async (enabled) => {
+            try { await api("/driver/women", { enabled }); await me.reload(); notify(enabled ? "Déclaration envoyée : la tour de contrôle va la valider" : "Déclaration retirée", "ok"); }
+            catch (e: any) { notify(e.message, "bad"); }
+          }} />
         {(me.data?.vehicles ?? []).map((v: any) => (
           <View key={v.id} style={{ marginTop: 6 }}>
             {(me.data?.vehicles ?? []).length > 1 && <Cond size={12} color={c.muted} style={{ marginTop: 8 }}>{`${v.make} ${v.model} · ${v.plate}`}</Cond>}
-            {Object.entries(NEED_LABEL).map(([need, label]) => {
+            {VEHICLE_NEED_KEYS.map((need) => [need, NEED_LABEL[need]] as const).map(([need, label]) => {
               const has = (v.features ?? []).includes(need);
               return <EquipRow key={need} label={label} hint={equipHint(need, v)} value={has} disabled={!me.data}
                 onChange={async (on) => {
@@ -317,7 +322,7 @@ export function Radar({ notify }: { notify: Notify }) {
                 <Chip label={`≈ ${eurShort(o.netPerHourCents)}/h`} color={c.yel} />
                 {o.range && <Chip label={o.range} color={rangeColor(o.range) ?? c.cream} text={/Hôtel/.test(o.range) ? c.ink : c.cream} />}
                 {(o.instructions ?? []).map((l: string) => <Chip key={l} label={`ℹ ${l}`} color={c.cream} />)}
-                {needLabels(o.needs).map((l) => <Chip key={l} label={`⚠ ${l}`} color={c.red} text={c.cream} />)}
+                {needLabels(o.needs).map((l) => <Chip key={l} label={`⚠ ${l}`} color={/CliCab Women/.test(l) ? WOMEN_COLOR : c.red} text={c.cream} />)}
                 {o.payOnBoard && <Chip label={`💳 À encaisser à bord : ${eurShort(o.payOnBoard.collectCents)}`} color={c.yel} />}
                 {o.returnTrip ? <Chip label={`↩ Retour après R-${o.returnTrip.afterRef} · ${o.returnTrip.gapMin} min · ${o.returnTrip.km} km`} color={c.yel} /> : null}
                 {o.priceRising ? <Chip label="Prix en hausse ↗" color={c.cream} /> : null}

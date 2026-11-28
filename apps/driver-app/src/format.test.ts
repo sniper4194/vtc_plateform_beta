@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { equipHint, NEED_LABEL, rangeColor, normalizeApiUrl, countdown, dayLabel, delayLabel, flightLabel, hoursLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel, swapState } from "./format";
+import { equipHint, NEED_LABEL, rangeColor, VEHICLE_NEED_KEYS, womenHint, normalizeApiUrl, countdown, dayLabel, delayLabel, flightLabel, hoursLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel, swapState } from "./format";
 
 describe("format", () => {
   it("compte à rebours mm:ss", () => {
@@ -110,5 +110,15 @@ describe("couleur de la gamme", () => {
     expect(rangeColor("CliCab Care")).toBe("#1a66c2");
     expect(rangeColor("CliCab Dépannage")).toBe("#dc2626");
     expect(rangeColor(null)).toBeNull();
+  });
+});
+
+describe("CliCab Women", () => {
+  it("ligne « conductrice » : à déclarer, en attente, validée ; pas un équipement du véhicule", () => {
+    expect(womenHint(null)).toMatch(/Validation par la tour/);
+    expect(womenHint({ womanDeclared: true })).toBe("En attente de validation par la tour de contrôle");
+    expect(womenHint({ womanDeclared: true, womanVerified: true })).toMatch(/^Validée/);
+    expect(VEHICLE_NEED_KEYS).not.toContain("WOMEN_DRIVER");
+    expect(NEED_LABEL.WOMEN_DRIVER).toMatch(/CliCab Women/);
   });
 });

@@ -141,6 +141,10 @@ model Company {
 }
 
 model Driver {
+  /// CliCab Women : la conductrice se déclare dans l'application ; courses « conductrice demandée » seulement après validation par la tour.
+  womanDeclaredAt DateTime?
+  womanVerifiedAt DateTime?
+  womanVerifiedBy String?
   id            String             @id @default(uuid())
   /// Terminal de paiement par carte (déclaration du chauffeur, facultatif) : requis pour les courses « paiement à bord ».
   cardTerminal  Boolean            @default(false)

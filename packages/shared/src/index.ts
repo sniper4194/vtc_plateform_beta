@@ -51,7 +51,10 @@ export type QuoteRequest = z.infer<typeof QuoteRequestSchema>;
 
 /** Besoins particuliers du voyageur : la mission n'est proposée qu'aux véhicules équipés en conséquence. */
 /** WHEELCHAIR : fauteuil pliable rangé dans le coffre. TPMR : véhicule adapté (rampe ou élévateur, le passager reste dans son fauteuil), validé par la tour. */
-export const NEEDS = ["CHILD_SEAT", "BOOSTER", "WHEELCHAIR", "PET", "TPMR"] as const;
+/** WOMEN_DRIVER (CliCab Women) : une conductrice est demandée ; seules les conductrices validées par la tour reçoivent la course. */
+export const NEEDS = ["CHILD_SEAT", "BOOSTER", "WHEELCHAIR", "PET", "TPMR", "WOMEN_DRIVER"] as const;
+/** Besoins liés au véhicule (équipements) ; WOMEN_DRIVER concerne la personne, pas le véhicule. */
+export const VEHICLE_NEEDS = ["CHILD_SEAT", "BOOSTER", "WHEELCHAIR", "PET", "TPMR"] as const;
 export const NeedSchema = z.enum(NEEDS);
 export type Need = z.infer<typeof NeedSchema>;
 

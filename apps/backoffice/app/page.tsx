@@ -357,7 +357,7 @@ function Board() {
                       <span className={`chip ${chipTone(r.status)}`}>{STATUS_LABEL[r.status] ?? r.status}</span>
                       <span className="chip">{r.category}</span>
                       {r.payOnBoard && <span className={`chip ${r.onBoardPayment === "PAID" ? "ok" : r.onBoardPayment === "ISSUE" ? "bad" : "yel"}`}>{r.onBoardPayment === "PAID" ? "Payé à bord ✓" : r.onBoardPayment === "ISSUE" ? (r.onBoardPaymentResolvedAt ? "Impayé à bord (traité)" : "Impayé à bord") : "Paiement à bord (carte)"}</span>}
-                      {(r.needs ?? []).map((n: string) => <span className="chip bad" key={n}>{({ CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil pliable (coffre)", PET: "Animal", TPMR: "Véhicule TPMR (passager en fauteuil)" } as Record<string, string>)[n] ?? n}</span>)}
+                      {(r.needs ?? []).map((n: string) => <span className="chip bad" key={n} style={n === "WOMEN_DRIVER" ? { background: "#7c3aed", borderColor: "#7c3aed", color: "#fff" } : undefined}>{({ CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil pliable (coffre)", PET: "Animal", TPMR: "Véhicule TPMR (passager en fauteuil)", WOMEN_DRIVER: "CliCab Women : conductrice" } as Record<string, string>)[n] ?? n}</span>)}
                       {rangeOf(r.booking.partner?.range) && <span className="chip" style={{ background: rangeOf(r.booking.partner?.range)!.color, color: rangeOf(r.booking.partner?.range)!.text, borderColor: rangeOf(r.booking.partner?.range)!.color }}>{rangeOf(r.booking.partner?.range)!.label}</span>}
                       <span className="chip">{r.booking.partner?.name ?? "—"}</span>
                       <span className="chip">Client {eur(r.priceCents).replace(",00", "")}</span>
@@ -435,6 +435,19 @@ function TpmrCheck({ vehicle: v, act }: { vehicle: any; act: (path: string, body
   );
 }
 
+/** CliCab Women : la conductrice s'est déclarée dans l'application ; la tour valide après contrôle de la pièce d'identité. */
+function WomenCheck({ driver: d, act }: { driver: any; act: (path: string, body?: unknown) => Promise<void> }) {
+  return (
+    <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", margin: "8px 0" }}>
+      <span className="cond">CliCab Women</span>
+      {d.womanVerifiedAt ? <span className="chip" style={{ background: "#7c3aed", borderColor: "#7c3aed", color: "#fff" }}>conductrice validée</span> : <span className="chip yel">déclarée : à vérifier</span>}
+      {d.womanVerifiedAt
+        ? <button className="btn" onClick={() => { if (confirm("Retirer la validation CliCab Women ?")) act(`/admin/drivers/${d.id}/women`, { verified: false }); }}>Retirer</button>
+        : <button className="btn primary" onClick={() => { if (confirm("Avez-vous vérifié la pièce d'identité ?")) act(`/admin/drivers/${d.id}/women`, { verified: true }); }}>Conductrice vérifiée</button>}
+    </div>
+  );
+}
+
 function Drivers({isAdmin}:{isAdmin:boolean}) {
   const drivers = useLoad<any[]>("/admin/drivers", 8000);
   const [msg, setMsg] = useState("");
@@ -465,6 +478,7 @@ function Drivers({isAdmin}:{isAdmin:boolean}) {
             {d.vehicles.filter((v: any) => v.compliance?.ok === false).map((v: any) => <div className="muted" key={v.id} style={{ fontSize: 13 }}>{v.plate} : {v.compliance.problems.join(" · ")}</div>)}
             {isAdmin && <AirportBadge driver={d} act={act} />}
             {isAdmin && d.vehicles.filter((v: any) => (v.features ?? []).includes("TPMR") || v.tpmrVerifiedAt).map((v: any) => <TpmrCheck key={v.id} vehicle={v} act={act} />)}
+            {isAdmin && (d.womanDeclaredAt || d.womanVerifiedAt) && <WomenCheck driver={d} act={act} />}
             <div style={{ margin: "12px 0" }}>
               {d.documents.map((x: any) => (
                 <div className="doc" key={x.id}>

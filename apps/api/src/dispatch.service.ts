@@ -150,7 +150,7 @@ export class DispatchService {
       },
       include: { vehicles: true },
     });
-    const vehicleOk = candidates.filter((driver) => firstCompliant(driver.vehicles, ride.category, ride.needs));
+    const vehicleOk = candidates.filter((driver) => firstCompliant(driver.vehicles, ride.category, ride.needs, driver));
     // Prise en charge à l'aéroport : seuls les chauffeurs au badge validé reçoivent l'offre (les autres gardent leurs autres courses).
     const badged = needsAirportBadge(ride) ? await driversWithBadge(this.prisma, vehicleOk.map((d) => d.id)) : null;
     const withBadge = badged ? vehicleOk.filter((d) => badged.has(d.id)) : vehicleOk;
@@ -233,7 +233,7 @@ export class DispatchService {
   private async claim(tx: Tx, ride: Ride, driverId: string, actor: string, priceOverride?: number) {
     // Sérialise les attributions concurrentes à un même chauffeur avant le contrôle du planning.
     await tx.$queryRaw`SELECT id FROM "Driver" WHERE id = ${driverId} FOR UPDATE`;
-    const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: ride.category } }), ride.category, ride.needs);
+    const vehicle = firstCompliant(await tx.vehicle.findMany({ where: { driverId, active: true, category: ride.category } }), ride.category, ride.needs, await tx.driver.findUnique({ where: { id: driverId } }));
     if (!vehicle) throw new HttpException(ride.needs.length ? "Aucun véhicule compatible, conforme et équipé pour les besoins du voyageur" : "Aucun véhicule compatible et conforme", 409);
     await assertAirportBadge(tx, driverId, ride);
     await assertCardTerminal(tx, driverId, ride);

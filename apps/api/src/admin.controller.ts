@@ -179,6 +179,19 @@ export class AdminController {
     return { tpmrVerified: verified };
   }
 
+  /** CliCab Women : la tour valide une conductrice déclarée (après contrôle de la pièce d'identité), ou retire la validation. */
+  @Post("drivers/:id/women")
+  @AdminOnly()
+  async women(@Req() req: { admin: AdminIdentity }, @Param("id") id: string, @Body() body: unknown) {
+    const { verified } = parse(z.object({ verified: z.boolean() }).strict(), body);
+    const d = await this.prisma.driver.findUnique({ where: { id } });
+    if (!d) throw new HttpException("Chauffeur introuvable", 404);
+    if (verified && !d.womanDeclaredAt) throw new HttpException("La conductrice ne s'est pas déclarée dans l'application", 409);
+    await this.prisma.driver.update({ where: { id }, data: verified ? { womanVerifiedAt: new Date(), womanVerifiedBy: req.admin.actor } : { womanVerifiedAt: null, womanVerifiedBy: null } });
+    await this.prisma.auditLog.create({ data: { actor: req.admin.actor, action: verified ? "driver.women_verified" : "driver.women_revoked", entity: "Driver", entityId: id } });
+    return { womanVerified: verified };
+  }
+
   @Post("drivers/:id/airport-badge")
   @AdminOnly()
   async airportBadge(@Req() req: { admin: AdminIdentity }, @Param("id") id: string, @Body() body: unknown) {

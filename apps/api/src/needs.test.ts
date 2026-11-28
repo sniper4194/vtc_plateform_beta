@@ -127,6 +127,36 @@ describe("véhicule adapté TPMR", () => {
   });
 });
 
+describe("CliCab Women : conductrice demandée", () => {
+  it("course proposée seulement aux conductrices validées par la tour ; attribution manuelle refusée sinon", async () => {
+    const p = (await call("/admin/partners", { admin: true, body: { name: "P" } })).json;
+    const her = await mkDriver(), him = await mkDriver();
+    // La tour ne valide qu'une conductrice qui s'est déclarée.
+    expect((await call(`/admin/drivers/${her.id}/women`, { admin: true, body: { verified: true } })).status).toBe(409);
+    expect((await call("/driver/women", { token: her.token, body: { enabled: true } })).json).toEqual({ womanDeclared: true, womanVerified: false });
+    const first = await book(p, ["WOMEN_DRIVER"]);
+    expect(first.status).toBe(201);
+    expect((await call("/driver/offers", { token: her.token })).json).toHaveLength(0); // déclarée mais pas encore validée
+    expect((await call(`/admin/drivers/${her.id}/women`, { admin: true, body: { verified: true } })).status).toBe(201);
+    expect((await call("/driver/me", { token: her.token })).json).toMatchObject({ womanDeclared: true, womanVerified: true });
+    const b = await book(p, ["WOMEN_DRIVER"]);
+    expect((await call("/driver/offers", { token: her.token })).json).toHaveLength(1);
+    expect((await call("/driver/offers", { token: him.token })).json).toHaveLength(0);
+    const ride = await prisma.ride.findFirstOrThrow({ where: { bookingId: b.json.id } });
+    expect((await call(`/admin/rides/${ride.id}/assign`, await manualAssignment(prisma, ride.id, him.id))).status).toBe(409);
+    // Les courses normales restent proposées à tout le monde.
+    await book(p);
+    expect((await call("/driver/offers", { token: him.token })).json).toHaveLength(1);
+    // « Conductrice » n'est pas un équipement de véhicule.
+    const v = (await call("/driver/me", { token: him.token })).json.vehicles[0];
+    expect((await call(`/driver/vehicles/${v.id}/features`, { token: him.token, body: { features: ["WOMEN_DRIVER"] } })).status).toBe(422);
+    // Retirer sa déclaration fait tomber la validation.
+    await call("/driver/women", { token: her.token, body: { enabled: false } });
+    expect((await prisma.driver.findUniqueOrThrow({ where: { id: her.id } })).womanVerifiedAt).toBeNull();
+    expect(await prisma.auditLog.count({ where: { action: "driver.women_verified", entityId: her.id } })).toBe(1);
+  });
+});
+
 describe("création d'un chauffeur en double", () => {
   it("répond 409 (et non 500) si le téléphone est déjà utilisé", async () => {
     const body = { firstName: "Ines", lastName: "Varga", phone: "+33600099001", email: "ines.varga@test.fr" };

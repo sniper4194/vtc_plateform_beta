@@ -114,9 +114,19 @@ export function rangeColor(label?: string | null): string | null {
   return null;
 }
 
-export const NEED_LABEL: Record<string, string> = { CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant pliable (coffre)", PET: "Animal", TPMR: "Véhicule adapté TPMR" };
+export const NEED_LABEL: Record<string, string> = { CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant pliable (coffre)", PET: "Animal", TPMR: "Véhicule adapté TPMR", WOMEN_DRIVER: "CliCab Women : conductrice demandée" };
+/** Équipements du véhicule (« conductrice » concerne la personne, voir la ligne dédiée). */
+export const VEHICLE_NEED_KEYS = ["CHILD_SEAT", "BOOSTER", "WHEELCHAIR", "PET", "TPMR"] as const;
+export const WOMEN_COLOR = "#7c3aed";
 
 /** Sous-titre d'un équipement dans « Mes équipements » : TPMR doit être validé par la tour. */
+/** Sous-titre de la ligne CliCab Women dans « Mes équipements ». */
+export function womenHint(me: { womanDeclared?: boolean; womanVerified?: boolean } | null | undefined): string {
+  if (me?.womanVerified) return "Validée par la tour : vous recevez les courses « conductrice demandée »";
+  if (me?.womanDeclared) return "En attente de validation par la tour de contrôle";
+  return "Courses où la voyageuse demande une conductrice. Validation par la tour.";
+}
+
 export function equipHint(need: string, v: { features?: string[] | null; tpmrVerifiedAt?: string | null }): string | undefined {
   if (need === "WHEELCHAIR") return "Le fauteuil est plié et rangé dans le coffre";
   if (need !== "TPMR") return undefined;

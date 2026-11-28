@@ -16,7 +16,7 @@ import { haversineKm } from "./zones";
 import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, DriverOtpRequestSchema, LocationUpdateSchema } from "./schemas";
 import { OtpService } from "./otp.service";
 import { z } from "zod";
-import { NEEDS } from "@vtc/shared";
+import { VEHICLE_NEEDS } from "@vtc/shared";
 import { driverInstructions, RANGE_INFO, rangeOf, type Details } from "./partner-ranges";
 import { DriverGuard } from "./security";
 import { DriverAuthService } from "./driver-auth.service";
@@ -67,7 +67,7 @@ export class DriverController {
   @Post("vehicles/:id/features")
   @UseGuards(DriverGuard)
   async vehicleFeatures(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
-    const { features } = parse(z.object({ features: z.array(z.enum(NEEDS)).max(NEEDS.length) }).strict(), body);
+    const { features } = parse(z.object({ features: z.array(z.enum(VEHICLE_NEEDS)).max(VEHICLE_NEEDS.length) }).strict(), body);
     const v = await this.prisma.vehicle.findFirst({ where: { id, driverId: req.driverId, active: true } });
     if (!v) throw new HttpException("Véhicule introuvable", 404);
     const next = [...new Set(features)];
@@ -75,6 +75,15 @@ export class DriverController {
     const dropTpmr = !next.includes("TPMR") && (v.tpmrVerifiedAt || v.features.includes("TPMR"));
     await this.prisma.vehicle.update({ where: { id }, data: { features: next, ...(dropTpmr ? { tpmrVerifiedAt: null, tpmrVerifiedBy: null } : {}) } });
     return { features: next, tpmrVerified: next.includes("TPMR") && !dropTpmr && !!v.tpmrVerifiedAt };
+  }
+
+  /** CliCab Women : la conductrice se déclare ; la tour valide (pièce d'identité déjà fournie). Retirer = validation à refaire. */
+  @Post("women")
+  @UseGuards(DriverGuard)
+  async women(@Req() req: any, @Body() body: unknown) {
+    const { enabled } = parse(z.object({ enabled: z.boolean() }).strict(), body);
+    const d = await this.prisma.driver.update({ where: { id: req.driverId }, data: enabled ? { womanDeclaredAt: new Date() } : { womanDeclaredAt: null, womanVerifiedAt: null, womanVerifiedBy: null } });
+    return { womanDeclared: !!d.womanDeclaredAt, womanVerified: !!d.womanVerifiedAt };
   }
 
   @Get("me")
@@ -86,7 +95,7 @@ export class DriverController {
     });
     return {
       id: d.id, firstName: d.firstName, lastName: d.lastName, status: d.status, availability: d.availability,
-      rating: d.rating, cardTerminal: d.cardTerminal, vehicles: d.vehicles.map((v) => ({ ...v, compliance: checkVehicle(v) })), documents: d.documents.map((x) => ({ id: x.id, type: x.type, status: x.status, expiresAt: x.expiresAt })),
+      rating: d.rating, cardTerminal: d.cardTerminal, womanDeclared: !!d.womanDeclaredAt, womanVerified: !!d.womanVerifiedAt, vehicles: d.vehicles.map((v) => ({ ...v, compliance: checkVehicle(v) })), documents: d.documents.map((x) => ({ id: x.id, type: x.type, status: x.status, expiresAt: x.expiresAt })),
     };
   }
 
@@ -228,7 +237,7 @@ export class DriverController {
   @UseGuards(DriverGuard)
   async offers(@Req() req: any) {
     const now = new Date();
-    const me = await this.prisma.driver.findUnique({ where: { id: req.driverId }, select: { lastLat: true, lastLng: true, vehicles: { where: { active: true } } } });
+    const me = await this.prisma.driver.findUnique({ where: { id: req.driverId }, select: { lastLat: true, lastLng: true, womanVerifiedAt: true, vehicles: { where: { active: true } } } });
     const distTo = (lat: number, lng: number) =>
       me?.lastLat != null && me.lastLng != null ? Math.round(haversineKm({ lat: me.lastLat, lng: me.lastLng }, { lat, lng }) * 10) / 10 : null;
     const offers = await this.prisma.dispatchOffer.findMany({
@@ -242,7 +251,7 @@ export class DriverController {
     const list = offers.map((o) => {
       // Prime écologique : annoncée avant l'acceptation, avec le véhicule qui servirait à la mission.
       const price = this.currentPrice(o.ride, now);
-      const fuel = firstCompliant(me?.vehicles ?? [], o.ride.category, o.ride.needs)?.fuel;
+      const fuel = firstCompliant(me?.vehicles ?? [], o.ride.category, o.ride.needs, me)?.fuel;
       const eco = ecoBonusCents(fuel, o.ride.priceCents, o.ride.priceCents - price);
       return {
       offerId: o.id,

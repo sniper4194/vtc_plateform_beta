@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Linking, Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { api, currentSession } from "./api";
 import { backgroundPermissionGranted, liveTrackingRunning, startLiveTracking, stopLiveTracking } from "./liveLocation";
-import { countdown, eurShort, needLabels, rangeColor, flightLabel, isCancelled, MISSION_TITLE, NEXT_ACTION, secondsUntil, timeOf, waitedMin } from "./format";
+import { countdown, eurShort, needLabels, rangeColor, WOMEN_COLOR, flightLabel, isCancelled, MISSION_TITLE, NEXT_ACTION, secondsUntil, timeOf, waitedMin } from "./format";
 import { MissionMap, MapPoint } from "./MissionMap";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, HoldButton, Slab, Sticker } from "./ui";
@@ -216,7 +216,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
               <Chip label={r.rideType === "FORFAIT" ? "Course au forfait" : "Au compteur"} color={c.yel} />
               <Chip label={r.category} />
               <Chip label={`${r.passengers} pers. · ${r.luggage} bag.`} />
-              {needLabels(r.needs).map((l) => <Chip key={l} label={`⚠ ${l}`} color={c.red} text={c.cream} />)}
+              {needLabels(r.needs).map((l) => <Chip key={l} label={`⚠ ${l}`} color={/CliCab Women/.test(l) ? WOMEN_COLOR : c.red} text={c.cream} />)}
               {r.payOnBoard && <Chip label={`💳 Paiement à bord par carte : encaissez ${eurShort(r.payOnBoard.collectCents)}`} color={c.yel} />}
               <Chip label={`${eurShort(r.netCents)} net`} color={c.blue} text={c.cream} />
             </View>

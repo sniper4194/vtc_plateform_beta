@@ -57,9 +57,15 @@ export function checkVehicle(v: VehicleFacts, now = new Date()): VehicleCheck {
  * TPMR (passager qui reste dans son fauteuil) : la déclaration du chauffeur ne suffit pas, il faut la validation de la tour.
  */
 export const hasNeeds = (v: { features?: string[] | null; tpmrVerifiedAt?: Date | null }, needs: readonly string[] = []) =>
-  needs.every((n) => (v.features ?? []).includes(n) && (n !== "TPMR" || !!v.tpmrVerifiedAt));
+  needs.filter((n) => n !== "WOMEN_DRIVER").every((n) => (v.features ?? []).includes(n) && (n !== "TPMR" || !!v.tpmrVerifiedAt));
+
+/** CliCab Women : la course demande une conductrice validée par la tour. Sans chauffeur connu, refus (prudence). */
+export const driverFits = (driver: { womanVerifiedAt?: Date | null } | null | undefined, needs: readonly string[] = []) =>
+  !needs.includes("WOMEN_DRIVER") || !!driver?.womanVerifiedAt;
 
 /** Premier véhicule actif de la catégorie qui respecte les critères et porte les équipements demandés. */
-export function firstCompliant<T extends VehicleFacts & { active: boolean; category: string; features?: string[] | null; tpmrVerifiedAt?: Date | null }>(vehicles: T[], category: string, needs: readonly string[] = []): T | undefined {
+export function firstCompliant<T extends VehicleFacts & { active: boolean; category: string; features?: string[] | null; tpmrVerifiedAt?: Date | null }>(vehicles: T[], category: string, needs: readonly string[] = [], driver?: { womanVerifiedAt?: Date | null } | null): T | undefined {
+  // Le chauffeur doit aussi convenir (CliCab Women) : un appel qui oublie de le passer exclut la course « conductrice ».
+  if (!driverFits(driver, needs)) return undefined;
   return vehicles.find((v) => v.active && v.category === category && checkVehicle(v).ok && hasNeeds(v, needs));
 }

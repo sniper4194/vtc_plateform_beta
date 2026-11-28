@@ -93,7 +93,7 @@ export class PoolService {
       if (!this.open(effectivePickup(ride.pickupAt, ride.flightDelayMin), now)) throw new HttpException(`Possible jusqu'à ${poolConfig().minHours} h avant la prise en charge`, 409);
       const d = await tx.driver.findFirst({ where: { id: driverId, companyId, status: "ACTIVE" }, include: { vehicles: { where: { active: true, category: ride.category } } } });
       if (!d) throw new HttpException("Chauffeur introuvable ou non actif", 404);
-      const vehicle = firstCompliant(d.vehicles, ride.category, ride.needs);
+      const vehicle = firstCompliant(d.vehicles, ride.category, ride.needs, d);
       if (!vehicle || !(await this.swap.eligible(tx, driverId, d.vehicles, ride, now))) throw new HttpException("Ce chauffeur ne peut pas faire cette mission (véhicule, planning ou repos)", 409);
       const base = ride.driverNetCents - ride.ecoBonusCents;
       const share = poolShareCents(base, p.sharePercent);
