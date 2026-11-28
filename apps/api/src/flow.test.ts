@@ -1565,3 +1565,54 @@ it("absorbe un rush de 100 courses et conserve les notifications et alertes atte
   const p95 = (values: number[]) => Math.round([...values].sort((a, b) => a - b)[Math.ceil(values.length * 0.95) - 1]);
   console.info(JSON.stringify({ courses: 100, concurrency, bookingElapsedMs, quoteP95Ms: p95(durations.quote), bookingP95Ms: p95(durations.booking), scenarioElapsedMs: Date.now() - start }));
 }, 90_000);
+
+
+describe("portail hôtel TEST — contrôle d'accès", () => {
+  it("n'autorise que les clés TEST actives en préproduction, sans divulguer les secrets", async () => {
+    const p = await mkPartner(false);
+    const previous = process.env.APP_ENV;
+    try {
+      process.env.APP_ENV = "production";
+      expect((await call("/v1/hotel-test/session", { token: p.apiKey })).status).toBe(403);
+      process.env.APP_ENV = "staging";
+      expect((await call("/v1/hotel-test/session")).status).toBe(401);
+      expect((await call("/v1/hotel-test/session", { token: "vtc_test_inconnue" })).status).toBe(401);
+      const identity = await call("/v1/hotel-test/session", { token: p.apiKey });
+      expect(identity.status).toBe(200);
+      expect(identity.json).toEqual({ name: "Booking (test)" });
+      const live = generateApiKey(false);
+      await prisma.apiKey.create({ data: { partnerId: p.partnerId, keyHash: live.hash, prefix: live.prefix, sandbox: false } });
+      expect((await call("/v1/hotel-test/session", { token: live.key })).status).toBe(403);
+      await prisma.partner.update({ where: { id: p.partnerId }, data: { active: false } });
+      expect((await call("/v1/hotel-test/session", { token: p.apiKey })).status).toBe(401);
+      await prisma.partner.update({ where: { id: p.partnerId }, data: { active: true } });
+      await prisma.apiKey.updateMany({ where: { partnerId: p.partnerId, sandbox: true }, data: { revokedAt: new Date() } });
+      expect((await call("/v1/hotel-test/session", { token: p.apiKey })).status).toBe(401);
+      expect((await call("/v1/quotes", { token: p.apiKey, body: {} })).status).toBe(401);
+    } finally {
+      if (previous === undefined) delete process.env.APP_ENV;
+      else process.env.APP_ENV = previous;
+    }
+  });
+
+  it("une commande hôtel rejoint le dispatch sans action du dispatcheur et seul son partenaire la suit", async () => {
+    const hotel = await mkPartner(false), other = await mkPartner(false);
+    const driver = await mkDriver(), unavailable = await mkDriver();
+    await prisma.driver.update({ where: { id: unavailable.id }, data: { availability: "BUSY" } });
+    const { res } = await mkBooking(hotel, { pickup: PARIS, dropoff: CDG }, "hotel-test-key", { externalReference: "HOTEL-TEST", passenger: { firstName: "Client", lastName: "TEST", phone: "+447700900002" } });
+    expect(res.status).toBe(201);
+    expect(res.json.status).toBe("DISPATCHING");
+    const board = await call("/admin/rides", { admin: true });
+    expect(board.json.some((r: any) => r.id === res.json.rideId)).toBe(true);
+    const radar = await call("/driver/offers", { token: driver.token });
+    expect(radar.status).toBe(200);
+    expect(radar.json).toHaveLength(1);
+    expect(radar.json[0].netCents).toBeGreaterThan(0);
+    expect((await call("/driver/offers", { token: unavailable.token })).json).toHaveLength(0);
+    expect((await call("/v1/bookings/" + res.json.id, { token: other.apiKey })).status).toBe(404);
+    expect((await call("/driver/offers/" + radar.json[0].offerId + "/accept", { token: driver.token, body: {} })).status).toBe(201);
+    const updated = await call("/v1/bookings/" + res.json.id, { token: hotel.apiKey });
+    expect(updated.json.status).toBe("ASSIGNED");
+    expect(updated.json.driver).not.toBeNull();
+  });
+});
