@@ -12,6 +12,7 @@ import { api, ApiError } from "./api";
 import { countdown, equipHint, rangeColor, VEHICLE_NEED_KEYS, WOMEN_COLOR, womenHint, eurShort, NEED_LABEL, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker, ThemePickerButton, ThemeToggle } from "./ui";
+import { OnBoardPaymentModal, paymentBody, type OnBoardPayment } from "./onBoardPayment";
 import { useFetch } from "./useFetch";
 
 type Notify = (text: string, tone?: "ok" | "bad") => void;
@@ -416,13 +417,29 @@ export function Agenda({ notify, openMission }: { notify: Notify; openMission: (
   // Une mission déjà commencée s'ouvre toute seule.
   const live = upcoming ? rides.data?.find((r) => r.status !== "ASSIGNED")?.rideId ?? null : null;
   const openId = open ?? live;
+  // Fin d'une course payée à bord : même question d'encaissement que dans le mode mission (sinon le serveur refuse).
+  const [paying, setPaying] = useState<{ rideId: string; amountCents: number } | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
   async function run(rideId: string, action: string) {
+    const ride = rides.data?.find((x) => x.rideId === rideId);
+    if (action === "complete" && ride?.payOnBoard) { setPaying({ rideId, amountCents: ride.payOnBoard.collectCents }); return; }
     try { await api(`/driver/rides/${rideId}/${action}`, {}); } catch (e: any) { notify(e.message); }
     rides.reload();
+  }
+  async function finishPaid(p: OnBoardPayment) {
+    if (!paying) return;
+    setPayBusy(true);
+    try {
+      await api(`/driver/rides/${paying.rideId}/complete`, paymentBody(p));
+      setPaying(null);
+      notify(p.status === "PAID" ? "Course terminée, paiement encaissé." : "Course terminée. La tour de contrôle est prévenue du problème de paiement.", p.status === "PAID" ? "ok" : "bad");
+      rides.reload();
+    } catch (e: any) { notify(e.message); } finally { setPayBusy(false); }
   }
   const sections = groupByDay(rides.data ?? [], (r) => r.pickupAt);
   return (
     <View style={{ flex: 1 }}>
+      {paying && <OnBoardPaymentModal amountCents={paying.amountCents} busy={payBusy} onAnswer={finishPaid} onClose={() => setPaying(null)} />}
       <Header title="Agenda" />
       <FilterChips options={[{ key: "upcoming", label: "À venir" }, { key: "history", label: "Archives" }]} value={scope} onChange={(k) => { setScope(k); setOpen(null); }} />
       <SectionList
