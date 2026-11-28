@@ -15,9 +15,9 @@ export const getCompanyKey = () => read(COMPANY);
 export const setCompanyKey = (t: string) => sessionStorage.setItem(COMPANY, t);
 export const clearCompanyKey = () => sessionStorage.removeItem(COMPANY);
 
-async function request<T>(path: string, headers: Record<string, string>, body?: unknown): Promise<T> {
+async function request<T>(path: string, headers: Record<string, string>, body?: unknown, method?: string): Promise<T> {
   const res = await fetch(API_URL + path, {
-    method: body === undefined ? "GET" : "POST",
+    method: method ?? (body === undefined ? "GET" : "POST"),
     headers: { "content-type": "application/json", ...headers },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -31,8 +31,8 @@ async function request<T>(path: string, headers: Record<string, string>, body?: 
 export const login = (email: string, password: string) => request<{ token: string; user: AdminSession }>("/auth/login", {}, { email, password });
 
 /** Appel authentifié en administrateur. */
-export const api = <T = any>(path: string, body?: unknown) =>
-  request<T>(path, { authorization: `Bearer ${getToken()}` }, body).catch((e) => {
+export const api = <T = any>(path: string, body?: unknown, method?: string) =>
+  request<T>(path, { authorization: `Bearer ${getToken()}` }, body, method).catch((e) => {
     // Session expirée ou révoquée : retour à l'écran de connexion.
     if (e?.status === 401 && typeof window !== "undefined") { clearToken(); window.dispatchEvent(new Event("vtc-auth-expired")); }
     throw e;

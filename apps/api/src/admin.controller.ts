@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, Req, Res, UseGuards, Delete } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { DispatchService } from "./dispatch.service";
@@ -82,6 +82,39 @@ export class AdminController {
     const k = generateApiKey(true);
     await this.prisma.apiKey.create({ data: { partnerId: partner.id, keyHash: k.hash, prefix: k.prefix, sandbox: true } });
     return { partnerId: partner.id, apiKey: k.key, webhookSecret };
+  }
+
+  /**
+   * Supprimer un partenaire. Sans aucune réservation : effacé avec ses clés et devis. Avec des réservations :
+   * désactivé (clés refusées, page de réservation fermée), l'historique et les relevés restent ; réactivable.
+   */
+  @Delete("partners/:id")
+  @AdminOnly()
+  async deletePartner(@Req() req: { admin: AdminIdentity }, @Param("id") id: string) {
+    const p = await this.prisma.partner.findUnique({ where: { id }, include: { _count: { select: { bookings: true } } } });
+    if (!p) throw new HttpException("Partenaire introuvable", 404);
+    if (p._count.bookings === 0) {
+      await this.prisma.$transaction([
+        this.prisma.webhookDelivery.deleteMany({ where: { partnerId: id } }),
+        this.prisma.quote.deleteMany({ where: { partnerId: id } }),
+        this.prisma.apiKey.deleteMany({ where: { partnerId: id } }),
+        this.prisma.partner.delete({ where: { id } }),
+        this.prisma.auditLog.create({ data: { actor: req.admin.actor, action: "partner.deleted", entity: "Partner", entityId: id, data: { name: p.name } } }),
+      ]);
+      return { result: "DELETED" };
+    }
+    await this.prisma.partner.update({ where: { id }, data: { active: false } });
+    await this.prisma.auditLog.create({ data: { actor: req.admin.actor, action: "partner.deactivated", entity: "Partner", entityId: id, data: { bookings: p._count.bookings } } });
+    return { result: "DEACTIVATED", bookings: p._count.bookings };
+  }
+
+  @Post("partners/:id/reactivate")
+  @AdminOnly()
+  async reactivatePartner(@Req() req: { admin: AdminIdentity }, @Param("id") id: string) {
+    const res = await this.prisma.partner.updateMany({ where: { id, active: false }, data: { active: true } });
+    if (res.count !== 1) throw new HttpException("Partenaire introuvable ou déjà actif", 409);
+    await this.prisma.auditLog.create({ data: { actor: req.admin.actor, action: "partner.reactivated", entity: "Partner", entityId: id } });
+    return { active: true };
   }
 
   /** Gamme CliCab du partenaire (null = autre donneur d'ordre) : seulement une étiquette et une couleur pour l'instant. */

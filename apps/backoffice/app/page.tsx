@@ -648,7 +648,19 @@ function Partners() {
   const [err, setErr] = useState("");
   const [partnerId, setPartnerId] = useState("");
   const [statementError, setStatementError] = useState("");
-  const partners = useLoad<{ id: string; name: string; range?: string | null }[]>("/admin/partners", 15000);
+  const partners = useLoad<{ id: string; name: string; range?: string | null; active?: boolean }[]>("/admin/partners", 15000);
+  async function remove(pt: { id: string; name: string }) {
+    if (!confirm(`Supprimer « ${pt.name} » ?\n\nSans aucune course : il est effacé avec ses clés.\nAvec des courses : il est désactivé (ses clés ne marchent plus), l'historique et les relevés sont gardés, et vous pourrez le réactiver.`)) return;
+    try {
+      const r = await api<{ result: string; bookings?: number }>(`/admin/partners/${pt.id}`, undefined, "DELETE");
+      setErr(""); alert(r.result === "DELETED" ? `« ${pt.name} » est supprimé.` : `« ${pt.name} » a ${r.bookings} course(s) : il est désactivé, son historique est gardé.`);
+    } catch (e: any) { setErr(e.message); }
+    void partners.reload();
+  }
+  async function reactivate(id: string) {
+    try { await api(`/admin/partners/${id}/reactivate`, {}); setErr(""); } catch (e: any) { setErr(e.message); }
+    void partners.reload();
+  }
   async function changeRange(id: string, value: string) {
     try { await api(`/admin/partners/${id}/range`, { range: value || null }); setErr(""); } catch (e: any) { setErr(e.message); }
     void partners.reload();
@@ -694,10 +706,10 @@ function Partners() {
         )}
       </form>
       <div className="card">
-        <h3>Gammes CliCab</h3>
+        <h3>Partenaires et gammes CliCab</h3>
         <p className="muted" style={{ fontSize: 13 }}>La gamme donne une couleur aux courses du partenaire dans le tableau, et permet de les filtrer. Elle ne change ni le prix ni la commission.</p>
         <table>
-          <thead><tr><th>Partenaire</th><th>Gamme</th></tr></thead>
+          <thead><tr><th>Partenaire</th><th>Gamme</th><th>État</th><th></th></tr></thead>
           <tbody>{partners.data?.map((pt) => (
             <tr key={pt.id}>
               <td><span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 3, marginRight: 8, background: rangeOf(pt.range)?.color ?? "transparent", border: "1px solid var(--line, #999)" }} />{pt.name}</td>
@@ -705,6 +717,10 @@ function Partners() {
                 <option value="">Sans gamme</option>
                 {RANGE_KEYS.map((k) => <option key={k} value={k}>{RANGES[k].label}</option>)}
               </select></td>
+              <td>{pt.active === false ? <span className="chip bad">désactivé</span> : <span className="chip ok">actif</span>}</td>
+              <td>{pt.active === false
+                ? <button className="btn" onClick={() => reactivate(pt.id)}>Réactiver</button>
+                : <button className="btn danger" onClick={() => remove(pt)}>Supprimer</button>}</td>
             </tr>
           ))}</tbody>
         </table>

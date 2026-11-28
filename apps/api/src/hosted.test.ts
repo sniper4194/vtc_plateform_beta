@@ -288,3 +288,24 @@ describe("espace de commande adapté à la gamme", () => {
     expect((await call("/v1/hotel/quote", { token: h.apiKey, body: { ...base, returnAt: new Date(at.getTime() + 3 * 3600_000).toISOString() } })).status).toBe(422);
   });
 });
+
+describe("suppression d'un partenaire", () => {
+  it("sans réservation : effacé ; avec réservations : désactivé (clé refusée, historique gardé), puis réactivable", async () => {
+    const empty = (await call("/admin/partners", { admin: true, body: { name: "Essai vide" } })).json;
+    expect((await call(`/admin/partners/${empty.partnerId}`, { admin: true, method: "DELETE" })).json).toEqual({ result: "DELETED" });
+    expect(await prisma.partner.count({ where: { id: empty.partnerId } })).toBe(0);
+    expect((await call("/v1/hotel/session", { token: empty.apiKey })).status).toBe(401);
+    const used = (await call("/admin/partners", { admin: true, body: { name: "Hôtel du Parc" } })).json;
+    const q = await call("/v1/quotes", { token: used.apiKey, body: { pickup: PARIS, dropoff: CDG, pickupAt: new Date(Date.now() + 2 * 86400_000).toISOString(), category: "BERLINE", passengers: 1 } });
+    await call("/v1/bookings", { token: used.apiKey, headers: { "idempotency-key": "p1" }, body: { quoteId: q.json.quoteId, passenger: { firstName: "Ines", lastName: "Varga", phone: "+33612000222" } } });
+    const r = await call(`/admin/partners/${used.partnerId}`, { admin: true, method: "DELETE" });
+    expect(r.json).toEqual({ result: "DEACTIVATED", bookings: 1 });
+    expect(await prisma.booking.count({ where: { partnerId: used.partnerId } })).toBe(1);
+    expect((await call("/v1/hotel/session", { token: used.apiKey })).status).toBe(401);
+    expect((await call(`/admin/partners/${used.partnerId}/reactivate`, { admin: true, body: {} })).status).toBe(201);
+    expect((await call("/v1/hotel/session", { token: used.apiKey })).status).toBe(200);
+    expect((await call(`/admin/partners/${used.partnerId}/reactivate`, { admin: true, body: {} })).status).toBe(409);
+    expect((await call("/admin/partners/00000000-0000-0000-0000-000000000000", { admin: true, method: "DELETE" })).status).toBe(404);
+    expect(await prisma.auditLog.count({ where: { action: { in: ["partner.deleted", "partner.deactivated", "partner.reactivated"] } } })).toBe(3);
+  });
+});
