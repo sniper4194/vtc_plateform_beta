@@ -33,3 +33,9 @@ html[data-theme="original"] .meet img { border: 3px solid var(--ink); }
 .theme-switch label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
 .theme-switch select { width: auto; padding: 6px 10px; font-size: 14px; }
 html[data-theme="original"] .theme-switch label { color: var(--navy); }
+html[data-theme="original"] .hotel-totals div { background: #fff; border: 2px solid var(--ink); }
+html[data-theme="original"] .hotel-totals b { font-family: var(--slab); font-weight: 400; }
+html[data-theme="original"] .hotel-chip { border: 2px solid var(--ink); background: var(--card); font-family: var(--cond); font-weight: 400; letter-spacing: 1px; text-transform: uppercase; }
+html[data-theme="original"] .hotel-chip.live { background: var(--yel); color: var(--ink); }
+html[data-theme="original"] .hotel-done { border-left: 8px solid var(--ok); }
+html[data-theme="original"] .link.danger { color: var(--red); }

@@ -114,3 +114,88 @@ describe("page de réservation clé en main", () => {
     expect((await call(`/public/book/${slug}`)).status).toBe(404);
   });
 });
+
+describe("espace hôtel (réception)", () => {
+  const at = (days = 2) => new Date(Date.now() + days * 86400_000).toISOString();
+  async function hotel(withAddress = true) {
+    const p = (await call("/admin/partners", { admin: true, body: { name: "Hôtel Les Glycines" } })).json;
+    if (withAddress) {
+      const c = await call(`/admin/partners/${p.partnerId}/hosted`, { admin: true, body: { enabled: false, slug: `glycines-${Math.floor(Math.random() * 1e6)}`, placeLabel: "Hôtel Les Glycines", address: "8 rue des Glycines, 75013 Paris", lat: 48.83, lng: 2.36 } });
+      expect(c.status).toBe(201);
+    }
+    return p as { partnerId: string; apiKey: string };
+  }
+  const pass = { firstName: "Elena", lastName: "Moreau", phone: "+33698765432", language: "fr" };
+  async function order(h: { apiKey: string }, extra: Record<string, unknown> = {}, direction = "TO_HUB") {
+    const q = await call("/v1/hotel/quote", { token: h.apiKey, body: { hub: "ORY", direction, pickupAt: at(), category: "BERLINE", passengers: 2, luggage: 2 } });
+    expect(q.status).toBe(201);
+    return call("/v1/hotel/bookings", { token: h.apiKey, headers: { "idempotency-key": `h-${Math.random()}` }, body: { quoteId: q.json.quoteId, passenger: pass, consent: true, ...extra } });
+  }
+
+  it("refuse sans clé valide ; la page publique désactivée n'empêche pas la réception de commander", async () => {
+    expect((await call("/v1/hotel/session")).status).toBe(401);
+    expect((await call("/v1/hotel/session", { token: "vtc_test_inconnue" })).status).toBe(401);
+    const h = await hotel();
+    const s = await call("/v1/hotel/session", { token: h.apiKey });
+    expect(s.status).toBe(200);
+    expect(s.json).toMatchObject({ name: "Hôtel Les Glycines", place: { address: "8 rue des Glycines, 75013 Paris" } });
+    expect(JSON.stringify(s.json)).not.toMatch(/apiKey|"lat"/);
+    const b = await order(h, { room: "214", payOnBoard: true });
+    expect(b.status).toBe(201);
+    expect(b.json.reference).toMatch(/^R-/);
+    const ride = await prisma.ride.findFirstOrThrow({ where: { booking: { partnerId: h.partnerId } }, include: { booking: true } });
+    expect(ride.booking.externalReference).toBe("Chambre 214");
+    expect(ride.payOnBoard).toBe(true);
+    expect(ride.pickupAddress).toMatch(/Glycines/);
+    expect(ride.dropoffAddress).toMatch(/Orly/);
+  });
+
+  it("sans adresse saisie par l'équipe : commande impossible, message clair", async () => {
+    const h = await hotel(false);
+    expect((await call("/v1/hotel/session", { token: h.apiKey })).json.place).toBeNull();
+    const q = await call("/v1/hotel/quote", { token: h.apiKey, body: { hub: "ORY", direction: "TO_HUB", pickupAt: at(), category: "BERLINE", passengers: 1 } });
+    expect(q.status).toBe(409);
+    expect(q.json.message).toMatch(/Adresse de l'établissement/);
+  });
+
+  it("accord du client et clé d'idempotence obligatoires ; un double envoi ne crée qu'une course", async () => {
+    const h = await hotel();
+    const q = await call("/v1/hotel/quote", { token: h.apiKey, body: { hub: "CDG-T2", direction: "FROM_HUB", pickupAt: at(), category: "BERLINE", passengers: 1, flightNumber: "AF1234" } });
+    expect((await call("/v1/hotel/bookings", { token: h.apiKey, body: { quoteId: q.json.quoteId, passenger: pass, consent: true } })).status).toBe(400);
+    expect((await call("/v1/hotel/bookings", { token: h.apiKey, headers: { "idempotency-key": "x1" }, body: { quoteId: q.json.quoteId, passenger: pass } })).status).toBe(422);
+    const a = await call("/v1/hotel/bookings", { token: h.apiKey, headers: { "idempotency-key": "x2" }, body: { quoteId: q.json.quoteId, passenger: pass, consent: true } });
+    const b = await call("/v1/hotel/bookings", { token: h.apiKey, headers: { "idempotency-key": "x2" }, body: { quoteId: q.json.quoteId, passenger: pass, consent: true } });
+    expect(a.status).toBe(201);
+    expect(b.json.id).toBe(a.json.id);
+    expect(await prisma.ride.count({ where: { booking: { partnerId: h.partnerId } } })).toBe(1);
+  });
+
+  it("liste du mois : seulement les courses de cet hôtel, totaux séparés hôtel / carte à bord", async () => {
+    const h = await hotel(), other = await hotel();
+    await order(h, { room: "12" });
+    await order(h, { payOnBoard: true });
+    await order(other);
+    const rides = await prisma.ride.findMany({ where: { booking: { partnerId: h.partnerId } } });
+    await prisma.ride.updateMany({ where: { id: { in: rides.map((r) => r.id) } }, data: { status: "COMPLETED" } });
+    const month = new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit" }).format(rides[0].pickupAt).slice(0, 7);
+    const l = await call(`/v1/hotel/bookings?month=${month}`, { token: h.apiKey });
+    expect(l.status).toBe(200);
+    expect(l.json.rows).toHaveLength(2);
+    expect(l.json.rows.map((r: any) => r.passenger)).toEqual(["Elena Moreau", "Elena Moreau"]);
+    const sum = (cents: number[]) => cents.reduce((a, b) => a + b, 0) / 100;
+    expect(l.json.totals.billed).toBe(sum(rides.filter((r) => !r.payOnBoard).map((r) => r.priceCents)));
+    expect(l.json.totals.onBoard).toBe(sum(rides.filter((r) => r.payOnBoard).map((r) => r.priceCents)));
+    expect((await call("/v1/hotel/bookings?month=2026-13", { token: h.apiKey })).status).toBe(422);
+    // Annulation par la réception : même règle que l'API partenaire ; impossible sur la course d'un autre hôtel.
+    const otherBooking = await prisma.booking.findFirstOrThrow({ where: { partnerId: other.partnerId } });
+    expect((await call(`/v1/bookings/${otherBooking.id}`, { token: h.apiKey, method: "DELETE" })).status).toBe(404);
+  });
+});
+
+describe("bornes d'un mois en heure de Paris", () => {
+  it("hiver et passage d'année", async () => {
+    const { monthBounds } = await import("./hotel-portal");
+    expect(monthBounds("2026-12")).toEqual({ from: new Date("2026-11-30T23:00:00Z"), to: new Date("2026-12-31T23:00:00Z") });
+    expect(monthBounds("2026-07").from).toEqual(new Date("2026-06-30T22:00:00Z"));
+  });
+});

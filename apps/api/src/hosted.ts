@@ -39,7 +39,7 @@ export function codeMatches(storedHex: string | null, given: string | undefined)
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-const TripSchema = z.object({
+export const TripSchema = z.object({
   hub: z.enum(HUB_IDS),
   direction: z.enum(["FROM_HUB", "TO_HUB"]),
   pickupAt: z.string().datetime(),
@@ -49,7 +49,7 @@ const TripSchema = z.object({
   flightNumber: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{2}\d{1,4}$/, "numéro de vol au format AF1234").optional(),
   code: z.string().max(64).optional(),
 });
-const BookSchema = z.object({
+export const BookSchema = z.object({
   quoteId: z.string().uuid(),
   code: z.string().max(64).optional(),
   notes: z.string().max(300).optional(),
@@ -91,6 +91,12 @@ export class HostedService {
     const p = await this.partner(slug);
     const t = parse(TripSchema, body);
     this.checkCode(p, t.code);
+    return this.tripQuote(p, t);
+  }
+
+  /** Devis entre l'adresse du partenaire et un aéroport ou une gare (page publique et espace hôtel). */
+  async tripQuote(p: Partner, t: z.infer<typeof TripSchema>) {
+    if (p.hostedLat == null || p.hostedLng == null || !p.hostedAddress) throw new HttpException("Adresse de l'établissement non renseignée : à saisir dans la tour de contrôle (Partenaires, pages de réservation)", 409);
     const hub = HUBS.find((h) => h.id === t.hub)!;
     if (t.flightNumber && !hub.airport) throw new HttpException({ errors: { flightNumber: ["seulement pour un aéroport"] } }, 422);
     const home = { address: p.hostedAddress!, lat: p.hostedLat!, lng: p.hostedLng! };
@@ -105,12 +111,16 @@ export class HostedService {
     const b = parse(BookSchema, body);
     this.checkCode(p, b.code);
     // Clé d'idempotence propre à chaque envoi : un double clic reste protégé par le devis à usage unique.
-    const res = await this.bookings.create(p, `page-${randomBytes(12).toString("hex")}`, {
-      quoteId: b.quoteId, externalReference: "PAGE", notes: b.notes, needs: b.needs, payOnBoard: b.payOnBoard,
-      passenger: { firstName: b.passenger.firstName, lastName: b.passenger.lastName, phone: b.passenger.phone, email: b.passenger.email, language: b.passenger.language },
-    }, false);
-    const v = res.booking as any;
+    const v = await this.createBooking(p, `page-${randomBytes(12).toString("hex")}`, b, "PAGE", false);
     return { reference: v.reference, pickupAt: v.pickupAt, pickup: v.pickup.address, dropoff: v.dropoff.address, total: v.total, currency: v.currency, trackingUrl: v.trackingUrl };
+  }
+
+  async createBooking(p: Partner, key: string, b: z.infer<typeof BookSchema>, externalReference: string, sandbox: boolean) {
+    const res = await this.bookings.create(p, key, {
+      quoteId: b.quoteId, externalReference, notes: b.notes, needs: b.needs, payOnBoard: b.payOnBoard,
+      passenger: { firstName: b.passenger.firstName, lastName: b.passenger.lastName, phone: b.passenger.phone, email: b.passenger.email, language: b.passenger.language },
+    }, sandbox);
+    return res.booking as any;
   }
 
   /** Liste pour l'équipe, avec l'adresse publique de la page (même domaine que le suivi voyageur). */
