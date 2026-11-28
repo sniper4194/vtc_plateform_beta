@@ -9,7 +9,7 @@ import { ReferralCard } from "./referral";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Switch, Text, View } from "react-native";
 import { api, ApiError } from "./api";
-import { countdown, eurShort, NEED_LABEL, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
+import { countdown, equipHint, eurShort, NEED_LABEL, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker, ThemePickerButton, ThemeToggle } from "./ui";
 import { useFetch } from "./useFetch";
@@ -95,10 +95,10 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, 
             {(me.data?.vehicles ?? []).length > 1 && <Cond size={12} color={c.muted} style={{ marginTop: 8 }}>{`${v.make} ${v.model} · ${v.plate}`}</Cond>}
             {Object.entries(NEED_LABEL).map(([need, label]) => {
               const has = (v.features ?? []).includes(need);
-              return <EquipRow key={need} label={label} value={has} disabled={!me.data}
+              return <EquipRow key={need} label={label} hint={equipHint(need, v)} value={has} disabled={!me.data}
                 onChange={async (on) => {
                   const features = on ? [...(v.features ?? []), need] : (v.features ?? []).filter((x: string) => x !== need);
-                  try { await api(`/driver/vehicles/${v.id}/features`, { features }); await me.reload(); notify(on ? `${label} : déclaré` : `${label} : retiré`, "ok"); }
+                  try { await api(`/driver/vehicles/${v.id}/features`, { features }); await me.reload(); notify(on ? (need === "TPMR" ? "Véhicule TPMR déclaré : la tour de contrôle va le vérifier" : `${label} : déclaré`) : `${label} : retiré`, "ok"); }
                   catch (e: any) { notify(e.message, "bad"); }
                 }} />;
             })}

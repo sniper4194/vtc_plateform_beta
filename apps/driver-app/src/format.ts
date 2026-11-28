@@ -104,7 +104,15 @@ export function normalizeApiUrl(raw: string): string | null {
 }
 
 /** Besoins particuliers du voyageur, tels qu'affichés au chauffeur. */
-export const NEED_LABEL: Record<string, string> = { CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant", PET: "Animal" };
+export const NEED_LABEL: Record<string, string> = { CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant pliable (coffre)", PET: "Animal", TPMR: "Véhicule adapté TPMR" };
+
+/** Sous-titre d'un équipement dans « Mes équipements » : TPMR doit être validé par la tour. */
+export function equipHint(need: string, v: { features?: string[] | null; tpmrVerifiedAt?: string | null }): string | undefined {
+  if (need === "WHEELCHAIR") return "Le fauteuil est plié et rangé dans le coffre";
+  if (need !== "TPMR") return undefined;
+  if (!(v.features ?? []).includes("TPMR")) return "Rampe ou élévateur : le passager reste dans son fauteuil. Validation par la tour.";
+  return v.tpmrVerifiedAt ? "Validé par la tour de contrôle" : "En attente de validation par la tour de contrôle";
+}
 export const needLabels = (needs?: string[] | null) => (needs ?? []).map((n) => NEED_LABEL[n] ?? n);
 
 /** Bourse d'échange : la mission est-elle déjà proposée, encore échangeable, ou trop proche ? */

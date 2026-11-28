@@ -345,7 +345,7 @@ function Board() {
                       <span className={`chip ${chipTone(r.status)}`}>{STATUS_LABEL[r.status] ?? r.status}</span>
                       <span className="chip">{r.category}</span>
                       {r.payOnBoard && <span className={`chip ${r.onBoardPayment === "PAID" ? "ok" : r.onBoardPayment === "ISSUE" ? "bad" : "yel"}`}>{r.onBoardPayment === "PAID" ? "Payé à bord ✓" : r.onBoardPayment === "ISSUE" ? (r.onBoardPaymentResolvedAt ? "Impayé à bord (traité)" : "Impayé à bord") : "Paiement à bord (carte)"}</span>}
-                      {(r.needs ?? []).map((n: string) => <span className="chip bad" key={n}>{({ CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant", PET: "Animal" } as Record<string, string>)[n] ?? n}</span>)}
+                      {(r.needs ?? []).map((n: string) => <span className="chip bad" key={n}>{({ CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil pliable (coffre)", PET: "Animal", TPMR: "Véhicule TPMR (passager en fauteuil)" } as Record<string, string>)[n] ?? n}</span>)}
                       <span className="chip">{r.booking.partner?.name ?? "—"}</span>
                       <span className="chip">Client {eur(r.priceCents).replace(",00", "")}</span>
                     </div>
@@ -408,6 +408,19 @@ function AirportBadge({ driver, act }: { driver: any; act: (path: string, body?:
   );
 }
 
+/** Véhicule adapté TPMR (le passager reste dans son fauteuil) : déclaré par le chauffeur, validé ici après contrôle. */
+function TpmrCheck({ vehicle: v, act }: { vehicle: any; act: (path: string, body?: unknown) => Promise<void> }) {
+  return (
+    <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", margin: "8px 0" }}>
+      <span className="cond">TPMR · {v.plate}</span>
+      {v.tpmrVerifiedAt ? <span className="chip ok">validé le {new Date(v.tpmrVerifiedAt).toLocaleDateString("fr-FR")}</span> : <span className="chip yel">déclaré par le chauffeur : à vérifier</span>}
+      {v.tpmrVerifiedAt
+        ? <button className="btn" onClick={() => { if (confirm("Retirer la validation TPMR ? Ce véhicule ne recevra plus les courses de passagers en fauteuil.")) act(`/admin/vehicles/${v.id}/tpmr`, { verified: false }); }}>Retirer</button>
+        : <button className="btn primary" onClick={() => { if (confirm("Avez-vous vérifié la carte grise (mention handicap / TPMR) et la rampe ou l'élévateur ?")) act(`/admin/vehicles/${v.id}/tpmr`, { verified: true }); }}>Véhicule TPMR vérifié</button>}
+    </div>
+  );
+}
+
 function Drivers({isAdmin}:{isAdmin:boolean}) {
   const drivers = useLoad<any[]>("/admin/drivers", 8000);
   const [msg, setMsg] = useState("");
@@ -437,6 +450,7 @@ function Drivers({isAdmin}:{isAdmin:boolean}) {
             <div className="chips">{d.vehicles.map((v: any) => <span className={`chip ${v.compliance?.ok === false ? "bad" : "blue"}`} key={v.id} title={v.compliance?.problems?.join(" · ")}>{v.make} {v.model} · {v.plate}{v.compliance?.ok === false ? " · non conforme" : ""}</span>)}</div>
             {d.vehicles.filter((v: any) => v.compliance?.ok === false).map((v: any) => <div className="muted" key={v.id} style={{ fontSize: 13 }}>{v.plate} : {v.compliance.problems.join(" · ")}</div>)}
             {isAdmin && <AirportBadge driver={d} act={act} />}
+            {isAdmin && d.vehicles.filter((v: any) => (v.features ?? []).includes("TPMR") || v.tpmrVerifiedAt).map((v: any) => <TpmrCheck key={v.id} vehicle={v} act={act} />)}
             <div style={{ margin: "12px 0" }}>
               {d.documents.map((x: any) => (
                 <div className="doc" key={x.id}>

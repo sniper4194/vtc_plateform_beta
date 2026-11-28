@@ -25,8 +25,8 @@ export const CATEGORY: Record<Lang, Record<string, string>> = {
   en: { BERLINE: "Sedan (up to 3 passengers)", BUSINESS: "Business", VAN: "Van (up to 7 passengers)", GREEN: "Electric or hybrid" },
 };
 export const NEED: Record<Lang, Record<string, string>> = {
-  fr: { CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant", PET: "Animal" },
-  en: { CHILD_SEAT: "Child seat", BOOSTER: "Booster seat", WHEELCHAIR: "Wheelchair", PET: "Pet" },
+  fr: { CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant pliable (rangé dans le coffre)", PET: "Animal", TPMR: "Véhicule adapté : le passager reste dans son fauteuil (TPMR)" },
+  en: { CHILD_SEAT: "Child seat", BOOSTER: "Booster seat", WHEELCHAIR: "Folding wheelchair (stowed in the boot)", PET: "Pet", TPMR: "Wheelchair-accessible vehicle (passenger stays in the wheelchair)" },
 };
 
 export const T = {

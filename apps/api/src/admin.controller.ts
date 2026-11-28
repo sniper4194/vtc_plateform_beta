@@ -155,6 +155,19 @@ export class AdminController {
    * Badge d'accès aéroport vérifié par l'équipe (facture de parking ADP vue par un humain) : le chauffeur ne peut pas encore
    * envoyer sa facture depuis l'application. Retirer le badge le refuse ; les départs d'aéroport se ferment aussitôt.
    */
+  /** Véhicule adapté TPMR : la tour valide après contrôle (carte grise, photos de la rampe ou de l'élévateur) ; ou retire la validation. */
+  @Post("vehicles/:id/tpmr")
+  @AdminOnly()
+  async tpmr(@Req() req: { admin: AdminIdentity }, @Param("id") id: string, @Body() body: unknown) {
+    const { verified } = parse(z.object({ verified: z.boolean() }).strict(), body);
+    const v = await this.prisma.vehicle.findUnique({ where: { id } });
+    if (!v) throw new HttpException("Véhicule introuvable", 404);
+    if (verified && !v.features.includes("TPMR")) throw new HttpException("Le chauffeur n'a pas déclaré ce véhicule comme adapté TPMR", 409);
+    await this.prisma.vehicle.update({ where: { id }, data: verified ? { tpmrVerifiedAt: new Date(), tpmrVerifiedBy: req.admin.actor } : { tpmrVerifiedAt: null, tpmrVerifiedBy: null } });
+    await this.prisma.auditLog.create({ data: { actor: req.admin.actor, action: verified ? "vehicle.tpmr_verified" : "vehicle.tpmr_revoked", entity: "Vehicle", entityId: id } });
+    return { tpmrVerified: verified };
+  }
+
   @Post("drivers/:id/airport-badge")
   @AdminOnly()
   async airportBadge(@Req() req: { admin: AdminIdentity }, @Param("id") id: string, @Body() body: unknown) {

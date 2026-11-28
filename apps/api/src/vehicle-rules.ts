@@ -52,10 +52,14 @@ export function checkVehicle(v: VehicleFacts, now = new Date()): VehicleCheck {
   return { ok: p.length === 0, problems: p };
 }
 
-/** Le véhicule a-t-il tous les équipements demandés (siège enfant, fauteuil roulant…) ? */
-export const hasNeeds = (v: { features?: string[] | null }, needs: readonly string[] = []) => needs.every((n) => (v.features ?? []).includes(n));
+/**
+ * Le véhicule a-t-il tous les équipements demandés (siège enfant, fauteuil roulant…) ?
+ * TPMR (passager qui reste dans son fauteuil) : la déclaration du chauffeur ne suffit pas, il faut la validation de la tour.
+ */
+export const hasNeeds = (v: { features?: string[] | null; tpmrVerifiedAt?: Date | null }, needs: readonly string[] = []) =>
+  needs.every((n) => (v.features ?? []).includes(n) && (n !== "TPMR" || !!v.tpmrVerifiedAt));
 
 /** Premier véhicule actif de la catégorie qui respecte les critères et porte les équipements demandés. */
-export function firstCompliant<T extends VehicleFacts & { active: boolean; category: string; features?: string[] | null }>(vehicles: T[], category: string, needs: readonly string[] = []): T | undefined {
+export function firstCompliant<T extends VehicleFacts & { active: boolean; category: string; features?: string[] | null; tpmrVerifiedAt?: Date | null }>(vehicles: T[], category: string, needs: readonly string[] = []): T | undefined {
   return vehicles.find((v) => v.active && v.category === category && checkVehicle(v).ok && hasNeeds(v, needs));
 }

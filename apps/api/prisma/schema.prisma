@@ -219,6 +219,9 @@ model Vehicle {
   powerKw   Float?
   /// Équipements pour les besoins particuliers : CHILD_SEAT, BOOSTER, WHEELCHAIR, PET
   features  String[]        @default([])
+  /// Véhicule adapté TPMR déclaré par le chauffeur (TPMR dans features) : courses TPMR seulement après validation par la tour.
+  tpmrVerifiedAt DateTime?
+  tpmrVerifiedBy String?
   active    Boolean         @default(true)
   rides     Ride[]
 }

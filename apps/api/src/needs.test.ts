@@ -58,6 +58,13 @@ describe("équipements du véhicule", () => {
     expect(hasNeeds({ features: [] }, [])).toBe(true);
     expect(hasNeeds({}, ["WHEELCHAIR"])).toBe(false);
   });
+  it("TPMR : la déclaration ne suffit pas, il faut la validation de la tour", () => {
+    expect(hasNeeds({ features: ["TPMR"] }, ["TPMR"])).toBe(false);
+    expect(hasNeeds({ features: ["TPMR"], tpmrVerifiedAt: new Date() }, ["TPMR"])).toBe(true);
+    expect(hasNeeds({ features: [], tpmrVerifiedAt: new Date() }, ["TPMR"])).toBe(false);
+    // le fauteuil pliable (coffre) reste une simple déclaration
+    expect(hasNeeds({ features: ["WHEELCHAIR"] }, ["WHEELCHAIR"])).toBe(true);
+  });
 });
 
 describe("besoins particuliers", () => {
@@ -92,6 +99,31 @@ describe("besoins particuliers", () => {
     // un équipement inconnu sur un véhicule est refusé aussi
     const r = await call("/admin/drivers", { admin: true, body: { firstName: "X", lastName: "Y", phone: "+33600039999", email: "xy@test.fr", vehicle: { plate: "ZZ-999-ZZ", make: "A", model: "B", category: "BERLINE", features: ["JACUZZI"] } } });
     expect(r.status).toBe(422);
+  });
+});
+
+describe("véhicule adapté TPMR", () => {
+  it("déclaré par le chauffeur, validé par la tour ; course TPMR proposée seulement après validation", async () => {
+    const p = (await call("/admin/partners", { admin: true, body: { name: "P" } })).json;
+    const d = await mkDriver();
+    const v = (await call("/driver/me", { token: d.token })).json.vehicles[0];
+    // La tour ne peut pas valider un véhicule que le chauffeur n'a pas déclaré.
+    expect((await call(`/admin/vehicles/${v.id}/tpmr`, { admin: true, body: { verified: true } })).status).toBe(409);
+    const decl = await call(`/driver/vehicles/${v.id}/features`, { token: d.token, body: { features: ["TPMR"] } });
+    expect(decl.json).toEqual({ features: ["TPMR"], tpmrVerified: false });
+    const first = await book(p, ["TPMR"]);
+    expect(first.status).toBe(201);
+    expect((await call("/driver/offers", { token: d.token })).json).toHaveLength(0);
+    expect((await call(`/admin/vehicles/${v.id}/tpmr`, { admin: true, body: { verified: true } })).status).toBe(201);
+    expect((await call("/driver/me", { token: d.token })).json.vehicles[0].tpmrVerifiedAt).toBeTruthy();
+    await book(p, ["TPMR"]);
+    expect((await call("/driver/offers", { token: d.token })).json).toHaveLength(1);
+    // Le chauffeur retire TPMR : la validation tombe ; s'il le redéclare, il faut revalider.
+    await call(`/driver/vehicles/${v.id}/features`, { token: d.token, body: { features: [] } });
+    const again = await call(`/driver/vehicles/${v.id}/features`, { token: d.token, body: { features: ["TPMR"] } });
+    expect(again.json.tpmrVerified).toBe(false);
+    expect((await prisma.vehicle.findUniqueOrThrow({ where: { id: v.id } })).tpmrVerifiedAt).toBeNull();
+    expect(await prisma.auditLog.count({ where: { action: "vehicle.tpmr_verified", entityId: v.id } })).toBe(1);
   });
 });
 

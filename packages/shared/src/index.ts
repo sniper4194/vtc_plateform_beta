@@ -50,7 +50,8 @@ export const QuoteRequestSchema = z.object({
 export type QuoteRequest = z.infer<typeof QuoteRequestSchema>;
 
 /** Besoins particuliers du voyageur : la mission n'est proposée qu'aux véhicules équipés en conséquence. */
-export const NEEDS = ["CHILD_SEAT", "BOOSTER", "WHEELCHAIR", "PET"] as const;
+/** WHEELCHAIR : fauteuil pliable rangé dans le coffre. TPMR : véhicule adapté (rampe ou élévateur, le passager reste dans son fauteuil), validé par la tour. */
+export const NEEDS = ["CHILD_SEAT", "BOOSTER", "WHEELCHAIR", "PET", "TPMR"] as const;
 export const NeedSchema = z.enum(NEEDS);
 export type Need = z.infer<typeof NeedSchema>;
 

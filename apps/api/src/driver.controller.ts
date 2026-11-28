@@ -67,9 +67,13 @@ export class DriverController {
   @UseGuards(DriverGuard)
   async vehicleFeatures(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
     const { features } = parse(z.object({ features: z.array(z.enum(NEEDS)).max(NEEDS.length) }).strict(), body);
-    const res = await this.prisma.vehicle.updateMany({ where: { id, driverId: req.driverId, active: true }, data: { features: [...new Set(features)] } });
-    if (res.count !== 1) throw new HttpException("Véhicule introuvable", 404);
-    return { features: [...new Set(features)] };
+    const v = await this.prisma.vehicle.findFirst({ where: { id, driverId: req.driverId, active: true } });
+    if (!v) throw new HttpException("Véhicule introuvable", 404);
+    const next = [...new Set(features)];
+    // TPMR retiré par le chauffeur : la validation de la tour tombe (à refaire s'il le redéclare).
+    const dropTpmr = !next.includes("TPMR") && (v.tpmrVerifiedAt || v.features.includes("TPMR"));
+    await this.prisma.vehicle.update({ where: { id }, data: { features: next, ...(dropTpmr ? { tpmrVerifiedAt: null, tpmrVerifiedBy: null } : {}) } });
+    return { features: next, tpmrVerified: next.includes("TPMR") && !dropTpmr && !!v.tpmrVerifiedAt };
   }
 
   @Get("me")

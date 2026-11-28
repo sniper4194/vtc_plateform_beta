@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeApiUrl, countdown, dayLabel, delayLabel, flightLabel, hoursLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel, swapState } from "./format";
+import { equipHint, NEED_LABEL, normalizeApiUrl, countdown, dayLabel, delayLabel, flightLabel, hoursLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel, swapState } from "./format";
 
 describe("format", () => {
   it("compte à rebours mm:ss", () => {
@@ -91,5 +91,16 @@ describe("bourse d'échange", () => {
     expect(swapState({ status: "ASSIGNED", swapDeadline: "2026-06-02T10:00:00Z", swapOfferedAt: "2026-06-01T09:00:00Z" }, now)).toBe("offered");
     expect(swapState({ status: "ASSIGNED", swapDeadline: "2026-06-01T09:00:00Z" }, now)).toBe("closed");
     expect(swapState({ status: "EN_ROUTE", swapDeadline: "2026-06-02T10:00:00Z" }, now)).toBe("closed");
+  });
+});
+
+describe("équipements : sous-titres", () => {
+  it("TPMR : à valider tant que la tour n'a pas vérifié", () => {
+    expect(NEED_LABEL.TPMR).toBe("Véhicule adapté TPMR");
+    expect(equipHint("TPMR", { features: [] })).toMatch(/Validation par la tour/);
+    expect(equipHint("TPMR", { features: ["TPMR"] })).toBe("En attente de validation par la tour de contrôle");
+    expect(equipHint("TPMR", { features: ["TPMR"], tpmrVerifiedAt: "2026-11-28T10:00:00Z" })).toBe("Validé par la tour de contrôle");
+    expect(equipHint("WHEELCHAIR", {})).toMatch(/coffre/);
+    expect(equipHint("PET", {})).toBeUndefined();
   });
 });
