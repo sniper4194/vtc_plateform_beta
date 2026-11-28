@@ -13,9 +13,17 @@ export const DONE = new Set(["COMPLETED", "CANCELLED_BY_PARTNER", "CANCELLED_BY_
 
 export type HotelRow = {
   id: string; reference: string; status: string; pickupAt: string; pickup: string; dropoff: string; room: string | null;
-  passenger: string; flightNumber: string | null; payOnBoard: boolean; total: number; cancellationFee: number | null;
+  passenger: string; flightNumber: string | null; payOnBoard: boolean; onBoardPayment?: { status: "PAID" | "ISSUE"; reason: string | null; resolved: boolean } | null; total: number; cancellationFee: number | null;
   driver: { firstName: string; vehicle: string | null; plate: string | null } | null; trackingUrl: string | null;
 };
+
+/** Paiement d'une course : qui paie, et pour une course payée à bord, si le chauffeur a encaissé. */
+export function paymentLabel(r: Pick<HotelRow, "payOnBoard" | "onBoardPayment">) {
+  if (!r.payOnBoard) return "Facturé à l'hôtel";
+  if (r.onBoardPayment?.status === "PAID") return "Carte à bord : encaissé";
+  if (r.onBoardPayment?.status === "ISSUE") return r.onBoardPayment.resolved ? "Carte à bord : impayé (traité par CliCab)" : "Carte à bord : impayé signalé";
+  return "Carte à bord (client)";
+}
 
 /** Clé d'API reconnue (production ou test) ; le serveur reste seul juge. */
 export function looksLikeKey(k: string) {
@@ -50,7 +58,7 @@ export function statementCsv(rows: HotelRow[]) {
   const head = ["Date (Paris)", "Référence", "Chambre / réf.", "Client", "Départ", "Arrivée", "Statut", "Paiement", "Prix (€)", "Frais d'annulation (€)"];
   const lines = rows.map((r) => [
     parisDateTime(r.pickupAt), r.reference, r.room ?? "", r.passenger, r.pickup, r.dropoff, STATUS[r.status] ?? r.status,
-    r.payOnBoard ? "Carte à bord (client)" : "Facturé à l'hôtel", money(r.total), money(r.cancellationFee),
+    paymentLabel(r), money(r.total), money(r.cancellationFee),
   ]);
   return "﻿" + [head, ...lines].map((l) => l.map(cell).join(";")).join("\r\n") + "\r\n";
 }

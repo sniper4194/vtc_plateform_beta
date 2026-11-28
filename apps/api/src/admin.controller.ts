@@ -309,11 +309,28 @@ export class AdminController {
       include: { booking: { include: { partner: true } } },
       orderBy: { pickupAt: "asc" },
     });
+    // Courses payées à bord non encaissées (signalées par le chauffeur) : la tour décide (relance, facturation au donneur d'ordre…).
+    const unpaid = await this.prisma.ride.findMany({
+      where: { onBoardPayment: "ISSUE", onBoardPaymentResolvedAt: null },
+      include: { booking: { include: { partner: true } }, driver: true },
+      orderBy: { onBoardPaymentAt: "desc" },
+    });
     return [
+      ...unpaid.map((r) => ({ reason: "UNPAID_ON_BOARD", rideId: r.id, ref: r.ref, pickupAt: r.pickupAt, pickup: r.pickupAddress, partner: r.booking.partner?.name, amountCents: r.priceCents, issue: r.onBoardPaymentReason, note: r.onBoardPaymentNote, driver: r.driver ? `${r.driver.firstName} ${r.driver.lastName}` : null })),
       ...atRisk.map((r) => ({ reason: "AT_RISK", rideId: r.id, ref: r.ref, pickupAt: r.pickupAt, pickup: r.pickupAddress, partner: r.booking.partner?.name })),
       ...rides.map((r) => ({ reason: "NO_DRIVER", rideId: r.id, ref: r.ref, pickupAt: r.pickupAt, pickup: r.pickupAddress, partner: r.booking.partner?.name })),
       ...cancelledFlights.map((r) => ({ reason: "FLIGHT_CANCELLED", rideId: r.id, ref: r.ref, pickupAt: r.pickupAt, pickup: r.pickupAddress, partner: r.booking.partner?.name, flight: r.booking.flightNumber })),
     ];
+  }
+
+  /** Impayé à bord traité par la tour : motif obligatoire (relance du client, facturé au donneur d'ordre, geste commercial…). */
+  @Post("rides/:id/payment-resolve")
+  async resolvePayment(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
+    const b = parse(z.object({ resolution: z.string().trim().min(3).max(300) }), body);
+    const res = await this.prisma.ride.updateMany({ where: { id, onBoardPayment: "ISSUE", onBoardPaymentResolvedAt: null }, data: { onBoardPaymentResolvedAt: new Date(), onBoardPaymentResolvedBy: req.admin.actor, onBoardPaymentResolution: b.resolution } });
+    if (res.count !== 1) throw new HttpException("Aucun impayé en attente sur cette course", 409);
+    await this.prisma.rideEvent.create({ data: { rideId: id, type: "payment.on_board_resolved", actor: req.admin.actor, payload: { resolution: b.resolution } } });
+    return { ok: true };
   }
 
   @Get("webhooks")

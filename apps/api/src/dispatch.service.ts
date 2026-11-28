@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { HttpException, Inject, Injectable } from "@nestjs/common";
 import { Prisma, Ride, RideStatus } from "@prisma/client";
 import { canTransition } from "@vtc/shared";
@@ -36,6 +37,13 @@ export const DISPATCH = {
   noShowWaitMin: NO_SHOW_WAIT_MIN,
 };
 const ACTIVE: RideStatus[] = ["ASSIGNED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS"];
+
+export const ON_BOARD_ISSUES = ["DECLINED", "REFUSED", "TERMINAL", "OTHER"] as const;
+export const OnBoardPaymentSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("PAID") }).strict(),
+  z.object({ status: z.literal("ISSUE"), reason: z.enum(ON_BOARD_ISSUES), note: z.string().trim().max(300).optional() }).strict(),
+]);
+export type OnBoardPaymentInput = z.infer<typeof OnBoardPaymentSchema>;
 
 export type DriverAction = "en-route" | "arrived" | "start" | "complete" | "no-show";
 const ACTIONS: Record<DriverAction, [RideStatus, RideStatus]> = {
@@ -360,7 +368,7 @@ export class DispatchService {
     return { from, to };
   }
 
-  async transition(driverId: string, rideId: string, action: DriverAction) {
+  async transition(driverId: string, rideId: string, action: DriverAction, payment?: OnBoardPaymentInput) {
     const [from, to] = ACTIONS[action];
     await this.prisma.$transaction(async (tx) => {
       const ride = await tx.ride.findUnique({ where: { id: rideId } });
@@ -376,9 +384,16 @@ export class DispatchService {
           throw new HttpException(`Client absent déclarable à partir de ${hm}`, 409);
         }
       }
-      const res = await tx.ride.updateMany({ where: { id: rideId, status: from, driverId }, data: { status: to, swapOfferedAt: null, version: { increment: 1 } } });
+      // Course payée à bord : pas de fin de course sans réponse du chauffeur sur l'encaissement (oubli = perte pour tous).
+      let paid = {};
+      if (action === "complete" && ride.payOnBoard) {
+        if (!payment) throw new HttpException({ message: "Course payée à bord : confirmez l'encaissement avant de terminer (mettez à jour l'application si ce choix n'apparaît pas).", code: "PAYMENT_CONFIRMATION_REQUIRED" }, 422);
+        paid = { onBoardPayment: payment.status, onBoardPaymentReason: payment.status === "ISSUE" ? payment.reason : null, onBoardPaymentNote: payment.status === "ISSUE" ? payment.note ?? null : null, onBoardPaymentAt: new Date() };
+      }
+      const res = await tx.ride.updateMany({ where: { id: rideId, status: from, driverId }, data: { status: to, swapOfferedAt: null, version: { increment: 1 }, ...paid } });
       if (res.count !== 1) throw new HttpException("Conflit, réessayez", 409);
       await this.event(tx, rideId, `ride.${to === "ARRIVED" ? "arrived" : to.toLowerCase()}`, `driver:${driverId}`);
+      if (payment && action === "complete" && ride.payOnBoard) await this.event(tx, rideId, payment.status === "PAID" ? "payment.on_board_paid" : "payment.on_board_issue", `driver:${driverId}`, payment.status === "ISSUE" ? { reason: payment.reason, note: payment.note ?? null } : {});
       if (to === "COMPLETED") await grantReferralReward(tx, rideId, driverId);
       const hook = WEBHOOK_BY_STATUS[to];
       if (hook) await this.webhooks.enqueue(tx, rideId, hook);

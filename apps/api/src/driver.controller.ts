@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpException, Inject, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
-import { DispatchService, DriverAction } from "./dispatch.service";
+import { DispatchService, DriverAction, OnBoardPaymentSchema } from "./dispatch.service";
 import { parse } from "./http";
 import { PrismaService } from "./prisma";
 import { driverRideView } from "./views";
@@ -16,6 +16,7 @@ import { haversineKm } from "./zones";
 import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, DriverOtpRequestSchema, LocationUpdateSchema } from "./schemas";
 import { OtpService } from "./otp.service";
 import { z } from "zod";
+import { NEEDS } from "@vtc/shared";
 import { DriverGuard } from "./security";
 import { DriverAuthService } from "./driver-auth.service";
 import { LIVE_STATUSES } from "./live-position";
@@ -56,6 +57,19 @@ export class DriverController {
     const { enabled } = parse(z.object({ enabled: z.boolean() }).strict(), body);
     await this.prisma.driver.update({ where: { id: req.driverId }, data: { cardTerminal: enabled } });
     return { cardTerminal: enabled };
+  }
+
+  /**
+   * Équipements d'un véhicule (siège enfant, rehausseur, fauteuil roulant, animal) : simple déclaration du chauffeur.
+   * Seuls les véhicules équipés reçoivent les courses qui en ont besoin.
+   */
+  @Post("vehicles/:id/features")
+  @UseGuards(DriverGuard)
+  async vehicleFeatures(@Req() req: any, @Param("id") id: string, @Body() body: unknown) {
+    const { features } = parse(z.object({ features: z.array(z.enum(NEEDS)).max(NEEDS.length) }).strict(), body);
+    const res = await this.prisma.vehicle.updateMany({ where: { id, driverId: req.driverId, active: true }, data: { features: [...new Set(features)] } });
+    if (res.count !== 1) throw new HttpException("Véhicule introuvable", 404);
+    return { features: [...new Set(features)] };
   }
 
   @Get("me")
@@ -318,9 +332,10 @@ export class DriverController {
 
   @Post("rides/:id/:action")
   @UseGuards(DriverGuard)
-  async act(@Req() req: any, @Param("id") id: string, @Param("action") action: string) {
+  async act(@Req() req: any, @Param("id") id: string, @Param("action") action: string, @Body() body: unknown) {
     if (!ACTION_SET.has(action as DriverAction)) throw new HttpException("Action inconnue", 404);
-    await this.dispatch.transition(req.driverId, id, action as DriverAction);
+    const b = parse(z.object({ payment: OnBoardPaymentSchema.optional() }).passthrough(), body ?? {});
+    await this.dispatch.transition(req.driverId, id, action as DriverAction, action === "complete" ? b.payment : undefined);
     return { ok: true };
   }
 }

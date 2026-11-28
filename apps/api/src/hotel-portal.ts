@@ -63,20 +63,20 @@ export class HotelPortalService {
       where: { booking: { partnerId: p.id }, pickupAt: { gte: from, lt: to } },
       include: { booking: true, driver: true, vehicle: true }, orderBy: { pickupAt: "asc" }, take: 1000,
     });
-    let billedCents = 0, onBoardCents = 0, feesCents = 0;
+    let billedCents = 0, onBoardCents = 0, unpaidCents = 0, feesCents = 0;
     const rows = rides.map((r) => {
-      if (r.status === "COMPLETED") { if (r.payOnBoard) onBoardCents += r.priceCents; else billedCents += r.priceCents; }
+      if (r.status === "COMPLETED") { if (!r.payOnBoard) billedCents += r.priceCents; else if (r.onBoardPayment === "PAID") onBoardCents += r.priceCents; else unpaidCents += r.priceCents; }
       if (r.status === "CANCELLED_BY_PARTNER" && r.cancellationFeeCents) feesCents += r.cancellationFeeCents;
       return {
         id: r.booking.id, reference: `R-${r.ref}`, status: r.status, pickupAt: r.pickupAt.toISOString(),
         pickup: r.pickupAddress, dropoff: r.dropoffAddress, room: r.booking.externalReference,
         passenger: `${r.booking.passengerFirstName} ${r.booking.passengerLastName}`.trim(), flightNumber: r.booking.flightNumber,
-        payOnBoard: r.payOnBoard, total: euros(r.priceCents), cancellationFee: r.cancellationFeeCents ? euros(r.cancellationFeeCents) : null,
+        payOnBoard: r.payOnBoard, onBoardPayment: r.payOnBoard && r.onBoardPayment ? { status: r.onBoardPayment, reason: r.onBoardPaymentReason, resolved: !!r.onBoardPaymentResolvedAt } : null, total: euros(r.priceCents), cancellationFee: r.cancellationFeeCents ? euros(r.cancellationFeeCents) : null,
         driver: r.driver ? { firstName: r.driver.firstName, vehicle: r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : null, plate: r.vehicle?.plate ?? null } : null,
         trackingUrl: r.booking.trackingToken ? `${(process.env.TRACKING_BASE_URL ?? "http://localhost:3002").replace(/\/$/, "")}/suivi/${r.booking.trackingToken}` : null,
       };
     });
-    return { month: m, rows, totals: { billed: euros(billedCents), onBoard: euros(onBoardCents), cancellationFees: euros(feesCents) } };
+    return { month: m, rows, totals: { billed: euros(billedCents), onBoard: euros(onBoardCents), unpaidOnBoard: euros(unpaidCents), cancellationFees: euros(feesCents) } };
   }
 }
 

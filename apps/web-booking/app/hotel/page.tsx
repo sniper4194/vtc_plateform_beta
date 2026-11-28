@@ -1,12 +1,12 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CATEGORY, NEED, parisToIso } from "../../lib/hosted";
-import { CANCELLABLE, DONE, HOTEL_KEY, looksLikeKey, parisDateTime, parisMonth, shiftMonth, statementCsv, STATUS, type HotelRow } from "../../lib/hotel";
+import { CANCELLABLE, DONE, HOTEL_KEY, looksLikeKey, parisDateTime, parisMonth, paymentLabel, shiftMonth, statementCsv, STATUS, type HotelRow } from "../../lib/hotel";
 import { API_URL } from "../../lib/tracking";
 
 type Session = { name: string; place: { label: string; address: string } | null; hubs: { id: string; label: string; airport: boolean }[]; categories: string[]; needs: string[] };
 type Quote = { quoteId: string; total: number; distanceKm: number; durationMin: number; pickup: string; dropoff: string };
-type List = { month: string; rows: HotelRow[]; totals: { billed: number; onBoard: number; cancellationFees: number } };
+type List = { month: string; rows: HotelRow[]; totals: { billed: number; onBoard: number; unpaidOnBoard: number; cancellationFees: number } };
 
 const PRIVACY_URL = process.env.NEXT_PUBLIC_PRIVACY_URL ?? "https://clicab.fr/confidentialite.html";
 const eur = (n: number) => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
@@ -253,7 +253,7 @@ function Rides({ call, onRevoked }: { call: Call; onRevoked: () => void }) {
         {list && (
           <div className="hotel-totals">
             <div><span>À facturer à l'hôtel</span><b>{eur(list.totals.billed)}</b></div>
-            <div><span>Payé à bord par les clients</span><b>{eur(list.totals.onBoard)}</b></div>
+            <div><span>Encaissé à bord par les chauffeurs</span><b>{eur(list.totals.onBoard)}</b>{list.totals.unpaidOnBoard > 0 && <span className="err">dont impayé signalé : {eur(list.totals.unpaidOnBoard)}</span>}</div>
             <div><span>Frais d'annulation</span><b>{eur(list.totals.cancellationFees)}</b></div>
           </div>
         )}
@@ -270,7 +270,7 @@ function Rides({ call, onRevoked }: { call: Call; onRevoked: () => void }) {
           <div className="hotel-ride-top"><b>{parisDateTime(r.pickupAt)}</b><span className={`hotel-chip ${DONE.has(r.status) ? "" : "live"}`}>{STATUS[r.status] ?? r.status}</span></div>
           <p><b>{r.passenger}</b>{r.room && r.room !== "HOTEL" ? ` · ${r.room}` : ""} · {r.reference}</p>
           <p className="muted">{r.pickup} → {r.dropoff}{r.flightNumber ? ` · vol ${r.flightNumber}` : ""}</p>
-          <p className="small">{eur(r.total)} · {r.payOnBoard ? "carte à bord (client)" : "facturé à l'hôtel"}{r.cancellationFee ? ` · frais d'annulation ${eur(r.cancellationFee)}` : ""}</p>
+          <p className={`small ${r.onBoardPayment?.status === "ISSUE" && !r.onBoardPayment.resolved ? "err" : ""}`}>{eur(r.total)} · {paymentLabel(r).toLowerCase()}{r.cancellationFee ? ` · frais d'annulation ${eur(r.cancellationFee)}` : ""}</p>
           {r.driver && <p>Chauffeur : <b>{r.driver.firstName}</b>{r.driver.vehicle ? ` · ${r.driver.vehicle}` : ""}{r.driver.plate ? <> · <span className="plate">{r.driver.plate}</span></> : null}</p>}
           <div className="hotel-tools">
             {r.trackingUrl && !DONE.has(r.status) && <a className="link" href={r.trackingUrl} target="_blank" rel="noreferrer">Voir le suivi</a>}

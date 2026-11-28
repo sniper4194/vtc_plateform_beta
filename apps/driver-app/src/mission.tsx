@@ -13,6 +13,7 @@ import { SwapControl } from "./swap";
 import { MeetingPointSection, ProofSection } from "./proof";
 import { useFetch } from "./useFetch";
 import { welcomeCard } from "./welcome";
+import { OnBoardPaymentModal, paymentBody, type OnBoardPayment } from "./onBoardPayment";
 
 type Notify = (text: string, tone?: "ok" | "bad") => void;
 
@@ -67,6 +68,8 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
   const [rescue, setRescue] = useState(false);
   const [proof, setProof] = useState(false);
   const [incident, setIncident] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [payBusy, setPayBusy] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 1000); return () => clearInterval(t); }, []);
   useEffect(() => {
@@ -120,8 +123,19 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
   const noShowIn = r.status === "ARRIVED" ? secondsUntil(r.noShowAllowedAt) : 0;
 
   async function run(action: string) {
+    // Course payée à bord : on demande d'abord si le client a payé (le serveur refuse la fin de course sans réponse).
+    if (action === "complete" && r.payOnBoard) { setPaying(true); return; }
     try { await api(`/driver/rides/${rideId}/${action}`, {}); await ride.reload(); }
     catch (e: any) { notify(e.message); }
+  }
+  async function finishPaid(p: OnBoardPayment) {
+    setPayBusy(true);
+    try {
+      await api(`/driver/rides/${rideId}/complete`, paymentBody(p));
+      setPaying(false);
+      notify(p.status === "PAID" ? "Course terminée, paiement encaissé." : "Course terminée. La tour de contrôle est prévenue du problème de paiement.", p.status === "PAID" ? "ok" : "bad");
+      await ride.reload();
+    } catch (e: any) { notify(e.message); } finally { setPayBusy(false); }
   }
   async function giveBack() {
     if (!confirm) { setConfirm(true); notify("Une pénalité s'applique (voir le montant ci-dessus). Touchez à nouveau pour confirmer."); return; }
@@ -130,6 +144,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
 
   return (
     <View style={{ flex: 1, backgroundColor: c.sky }}>
+      {paying && r.payOnBoard && <OnBoardPaymentModal amountCents={r.payOnBoard.collectCents} busy={payBusy} onAnswer={finishPaid} onClose={() => setPaying(false)} />}
       <View style={{ flex: 1 }}>
         <MissionMap pickup={r.pickup} dropoff={r.dropoff} driver={pos} target={target} />
         <View style={{ position: "absolute", top: 14, left: 16 }}>
@@ -230,6 +245,7 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
               <Cond size={13}>Mission terminée</Cond>
               <Display size={44} color={c.ink} shadow={c.red}>{eurShort(r.netCents)}</Display>
               <Cond size={12} color={c.muted}>net pour vous</Cond>
+              {r.payOnBoard?.status && <Cond size={12} color={r.payOnBoard.status === "PAID" ? c.ok : c.red} style={{ marginTop: 6 }}>{r.payOnBoard.status === "PAID" ? `💳 ${eurShort(r.payOnBoard.collectCents)} encaissés à bord` : "💳 Impayé signalé à la tour de contrôle"}</Cond>}
               <View style={{ marginTop: 10 }}><Btn label="Retour à l'agenda" onPress={onClose} color={c.cream} /></View>
             </Card>
           ) : (

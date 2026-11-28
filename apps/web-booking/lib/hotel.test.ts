@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { looksLikeKey, shiftMonth, statementCsv, type HotelRow } from "./hotel";
+import { looksLikeKey, paymentLabel, shiftMonth, statementCsv, type HotelRow } from "./hotel";
 
 const row: HotelRow = {
   id: "b1", reference: "R-1042", status: "COMPLETED", pickupAt: "2026-12-03T08:15:00.000Z", pickup: "8 rue des Glycines, Paris", dropoff: "Aéroport Paris-Orly",
@@ -18,6 +18,13 @@ describe("espace hôtel", () => {
     expect(shiftMonth("2026-12", 1)).toBe("2027-01");
     expect(shiftMonth("2026-01", -1)).toBe("2025-12");
     expect(shiftMonth("2026-06", 0)).toBe("2026-06");
+  });
+
+  it("état du paiement à bord", () => {
+    expect(paymentLabel({ payOnBoard: false })).toBe("Facturé à l'hôtel");
+    expect(paymentLabel({ payOnBoard: true, onBoardPayment: null })).toBe("Carte à bord (client)");
+    expect(paymentLabel({ payOnBoard: true, onBoardPayment: { status: "PAID", reason: null, resolved: false } })).toBe("Carte à bord : encaissé");
+    expect(paymentLabel({ payOnBoard: true, onBoardPayment: { status: "ISSUE", reason: "DECLINED", resolved: false } })).toBe("Carte à bord : impayé signalé");
   });
 
   it("relevé lisible par Excel en français, sans formule exécutable", () => {

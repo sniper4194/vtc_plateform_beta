@@ -9,7 +9,7 @@ import { ReferralCard } from "./referral";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Switch, Text, View } from "react-native";
 import { api, ApiError } from "./api";
-import { countdown, eurShort, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
+import { countdown, eurShort, NEED_LABEL, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker, ThemePickerButton, ThemeToggle } from "./ui";
 import { useFetch } from "./useFetch";
@@ -81,19 +81,29 @@ export function Cap({ goRadar, onQuit, notify, openMission, openMessages, dark, 
 
       <ThemePickerButton onPress={onChooseTheme} />
 
-      {/* Terminal de paiement : facultatif, simple déclaration ; ouvre les courses payées à bord par carte. */}
+      {/* Équipements : simple déclaration du chauffeur ; seuls les chauffeurs équipés reçoivent les courses qui en ont besoin. */}
       <Card>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <View style={{ flex: 1 }}>
-            <Slab size={15} color={c.ink} shadow={null}>Terminal de paiement par carte</Slab>
-            <Text style={{ color: c.muted, fontSize: 13, marginTop: 4 }}>Facultatif. Si vous en avez un, vous recevez aussi les courses payées à bord par carte.</Text>
+        <Slab size={15} color={c.ink} shadow={null}>Mes équipements</Slab>
+        <Text style={{ color: c.muted, fontSize: 13, marginTop: 4 }}>Cochez ce que vous avez à bord : vous recevez aussi les courses qui le demandent.</Text>
+        <EquipRow label="Terminal de paiement par carte" hint="Courses payées à bord par le client" value={!!me.data?.cardTerminal} disabled={!me.data}
+          onChange={async (enabled) => {
+            try { await api("/driver/card-terminal", { enabled }); await me.reload(); notify(enabled ? "Terminal déclaré : courses payées à bord ouvertes" : "Terminal retiré", "ok"); }
+            catch (e: any) { notify(e.message, "bad"); }
+          }} />
+        {(me.data?.vehicles ?? []).map((v: any) => (
+          <View key={v.id} style={{ marginTop: 6 }}>
+            {(me.data?.vehicles ?? []).length > 1 && <Cond size={12} color={c.muted} style={{ marginTop: 8 }}>{`${v.make} ${v.model} · ${v.plate}`}</Cond>}
+            {Object.entries(NEED_LABEL).map(([need, label]) => {
+              const has = (v.features ?? []).includes(need);
+              return <EquipRow key={need} label={label} value={has} disabled={!me.data}
+                onChange={async (on) => {
+                  const features = on ? [...(v.features ?? []), need] : (v.features ?? []).filter((x: string) => x !== need);
+                  try { await api(`/driver/vehicles/${v.id}/features`, { features }); await me.reload(); notify(on ? `${label} : déclaré` : `${label} : retiré`, "ok"); }
+                  catch (e: any) { notify(e.message, "bad"); }
+                }} />;
+            })}
           </View>
-          <Switch accessibilityLabel="J'ai un terminal de paiement par carte" value={!!me.data?.cardTerminal} disabled={!me.data}
-            onValueChange={async (enabled) => {
-              try { await api("/driver/card-terminal", { enabled }); await me.reload(); notify(enabled ? "Terminal déclaré : courses payées à bord ouvertes" : "Terminal retiré", "ok"); }
-              catch (e: any) { notify(e.message, "bad"); }
-            }} />
-        </View>
+        ))}
       </Card>
 
       {home.data?.fatigue?.maxMinutes > 0 && home.data.fatigue.minutes24h >= home.data.fatigue.maxMinutes * 0.8 && (
@@ -467,6 +477,18 @@ export function Messages({ onClose, notify, openMission }: { onClose: () => void
         ))}
         {!items.length && <View style={{ alignItems: "center", marginTop: 40 }}><Script size={30}>{box.error || "Aucun message"}</Script></View>}
       </ScrollView>
+    </View>
+  );
+}
+
+function EquipRow({ label, hint, value, disabled, onChange }: { label: string; hint?: string; value: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 10 }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: c.ink, fontSize: 15, fontWeight: "600" }}>{label}</Text>
+        {hint && <Text style={{ color: c.muted, fontSize: 12 }}>{hint}</Text>}
+      </View>
+      <Switch accessibilityLabel={label} value={value} disabled={disabled} onValueChange={onChange} />
     </View>
   );
 }

@@ -177,6 +177,7 @@ describe("espace hôtel (réception)", () => {
     await order(other);
     const rides = await prisma.ride.findMany({ where: { booking: { partnerId: h.partnerId } } });
     await prisma.ride.updateMany({ where: { id: { in: rides.map((r) => r.id) } }, data: { status: "COMPLETED" } });
+    await prisma.ride.updateMany({ where: { id: { in: rides.map((r) => r.id) }, payOnBoard: true }, data: { onBoardPayment: "PAID" } });
     const month = new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit" }).format(rides[0].pickupAt).slice(0, 7);
     const l = await call(`/v1/hotel/bookings?month=${month}`, { token: h.apiKey });
     expect(l.status).toBe(200);
@@ -185,6 +186,8 @@ describe("espace hôtel (réception)", () => {
     const sum = (cents: number[]) => cents.reduce((a, b) => a + b, 0) / 100;
     expect(l.json.totals.billed).toBe(sum(rides.filter((r) => !r.payOnBoard).map((r) => r.priceCents)));
     expect(l.json.totals.onBoard).toBe(sum(rides.filter((r) => r.payOnBoard).map((r) => r.priceCents)));
+    expect(l.json.totals.unpaidOnBoard).toBe(0);
+    expect(l.json.rows.find((r: any) => r.payOnBoard).onBoardPayment).toEqual({ status: "PAID", reason: null, resolved: false });
     expect((await call("/v1/hotel/bookings?month=2026-13", { token: h.apiKey })).status).toBe(422);
     // Annulation par la réception : même règle que l'API partenaire ; impossible sur la course d'un autre hôtel.
     const otherBooking = await prisma.booking.findFirstOrThrow({ where: { partnerId: other.partnerId } });

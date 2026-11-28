@@ -267,6 +267,15 @@ model Ride {
   needs         String[]        @default([])
   /// Paiement à bord par carte : le voyageur règle le chauffeur (terminal de paiement) ; CliCab retient sa commission sur le chiffre d'affaires du chauffeur.
   payOnBoard    Boolean         @default(false)
+  /// Fin d'une course payée à bord : le chauffeur confirme l'encaissement (PAID) ou signale un problème (ISSUE, alerte à la tour).
+  onBoardPayment           OnBoardPayment?
+  onBoardPaymentReason     String?
+  onBoardPaymentNote       String?
+  onBoardPaymentAt         DateTime?
+  /// Impayé traité par la tour (relance, facturation au donneur d'ordre…) : l'alerte disparaît.
+  onBoardPaymentResolvedAt DateTime?
+  onBoardPaymentResolvedBy String?
+  onBoardPaymentResolution String?
   lostItems     LostItem[]
   pools         RidePool[]
   importedFrom  ImportedRide?
@@ -1160,4 +1169,9 @@ model ImportedRide {
 
   @@unique([partnerId, reference])
   @@index([status, pickupAt])
+}
+
+enum OnBoardPayment {
+  PAID
+  ISSUE
 }

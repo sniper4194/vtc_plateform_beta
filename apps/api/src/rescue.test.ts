@@ -724,7 +724,71 @@ describe("paiement à bord par carte", () => {
     expect(offer.payOnBoard).toEqual({ collectCents: onBoard.priceCents });
     expect((await call(`/driver/offers/${offer.offerId}/accept`, { token: d.token, body: {} })).status).toBe(201);
     const mission = await call(`/driver/rides/${onBoard.id}`, { token: d.token });
-    expect(mission.json.payOnBoard).toEqual({ collectCents: onBoard.priceCents, commissionCents: expect.any(Number) });
+    expect(mission.json.payOnBoard).toEqual({ collectCents: onBoard.priceCents, commissionCents: expect.any(Number), status: null });
+  });
+
+  async function onBoardRideAt(status: "IN_PROGRESS") {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    await call("/driver/card-terminal", { token: d.token, body: { enabled: true } });
+    const b = await mkBooking(p, {}, `k-${Math.random()}`, { payOnBoard: true });
+    const ride = await prisma.ride.findFirstOrThrow({ where: { bookingId: b.res.json.id } });
+    await prisma.ride.update({ where: { id: ride.id }, data: { driverId: d.id, status } });
+    return { p, d, ride, bookingId: b.res.json.id as string };
+  }
+
+  it("pas de fin de course sans réponse sur l'encaissement ; « encaissé » visible par la tour et le partenaire", async () => {
+    const { p, d, ride, bookingId } = await onBoardRideAt("IN_PROGRESS");
+    const blocked = await call(`/driver/rides/${ride.id}/complete`, { token: d.token, body: {} });
+    expect(blocked.status).toBe(422);
+    expect(blocked.json.code).toBe("PAYMENT_CONFIRMATION_REQUIRED");
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } })).status).toBe("IN_PROGRESS");
+    expect((await call(`/driver/rides/${ride.id}/complete`, { token: d.token, body: { payment: { status: "PAYE" } } })).status).toBe(422);
+    expect((await call(`/driver/rides/${ride.id}/complete`, { token: d.token, body: { payment: { status: "PAID" } } })).status).toBe(201);
+    const done = await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } });
+    expect(done).toMatchObject({ status: "COMPLETED", onBoardPayment: "PAID", onBoardPaymentReason: null });
+    expect(done.onBoardPaymentAt).toBeInstanceOf(Date);
+    expect((await call(`/v1/bookings/${bookingId}`, { token: p.apiKey })).json.onBoardPayment).toEqual({ status: "PAID", reason: null, resolved: false });
+    expect((await call("/admin/alerts", { admin: true })).json.some((a: any) => a.reason === "UNPAID_ON_BOARD")).toBe(false);
+  });
+
+  it("impayé signalé : la course se termine, alerte à la tour jusqu'à traitement avec motif", async () => {
+    const { d, ride } = await onBoardRideAt("IN_PROGRESS");
+    expect((await call(`/driver/rides/${ride.id}/complete`, { token: d.token, body: { payment: { status: "ISSUE" } } })).status).toBe(422);
+    const r = await call(`/driver/rides/${ride.id}/complete`, { token: d.token, body: { payment: { status: "ISSUE", reason: "DECLINED", note: "Carte refusée deux fois" } } });
+    expect(r.status).toBe(201);
+    const alert = (await call("/admin/alerts", { admin: true })).json.find((a: any) => a.reason === "UNPAID_ON_BOARD");
+    expect(alert).toMatchObject({ rideId: ride.id, issue: "DECLINED", note: "Carte refusée deux fois", amountCents: ride.priceCents });
+    expect((await call(`/admin/rides/${ride.id}/payment-resolve`, { admin: true, body: { resolution: "" } })).status).toBe(422);
+    expect((await call(`/admin/rides/${ride.id}/payment-resolve`, { admin: true, body: { resolution: "Facturé à l'hôtel" } })).status).toBe(201);
+    expect((await call(`/admin/rides/${ride.id}/payment-resolve`, { admin: true, body: { resolution: "encore" } })).status).toBe(409);
+    expect((await call("/admin/alerts", { admin: true })).json.some((a: any) => a.reason === "UNPAID_ON_BOARD")).toBe(false);
+    expect(await prisma.rideEvent.count({ where: { rideId: ride.id, type: { in: ["payment.on_board_issue", "payment.on_board_resolved"] } } })).toBe(2);
+  });
+
+  it("le chauffeur déclare les équipements de son véhicule ; seulement les siens", async () => {
+    const d = await mkDriver(), other = await mkDriver();
+    const v = (await call("/driver/me", { token: d.token })).json.vehicles[0];
+    const ok = await call(`/driver/vehicles/${v.id}/features`, { token: d.token, body: { features: ["CHILD_SEAT", "PET", "PET"] } });
+    expect(ok.status).toBe(201);
+    expect((await prisma.vehicle.findUniqueOrThrow({ where: { id: v.id } })).features).toEqual(["CHILD_SEAT", "PET"]);
+    expect((await call(`/driver/vehicles/${v.id}/features`, { token: other.token, body: { features: [] } })).status).toBe(404);
+    expect((await call(`/driver/vehicles/${v.id}/features`, { token: d.token, body: { features: ["JACUZZI"] } })).status).toBe(422);
+    // Une course avec siège enfant n'est proposée qu'au véhicule équipé.
+    const p = await mkPartner();
+    await mkBooking(p, {}, `k-${Math.random()}`, { needs: ["CHILD_SEAT"] });
+    expect((await call("/driver/offers", { token: d.token })).json).toHaveLength(1);
+    expect((await call("/driver/offers", { token: other.token })).json).toHaveLength(0);
+  });
+
+  it("course normale : terminée sans question de paiement (anciennes versions de l'application comprises)", async () => {
+    const p = await mkPartner();
+    const d = await mkDriver();
+    const b = await mkBooking(p);
+    const ride = await prisma.ride.findFirstOrThrow({ where: { bookingId: b.res.json.id } });
+    await prisma.ride.update({ where: { id: ride.id }, data: { driverId: d.id, status: "IN_PROGRESS" } });
+    expect((await call(`/driver/rides/${ride.id}/complete`, { token: d.token, body: {} })).status).toBe(201);
+    expect((await prisma.ride.findUniqueOrThrow({ where: { id: ride.id } })).onBoardPayment).toBeNull();
   });
 });
 

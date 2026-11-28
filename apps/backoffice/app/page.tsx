@@ -344,7 +344,7 @@ function Board() {
                     <div className="chips">
                       <span className={`chip ${chipTone(r.status)}`}>{STATUS_LABEL[r.status] ?? r.status}</span>
                       <span className="chip">{r.category}</span>
-                      {r.payOnBoard && <span className="chip yel">Paiement à bord (carte)</span>}
+                      {r.payOnBoard && <span className={`chip ${r.onBoardPayment === "PAID" ? "ok" : r.onBoardPayment === "ISSUE" ? "bad" : "yel"}`}>{r.onBoardPayment === "PAID" ? "Payé à bord ✓" : r.onBoardPayment === "ISSUE" ? (r.onBoardPaymentResolvedAt ? "Impayé à bord (traité)" : "Impayé à bord") : "Paiement à bord (carte)"}</span>}
                       {(r.needs ?? []).map((n: string) => <span className="chip bad" key={n}>{({ CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant", PET: "Animal" } as Record<string, string>)[n] ?? n}</span>)}
                       <span className="chip">{r.booking.partner?.name ?? "—"}</span>
                       <span className="chip">Client {eur(r.priceCents).replace(",00", "")}</span>
@@ -676,6 +676,35 @@ function Partners() {
   );
 }
 
+const UNPAID_LABEL: Record<string, string> = { DECLINED: "Carte refusée", REFUSED: "Le client refuse de payer", TERMINAL: "Terminal en panne ou sans réseau", OTHER: "Autre problème" };
+
+/** Courses payées à bord que le chauffeur n'a pas pu encaisser : la tour décide de la suite puis marque l'impayé comme traité. */
+function UnpaidOnBoard({ alerts, reload }: { alerts: any[]; reload: () => void }) {
+  async function resolve(rideId: string) {
+    const resolution = window.prompt("Comment l'impayé est-il traité ? (ex. client relancé, facturé au donneur d'ordre, geste commercial)");
+    if (!resolution) return;
+    try { await api(`/admin/rides/${rideId}/payment-resolve`, { resolution }); } catch (e: any) { alert(e.message); }
+    reload();
+  }
+  return (
+    <div className="card" style={{ marginTop: 16, borderColor: alerts.length ? "#ee2a14" : undefined }}>
+      <h3>Paiements à bord non encaissés</h3>
+      {alerts.length ? (
+        <table>
+          <thead><tr><th>Course</th><th>Date</th><th>Donneur d'ordre</th><th>Chauffeur</th><th>Montant</th><th>Motif</th><th></th></tr></thead>
+          <tbody>{alerts.map((a) => (
+            <tr key={a.rideId}>
+              <td>R-{a.ref}</td><td>{dt(a.pickupAt)}</td><td>{a.partner ?? "—"}</td><td>{a.driver ?? "—"}</td><td>{eur(a.amountCents)}</td>
+              <td><span className="chip bad">{UNPAID_LABEL[a.issue] ?? a.issue}</span>{a.note ? <div className="muted" style={{ fontSize: 13 }}>{a.note}</div> : null}</td>
+              <td><button className="btn" onClick={() => resolve(a.rideId)}>Marquer traité</button></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      ) : <p className="muted">Aucun impayé. Le chauffeur confirme l'encaissement à la fin de chaque course payée à bord.</p>}
+    </div>
+  );
+}
+
 const RESCUE_LABEL: Record<string, string> = { OPEN: "En attente", ACCEPTED: "Reprise", DECLINED: "Refusé", EXPIRED: "Expiré", CANCELLED: "Annulé" };
 
 function AlertsTab() {
@@ -725,13 +754,14 @@ function AlertsTab() {
           </table>
         ) : <p className="muted">Aucun incident.</p>}
       </div>
+      <UnpaidOnBoard alerts={alerts.data?.filter((a) => a.reason === "UNPAID_ON_BOARD") ?? []} reload={alerts.reload} />
       <div className="card" style={{ marginTop: 16 }}>
         <h3>Missions sans chauffeur après tous les tours de recherche, et vols annulés</h3>
         {alerts.error && <div className="err">{alerts.error}</div>}
-        {alerts.data?.length ? (
+        {alerts.data?.some((a) => a.reason !== "UNPAID_ON_BOARD") ? (
           <table>
             <thead><tr><th>Motif</th><th>Prise en charge</th><th>Départ</th><th>Partenaire</th></tr></thead>
-            <tbody>{alerts.data.map((a) => <tr key={`${a.reason}-${a.rideId}`}><td><span className="chip bad">{a.reason === "FLIGHT_CANCELLED" ? `Vol ${a.flight ?? ""} annulé` : a.reason === "AT_RISK" ? "À risque : sans chauffeur, prise en charge proche" : "Sans chauffeur"}</span></td><td>{dt(a.pickupAt)}</td><td>{a.pickup}</td><td>{a.partner}</td></tr>)}</tbody>
+            <tbody>{alerts.data.filter((a) => a.reason !== "UNPAID_ON_BOARD").map((a) => <tr key={`${a.reason}-${a.rideId}`}><td><span className="chip bad">{a.reason === "FLIGHT_CANCELLED" ? `Vol ${a.flight ?? ""} annulé` : a.reason === "AT_RISK" ? "À risque : sans chauffeur, prise en charge proche" : "Sans chauffeur"}</span></td><td>{dt(a.pickupAt)}</td><td>{a.pickup}</td><td>{a.partner}</td></tr>)}</tbody>
           </table>
         ) : <p className="muted">Aucune alerte. Vous pouvez attribuer à la main depuis le tableau.</p>}
       </div>

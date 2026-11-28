@@ -22,6 +22,8 @@ export function bookingView(r: RideFull) {
     notes: r.booking.notes,
     needs: r.needs,
     payOnBoard: r.payOnBoard,
+    // Encaissement à bord confirmé par le chauffeur (PAID) ou problème signalé (ISSUE) ; null tant que la course n'est pas terminée.
+    onBoardPayment: r.payOnBoard && r.onBoardPayment ? { status: r.onBoardPayment, reason: r.onBoardPaymentReason, resolved: !!r.onBoardPaymentResolvedAt } : null,
     flight: r.booking.flightNumber
       ? {
           number: r.booking.flightNumber,
@@ -90,7 +92,7 @@ export function driverRideView(r: RideFull & { booking: Booking & { partner?: { 
     durationMin: Math.round(r.durationMin),
     needs: r.needs,
     // Paiement à bord par carte : montant à encaisser auprès du voyageur (prix client), commission CliCab retenue ensuite.
-    payOnBoard: r.payOnBoard ? { collectCents: r.priceCents, commissionCents: r.commissionCents } : null,
+    payOnBoard: r.payOnBoard ? { collectCents: r.priceCents, commissionCents: r.commissionCents, status: r.onBoardPayment ?? null } : null,
     swapOfferedAt: r.swapOfferedAt,
     // Limite pour mettre la mission à l'échange (sans pénalité) ; au-delà, rendre ou appeler un sauveteur.
     swapDeadline: new Date(effectivePickup(r.pickupAt, r.flightDelayMin).getTime() - swapMinHours() * 3600_000),
