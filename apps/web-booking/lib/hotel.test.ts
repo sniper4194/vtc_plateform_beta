@@ -39,3 +39,17 @@ describe("espace hôtel", () => {
     expect(lines[2]).toContain("Carte à bord (client);52,50;26,25");
   });
 });
+
+describe("espace adapté à la gamme", () => {
+  it("textes par gamme, hôtel par défaut", async () => {
+    const { rangeText, carePassengers } = await import("./hotel");
+    expect(rangeText(null).payer).toMatch(/hôtel/);
+    expect(rangeText("DEPANNAGE").payer).toMatch(/garage ou l'assurance/);
+    expect(rangeText("CARE").intro).toMatch(/Aucune information médicale/);
+    expect(rangeText("INCONNU").person).toBe("client");
+    expect(rangeText("CARE").billed).toBe("À facturer à l'établissement");
+    expect(carePassengers("2")).toBe(3);
+    expect(carePassengers("9")).toBe(4);
+    expect(carePassengers("")).toBe(1);
+  });
+});

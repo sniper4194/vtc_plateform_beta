@@ -66,3 +66,4 @@ input[aria-invalid=true] { border-color: var(--bad); }
 .link.danger { color: var(--bad); }
 .link:disabled { opacity: .5; cursor: default; }
 @media (max-width: 520px) { .hotel-totals { grid-template-columns: 1fr; } }
+.hotel-range { display: inline-block; color: #fff; font-weight: 800; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; margin-right: 8px; }

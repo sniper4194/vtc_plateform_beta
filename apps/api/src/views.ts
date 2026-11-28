@@ -1,3 +1,4 @@
+import { driverInstructions, RANGE_INFO, rangeOf, type Details } from "./partner-ranges";
 import { Booking, Driver, Ride, Vehicle } from "@prisma/client";
 import { euros } from "./http";
 import { effectivePickup, NO_SHOW_WAIT_MIN } from "./metrics";
@@ -69,7 +70,7 @@ export const WEBHOOK_BY_STATUS: Record<string, string | undefined> = {
 };
 
 /** Vue chauffeur d'une mission attribuée (passager, pancarte, vol, attente). */
-export function driverRideView(r: RideFull & { booking: Booking & { partner?: { name: string } | null } }, arrivedAt: Date | null) {
+export function driverRideView(r: RideFull & { booking: Booking & { partner?: { name: string; range?: string | null } | null } }, arrivedAt: Date | null) {
   const eff = effectivePickup(r.pickupAt, r.flightDelayMin);
   const name = `${r.booking.passengerFirstName} ${r.booking.passengerLastName}`;
   return {
@@ -78,6 +79,9 @@ export function driverRideView(r: RideFull & { booking: Booking & { partner?: { 
     compensationCents: r.driverCompensationCents,
     rideType: r.flatRateId ? "FORFAIT" : "COMPTEUR",
     partner: r.booking.partner?.name ?? null,
+    // Gamme du donneur d'ordre et consignes propres (dossier, service, assistance…).
+    range: rangeOf(r.booking.partner?.range) ? RANGE_INFO[rangeOf(r.booking.partner?.range)!].label : null,
+    instructions: driverInstructions(rangeOf(r.booking.partner?.range), r.booking.details as Details | null),
     pickup: { address: r.pickupAddress, lat: r.pickupLat, lng: r.pickupLng },
     dropoff: { address: r.dropoffAddress, lat: r.dropoffLat, lng: r.dropoffLng },
     passenger: { name, phone: r.booking.passengerPhone, language: r.booking.passengerLanguage },

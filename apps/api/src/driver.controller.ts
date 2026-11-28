@@ -17,6 +17,7 @@ import { AvailabilitySchema, DocumentUploadSchema, DriverLoginSchema, DriverOtpR
 import { OtpService } from "./otp.service";
 import { z } from "zod";
 import { NEEDS } from "@vtc/shared";
+import { driverInstructions, RANGE_INFO, rangeOf, type Details } from "./partner-ranges";
 import { DriverGuard } from "./security";
 import { DriverAuthService } from "./driver-auth.service";
 import { LIVE_STATUSES } from "./live-position";
@@ -249,6 +250,8 @@ export class DriverController {
       secondsLeft: Math.max(0, Math.round((o.expiresAt.getTime() - now.getTime()) / 1000)),
       pickupAt: o.ride.pickupAt, category: o.ride.category,
       partner: o.ride.booking.partner?.name ?? null,
+      range: rangeOf(o.ride.booking.partner?.range) ? RANGE_INFO[rangeOf(o.ride.booking.partner?.range)!].label : null,
+      instructions: driverInstructions(rangeOf(o.ride.booking.partner?.range), o.ride.booking.details as Details | null),
       pickup: o.ride.pickupAddress, dropoff: o.ride.dropoffAddress,
       pickupDistanceKm: distTo(o.ride.pickupLat, o.ride.pickupLng),
       distanceKm: Math.round(o.ride.distanceKm * 10) / 10, durationMin: Math.round(o.ride.durationMin),

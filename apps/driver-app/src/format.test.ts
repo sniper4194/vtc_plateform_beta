@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { equipHint, NEED_LABEL, normalizeApiUrl, countdown, dayLabel, delayLabel, flightLabel, hoursLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel, swapState } from "./format";
+import { equipHint, NEED_LABEL, rangeColor, normalizeApiUrl, countdown, dayLabel, delayLabel, flightLabel, hoursLabel, isCancelled, STATUS_LABEL, eurShort, fuseFraction, groupByDay, NEXT_ACTION, secondsUntil, stepIndex, timeOf, waitedMin, whenLabel, swapState } from "./format";
 
 describe("format", () => {
   it("compte à rebours mm:ss", () => {
@@ -102,5 +102,13 @@ describe("équipements : sous-titres", () => {
     expect(equipHint("TPMR", { features: ["TPMR"], tpmrVerifiedAt: "2026-11-28T10:00:00Z" })).toBe("Validé par la tour de contrôle");
     expect(equipHint("WHEELCHAIR", {})).toMatch(/coffre/);
     expect(equipHint("PET", {})).toBeUndefined();
+  });
+});
+
+describe("couleur de la gamme", () => {
+  it("mêmes couleurs que la tour ; rien sans gamme", () => {
+    expect(rangeColor("CliCab Care")).toBe("#1a66c2");
+    expect(rangeColor("CliCab Dépannage")).toBe("#dc2626");
+    expect(rangeColor(null)).toBeNull();
   });
 });

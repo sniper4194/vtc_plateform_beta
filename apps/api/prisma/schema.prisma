@@ -259,6 +259,8 @@ model Booking {
   flightNumber      String?
   signText          String? // texte de la pancarte (par défaut : nom du passager)
   notes             String? // consignes de rendez-vous (terminal, porte…)
+  /// Champs propres à la gamme du partenaire (dossier, immatriculation, service…) et sens d'un aller-retour ; jamais de donnée médicale.
+  details           Json?
   trackingSentAt    DateTime? // lien de suivi envoyé au voyageur (SMS et/ou e-mail)
   trackingToken     String?  @unique // jeton secret du lien de suivi envoyé au voyageur (non devinable)
   createdAt         DateTime @default(now())

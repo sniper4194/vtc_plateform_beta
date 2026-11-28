@@ -62,3 +62,15 @@ export function statementCsv(rows: HotelRow[]) {
   ]);
   return "﻿" + [head, ...lines].map((l) => l.map(cell).join(";")).join("\r\n") + "\r\n";
 }
+
+/** Textes de l'espace de commande selon la gamme du partenaire (null = hôtel par défaut). */
+export const RANGE_TEXT: Record<string, { person: string; payer: string; billed: string; color: string; intro: string }> = {
+  HOTEL: { person: "client", billed: "À facturer à l'hôtel", payer: "L'hôtel (sur le relevé du mois)", color: "#f7b30a", intro: "Commandez les transferts de vos clients et suivez-les en direct." },
+  DEPANNAGE: { person: "client (assuré)", billed: "À facturer au garage ou à l'assurance", payer: "Le garage ou l'assurance (sur le relevé du mois)", color: "#ee2a14", intro: "Faites ramener votre client chez lui ou vers une solution de mobilité, tout de suite ou plus tard." },
+  ASSOCIATION: { person: "bénéficiaire", billed: "À facturer à l'association", payer: "L'association (sur le relevé du mois)", color: "#0a8f5b", intro: "Organisez les trajets des personnes que vous accompagnez." },
+  CARE: { person: "passager", billed: "À facturer à l'établissement", payer: "L'établissement (sur le relevé du mois)", color: "#1a66c2", intro: "Trajets des patients et visiteurs, hors transport sanitaire remboursé. Aucune information médicale n'est demandée." },
+};
+export const rangeText = (range: string | null | undefined) => RANGE_TEXT[range ?? "HOTEL"] ?? RANGE_TEXT.HOTEL;
+
+/** Passagers d'une course CliCab Care : le passager et ses accompagnants (3 au plus). */
+export const carePassengers = (escorts: string) => 1 + Math.min(3, Math.max(0, Number(escorts) || 0));

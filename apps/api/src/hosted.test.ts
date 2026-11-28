@@ -2,7 +2,8 @@ import { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
 import { AddressInfo } from "node:net";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { GeocodeService } from "./geocode";
 import { AppModule } from "./app.module";
 import { codeMatches } from "./hosted";
 import { createHash } from "node:crypto";
@@ -221,5 +222,69 @@ describe("gammes CliCab des partenaires", () => {
     expect(rides[0].booking.partner.range).toBe("DEPANNAGE");
     expect((await call(`/admin/partners/${g.partnerId}/range`, { admin: true, body: { range: null } })).status).toBe(201);
     expect(await prisma.auditLog.count({ where: { action: "partner.range" } })).toBe(2);
+  });
+});
+
+describe("espace de commande adapté à la gamme", () => {
+  const places: Record<string, { lat: number; lng: number; label: string }> = {
+    "12 rue des lilas creteil": { lat: 48.79, lng: 2.455, label: "12 Rue des Lilas 94000 Créteil" },
+    "hopital saint-louis paris": { lat: 48.874, lng: 2.369, label: "1 Avenue Claude Vellefaux 75010 Paris" },
+    "8 rue de la paix paris": { lat: 48.869, lng: 2.331, label: "8 Rue de la Paix 75002 Paris" },
+  };
+  let spy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    spy = vi.spyOn(GeocodeService.prototype, "find").mockImplementation(async (a: string) => places[a.toLowerCase()] ?? null);
+  });
+  afterEach(() => spy.mockRestore());
+  const pass = { firstName: "Yuki", lastName: "Sato", phone: "+33677889900", language: "fr" };
+  async function partnerOf(range: string) {
+    return (await call("/admin/partners", { admin: true, body: { name: `Partenaire ${range}`, range } })).json as { partnerId: string; apiKey: string };
+  }
+
+  it("Dépannage : adresses libres, « dès que possible », dossier et immatriculation transmis au chauffeur", async () => {
+    const g = await partnerOf("DEPANNAGE");
+    const s = (await call("/v1/hotel/session", { token: g.apiKey })).json;
+    expect(s).toMatchObject({ range: "DEPANNAGE", space: "Espace dépannage", addressMode: "free", features: { asap: true, caseNumber: true, returnTrip: false } });
+    expect((await call("/v1/hotel/quote", { token: g.apiKey, body: { pickupAddress: "nulle part du tout", dropoffAddress: "8 rue de la Paix Paris", asap: true, category: "BERLINE", passengers: 1 } })).status).toBe(422);
+    const d = await mkDriver();
+    const q = await call("/v1/hotel/quote", { token: g.apiKey, body: { pickupAddress: "12 rue des Lilas Creteil", dropoffAddress: "8 rue de la Paix Paris", asap: true, category: "BERLINE", passengers: 2 } });
+    expect(q.status).toBe(201);
+    expect(q.json.pickup).toBe("12 Rue des Lilas 94000 Créteil");
+    const minutes = (new Date(q.json.pickupAt).getTime() - Date.now()) / 60_000;
+    expect(minutes).toBeGreaterThan(18); expect(minutes).toBeLessThan(21);
+    // Un champ d'une autre gamme est refusé.
+    expect((await call("/v1/hotel/bookings", { token: g.apiKey, headers: { "idempotency-key": "d0" }, body: { quoteId: q.json.quoteId, passenger: pass, consent: true, details: { department: "Radiologie" } } })).status).toBe(422);
+    const b = await call("/v1/hotel/bookings", { token: g.apiKey, headers: { "idempotency-key": "d1" }, body: { quoteId: q.json.quoteId, passenger: pass, consent: true, asap: true, details: { caseNumber: "SIN-2026-118", brokenPlate: "gh-482-kt" } } });
+    expect(b.status).toBe(201);
+    const booking = await prisma.booking.findUniqueOrThrow({ where: { id: b.json.id } });
+    expect(booking.externalReference).toBe("Dossier SIN-2026-118");
+    expect(booking.details).toEqual({ caseNumber: "SIN-2026-118", brokenPlate: "GH-482-KT", asap: true });
+    const offer = (await call("/driver/offers", { token: d.token })).json[0];
+    expect(offer.range).toBe("CliCab Dépannage");
+    expect(offer.instructions).toEqual(["Urgence : le client attend, partez dès que possible", "Dossier n° SIN-2026-118", "Véhicule en panne : GH-482-KT"]);
+  });
+
+  it("Care : aller-retour en une commande, accompagnant, service ; le retour part de l'arrivée", async () => {
+    const c = await partnerOf("CARE");
+    const at = new Date(Date.now() + 2 * 86400_000);
+    const base = { pickupAddress: "12 rue des Lilas Creteil", dropoffAddress: "Hopital Saint-Louis Paris", pickupAt: at.toISOString(), category: "BERLINE", passengers: 2 };
+    expect((await call("/v1/hotel/quote", { token: c.apiKey, body: { ...base, returnAt: new Date(at.getTime() + 5 * 60_000).toISOString() } })).status).toBe(422);
+    expect((await call("/v1/hotel/quote", { token: c.apiKey, body: { ...base, pickupAt: undefined, asap: true } })).status).toBe(422);
+    const q = await call("/v1/hotel/quote", { token: c.apiKey, body: { ...base, returnAt: new Date(at.getTime() + 3 * 3600_000).toISOString() } });
+    expect(q.status).toBe(201);
+    expect(q.json.return.quoteId).toBeTruthy();
+    const b = await call("/v1/hotel/bookings", { token: c.apiKey, headers: { "idempotency-key": "c1" }, body: { quoteId: q.json.quoteId, returnQuoteId: q.json.return.quoteId, passenger: pass, consent: true, details: { department: "Cardiologie, 3e étage", escorts: 1, walkingAssist: true } } });
+    expect(b.status).toBe(201);
+    expect(b.json.return.reference).toMatch(/^R-/);
+    const again = await call("/v1/hotel/bookings", { token: c.apiKey, headers: { "idempotency-key": "c1" }, body: { quoteId: q.json.quoteId, returnQuoteId: q.json.return.quoteId, passenger: pass, consent: true, details: { department: "Cardiologie, 3e étage", escorts: 1, walkingAssist: true } } });
+    expect(again.json.return.id).toBe(b.json.return.id);
+    const rides = await prisma.ride.findMany({ where: { booking: { partnerId: c.partnerId } }, include: { booking: true }, orderBy: { pickupAt: "asc" } });
+    expect(rides).toHaveLength(2);
+    expect(rides[0].pickupAddress).toBe("12 Rue des Lilas 94000 Créteil");
+    expect(rides[1].pickupAddress).toBe("1 Avenue Claude Vellefaux 75010 Paris");
+    expect((rides[1].booking.details as any).leg).toBe("RETOUR");
+    // Hôtel : pas d'aller-retour, pas de champ d'une autre gamme.
+    const h = await partnerOf("HOTEL");
+    expect((await call("/v1/hotel/quote", { token: h.apiKey, body: { ...base, returnAt: new Date(at.getTime() + 3 * 3600_000).toISOString() } })).status).toBe(422);
   });
 });

@@ -31,8 +31,14 @@ export class GeocodeService {
   fetcher: typeof fetch = (...a) => fetch(...a);
 
   async locate(address: string): Promise<Point | null> {
+    const f = await this.find(address);
+    return f ? { lat: f.lat, lng: f.lng } : null;
+  }
+
+  /** Comme locate, avec l'adresse retrouvée (libellé de la BAN) pour que la personne vérifie que c'est la bonne. */
+  async find(address: string): Promise<(Point & { label: string }) | null> {
     const known = knownPlace(address);
-    if (known) return known;
+    if (known) return { ...known, label: address.trim() };
     if (process.env.GEOCODER === "0") return null;
     const base = process.env.GEOCODER_URL ?? "https://api-adresse.data.gouv.fr/search/";
     try {
@@ -43,7 +49,7 @@ export class GeocodeService {
       // Score de confiance de la BAN : en dessous de 0,5, l'adresse trouvée risque de ne pas être la bonne.
       if (!f || (f.properties?.score ?? 0) < 0.5) return null;
       const [lng, lat] = f.geometry.coordinates;
-      return { lat, lng };
+      return { lat, lng, label: String(f.properties?.label ?? address).slice(0, 200) };
     } catch (e: any) {
       this.log.warn(`Géocodage impossible : ${e?.name ?? "erreur"}`);
       return null;

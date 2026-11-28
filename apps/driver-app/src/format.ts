@@ -104,6 +104,16 @@ export function normalizeApiUrl(raw: string): string | null {
 }
 
 /** Besoins particuliers du voyageur, tels qu'affichés au chauffeur. */
+/** Couleur de la gamme CliCab du donneur d'ordre (mêmes couleurs que le tableau du dispatcheur). */
+export function rangeColor(label?: string | null): string | null {
+  if (!label) return null;
+  if (/Hôtel/.test(label)) return "#ffbc00";
+  if (/Dépannage/.test(label)) return "#dc2626";
+  if (/Association/.test(label)) return "#0a8f5b";
+  if (/Care/.test(label)) return "#1a66c2";
+  return null;
+}
+
 export const NEED_LABEL: Record<string, string> = { CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil roulant pliable (coffre)", PET: "Animal", TPMR: "Véhicule adapté TPMR" };
 
 /** Sous-titre d'un équipement dans « Mes équipements » : TPMR doit être validé par la tour. */

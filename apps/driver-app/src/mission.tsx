@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Linking, Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { api, currentSession } from "./api";
 import { backgroundPermissionGranted, liveTrackingRunning, startLiveTracking, stopLiveTracking } from "./liveLocation";
-import { countdown, eurShort, needLabels, flightLabel, isCancelled, MISSION_TITLE, NEXT_ACTION, secondsUntil, timeOf, waitedMin } from "./format";
+import { countdown, eurShort, needLabels, rangeColor, flightLabel, isCancelled, MISSION_TITLE, NEXT_ACTION, secondsUntil, timeOf, waitedMin } from "./format";
 import { MissionMap, MapPoint } from "./MissionMap";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, HoldButton, Slab, Sticker } from "./ui";
@@ -220,6 +220,13 @@ export function MissionScreen({ rideId, onClose, notify }: { rideId: string; onC
               {r.payOnBoard && <Chip label={`💳 Paiement à bord par carte : encaissez ${eurShort(r.payOnBoard.collectCents)}`} color={c.yel} />}
               <Chip label={`${eurShort(r.netCents)} net`} color={c.blue} text={c.cream} />
             </View>
+            {/* Consignes propres à la gamme du donneur d'ordre (dossier, service, aide à la marche…). */}
+            {(r.range || r.instructions?.length > 0) && (
+              <View style={{ marginTop: 10, padding: 10, borderRadius: 12, borderWidth: 2, borderColor: rangeColor(r.range) ?? c.ink, backgroundColor: c.white, gap: 4 }}>
+                {r.range && <Cond size={13} color={c.ink}>{r.range}</Cond>}
+                {(r.instructions ?? []).map((l: string) => <Slab key={l} size={14} color={c.ink} shadow={null}>{`• ${l}`}</Slab>)}
+              </View>
+            )}
             {r.notes ? <Cond size={13} color={c.red}>Consigne : {r.notes}</Cond> : null}
           </View>
 

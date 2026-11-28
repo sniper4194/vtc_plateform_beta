@@ -16,7 +16,7 @@ import { Support } from "./support";
 import { DriverAuthCosts, DriverAuthPanel } from "./driver-auth";
 import "./regulator-theme.css";
 import { docLabel } from "../lib/documents";
-import { RANGE_KEYS, RANGES, rangeOf } from "../lib/ranges";
+import { RANGE_KEYS, RANGES, rangeDetails, rangeOf } from "../lib/ranges";
 import { ThemePicker as SharedThemePicker, useSiteTheme, type SiteTheme } from "./theme";
 
 type Tab = "rides" | "live" | "imports" | "alerts" | "perf" | "drivers" | "lost" | "recruitment" | "meeting" | "companies" | "partners" | "crm" | "support" | "team" | "account";
@@ -362,6 +362,7 @@ function Board() {
                       <span className="chip">{r.booking.partner?.name ?? "—"}</span>
                       <span className="chip">Client {eur(r.priceCents).replace(",00", "")}</span>
                     </div>
+                    {r.booking.details && Object.keys(r.booking.details).length > 0 && <div className="muted" style={{ fontSize: 13, margin: "4px 0" }}>{rangeDetails(r.booking.details).join(" · ")}</div>}
                     {r.driverCapCents > 0 && (
                       <div className="chips">
                         <span className="chip">Plafond {eur(r.driverCapCents).replace(",00", "")}</span>

@@ -9,7 +9,7 @@ import { ReferralCard } from "./referral";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, SectionList, Switch, Text, View } from "react-native";
 import { api, ApiError } from "./api";
-import { countdown, equipHint, eurShort, NEED_LABEL, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
+import { countdown, equipHint, rangeColor, eurShort, NEED_LABEL, needLabels, flightLabel, fuseFraction, groupByDay, isCancelled, NEXT_ACTION, STATUS_LABEL, stepIndex, STEPS, timeOf } from "./format";
 import { c } from "./theme";
 import { Btn, Card, Chip, Cond, Display, Fuse, HoldButton, Script, Slab, Sticker, ThemePickerButton, ThemeToggle } from "./ui";
 import { useFetch } from "./useFetch";
@@ -315,6 +315,8 @@ export function Radar({ notify }: { notify: Notify }) {
             >
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                 <Chip label={`≈ ${eurShort(o.netPerHourCents)}/h`} color={c.yel} />
+                {o.range && <Chip label={o.range} color={rangeColor(o.range) ?? c.cream} text={/Hôtel/.test(o.range) ? c.ink : c.cream} />}
+                {(o.instructions ?? []).map((l: string) => <Chip key={l} label={`ℹ ${l}`} color={c.cream} />)}
                 {needLabels(o.needs).map((l) => <Chip key={l} label={`⚠ ${l}`} color={c.red} text={c.cream} />)}
                 {o.payOnBoard && <Chip label={`💳 À encaisser à bord : ${eurShort(o.payOnBoard.collectCents)}`} color={c.yel} />}
                 {o.returnTrip ? <Chip label={`↩ Retour après R-${o.returnTrip.afterRef} · ${o.returnTrip.gapMin} min · ${o.returnTrip.km} km`} color={c.yel} /> : null}
