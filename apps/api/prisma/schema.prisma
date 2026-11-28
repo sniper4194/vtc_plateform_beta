@@ -77,6 +77,8 @@ enum PaymentMode {
 model Partner {
   id               String        @id @default(uuid())
   name             String
+  /// Gamme CliCab (Hôtel, Dépannage, Association, Care) : étiquette et couleur au tableau du dispatcheur ; null = autre donneur d'ordre.
+  range            PartnerRange?
   paymentMode      PaymentMode   @default(INVOICE)
   priceMultiplier  Decimal       @default(1) @db.Decimal(5, 4)
   commissionRate   Decimal       @default(0.2) @db.Decimal(5, 4)
@@ -1177,4 +1179,11 @@ model ImportedRide {
 enum OnBoardPayment {
   PAID
   ISSUE
+}
+
+enum PartnerRange {
+  HOTEL
+  DEPANNAGE
+  ASSOCIATION
+  CARE
 }

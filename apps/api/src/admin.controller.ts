@@ -12,7 +12,7 @@ import { csvCell } from "./metrics";
 import { parse } from "./http";
 import { z } from "zod";
 import { PrismaService } from "./prisma";
-import { AdminUserCreateSchema, PasswordResetSchema, AssignSchema, CompanyCreateSchema, DriverCreateSchema, FlightUpdateSchema, PartnerCreateSchema, ReviewSchema } from "./schemas";
+import { AdminUserCreateSchema, PasswordResetSchema, AssignSchema, CompanyCreateSchema, DriverCreateSchema, FlightUpdateSchema, PARTNER_RANGES, PartnerCreateSchema, ReviewSchema } from "./schemas";
 import { AdminGuard, AdminIdentity, AdminOnly, generateApiKey, generateCompanyKey } from "./security";
 import { AuthService, publicUser } from "./auth.service";
 import { WebhooksService } from "./webhooks.service";
@@ -67,7 +67,7 @@ export class AdminController {
   @Get("partners")
   @AdminOnly()
   partners() {
-    return this.prisma.partner.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
+    return this.prisma.partner.findMany({ select: { id: true, name: true, range: true }, orderBy: { name: "asc" } });
   }
 
   /** Crée un partenaire ; la clé API et le secret webhook ne sont affichés QU'UNE FOIS. */
@@ -77,11 +77,22 @@ export class AdminController {
     const p = parse(PartnerCreateSchema, body);
     const webhookSecret = p.webhookUrl ? `whsec_${randomBytes(24).toString("hex")}` : null;
     const partner = await this.prisma.partner.create({
-      data: { name: p.name, webhookUrl: p.webhookUrl, webhookSecret, priceMultiplier: p.priceMultiplier, commissionRate: p.commissionRate, paymentMode: p.paymentMode, notifyPassenger: p.notifyPassenger },
+      data: { name: p.name, webhookUrl: p.webhookUrl, webhookSecret, priceMultiplier: p.priceMultiplier, commissionRate: p.commissionRate, paymentMode: p.paymentMode, notifyPassenger: p.notifyPassenger, range: p.range ?? null },
     });
     const k = generateApiKey(true);
     await this.prisma.apiKey.create({ data: { partnerId: partner.id, keyHash: k.hash, prefix: k.prefix, sandbox: true } });
     return { partnerId: partner.id, apiKey: k.key, webhookSecret };
+  }
+
+  /** Gamme CliCab du partenaire (null = autre donneur d'ordre) : seulement une étiquette et une couleur pour l'instant. */
+  @Post("partners/:id/range")
+  @AdminOnly()
+  async partnerRange(@Req() req: { admin: AdminIdentity }, @Param("id") id: string, @Body() body: unknown) {
+    const { range } = parse(z.object({ range: z.enum(PARTNER_RANGES).nullable() }).strict(), body);
+    const res = await this.prisma.partner.updateMany({ where: { id }, data: { range } });
+    if (res.count !== 1) throw new HttpException("Partenaire introuvable", 404);
+    await this.prisma.auditLog.create({ data: { actor: req.admin.actor, action: "partner.range", entity: "Partner", entityId: id, data: { range } } });
+    return { range };
   }
 
   /** Relevé de rapprochement du pilote B2B, à partir des courses réelles du partenaire. */

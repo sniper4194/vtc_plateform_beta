@@ -16,6 +16,7 @@ import { Support } from "./support";
 import { DriverAuthCosts, DriverAuthPanel } from "./driver-auth";
 import "./regulator-theme.css";
 import { docLabel } from "../lib/documents";
+import { RANGE_KEYS, RANGES, rangeOf } from "../lib/ranges";
 import { ThemePicker as SharedThemePicker, useSiteTheme, type SiteTheme } from "./theme";
 
 type Tab = "rides" | "live" | "imports" | "alerts" | "perf" | "drivers" | "lost" | "recruitment" | "meeting" | "companies" | "partners" | "crm" | "support" | "team" | "account";
@@ -306,7 +307,9 @@ function Board() {
   const [err, setErr] = useState("");
   const [fix, setFix] = useState<{ ride: any; options: string[] } | null>(null);
   const [dragging, setDragging] = useState<any>(null);
-  const list = rides.data ?? [];
+  const [range, setRange] = useState<string>("");
+  // Filtre par gamme CliCab ; « OTHER » = donneurs d'ordre sans gamme (plateformes, agences…).
+  const list = (rides.data ?? []).filter((r) => !range || (r.booking.partner?.range ?? "OTHER") === range);
   const n = (...s: string[]) => list.filter((r) => s.includes(r.status)).length;
   const alerted = new Set((alerts.data ?? []).map((a) => a.rideId));
   return (
@@ -316,6 +319,14 @@ function Board() {
         <div className={`sticker s2 ${alerts.data?.length ? "alert" : ""}`}><span className="cond">Alertes</span><b>{alerts.data?.length ?? 0}</b></div>
         <div className="sticker s3"><span className="cond">En mouvement</span><b>{n("EN_ROUTE", "ARRIVED", "IN_PROGRESS")}</b></div>
         <div className="sticker s4"><span className="cond">Terminées</span><b>{n("COMPLETED")}</b></div>
+      </div>
+      <div className="row ranges" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", margin: "4px 0 12px" }}>
+        <button className={`btn ${range === "" ? "primary" : ""}`} onClick={() => setRange("")}>Toutes</button>
+        {RANGE_KEYS.map((k) => (
+          <button key={k} className="btn" aria-pressed={range === k} onClick={() => setRange(range === k ? "" : k)}
+            style={{ borderLeft: `8px solid ${RANGES[k].color}`, ...(range === k ? { background: RANGES[k].color, color: RANGES[k].text } : {}) }}>{RANGES[k].label}</button>
+        ))}
+        <button className="btn" aria-pressed={range === "OTHER"} onClick={() => setRange(range === "OTHER" ? "" : "OTHER")} style={range === "OTHER" ? { background: "var(--ink)", color: "#fff" } : undefined}>Autres donneurs d'ordre</button>
       </div>
       {(rides.error || err) && <div className="card redbg">{rides.error || err}</div>}
       <div className="board">
@@ -336,6 +347,7 @@ function Board() {
                 const pending = r.offers.filter((o: any) => o.status === "PENDING").length;
                 return (
                   <article className="card ride" key={r.id} draggable={!!earlierSteps(r.status).length && !!r.driver}
+                    style={rangeOf(r.booking.partner?.range) ? { borderLeft: `10px solid ${rangeOf(r.booking.partner?.range)!.color}` } : undefined}
                     onDragStart={() => setDragging(r)} onDragEnd={() => setDragging(null)}
                     title={earlierSteps(r.status).length && r.driver ? "Glisser vers une colonne précédente pour corriger l'étape" : undefined}>
                     <div className="price"><div><b style={{ fontSize: eur(r.driverNetCents).replace(",00", "").length > 6 ? 15 : 20 }}>{eur(r.driverNetCents).replace(",00", "")}</b><br /><span>net</span></div></div>
@@ -346,6 +358,7 @@ function Board() {
                       <span className="chip">{r.category}</span>
                       {r.payOnBoard && <span className={`chip ${r.onBoardPayment === "PAID" ? "ok" : r.onBoardPayment === "ISSUE" ? "bad" : "yel"}`}>{r.onBoardPayment === "PAID" ? "Payé à bord ✓" : r.onBoardPayment === "ISSUE" ? (r.onBoardPaymentResolvedAt ? "Impayé à bord (traité)" : "Impayé à bord") : "Paiement à bord (carte)"}</span>}
                       {(r.needs ?? []).map((n: string) => <span className="chip bad" key={n}>{({ CHILD_SEAT: "Siège enfant", BOOSTER: "Rehausseur", WHEELCHAIR: "Fauteuil pliable (coffre)", PET: "Animal", TPMR: "Véhicule TPMR (passager en fauteuil)" } as Record<string, string>)[n] ?? n}</span>)}
+                      {rangeOf(r.booking.partner?.range) && <span className="chip" style={{ background: rangeOf(r.booking.partner?.range)!.color, color: rangeOf(r.booking.partner?.range)!.text, borderColor: rangeOf(r.booking.partner?.range)!.color }}>{rangeOf(r.booking.partner?.range)!.label}</span>}
                       <span className="chip">{r.booking.partner?.name ?? "—"}</span>
                       <span className="chip">Client {eur(r.priceCents).replace(",00", "")}</span>
                     </div>
@@ -615,15 +628,20 @@ function Account({ user }: { user: AdminSession | null }) {
 function Partners() {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const [newRange, setNewRange] = useState("");
   const [created, setCreated] = useState<any>(null);
   const [err, setErr] = useState("");
   const [partnerId, setPartnerId] = useState("");
   const [statementError, setStatementError] = useState("");
-  const partners = useLoad<{ id: string; name: string }[]>("/admin/partners", 15000);
+  const partners = useLoad<{ id: string; name: string; range?: string | null }[]>("/admin/partners", 15000);
+  async function changeRange(id: string, value: string) {
+    try { await api(`/admin/partners/${id}/range`, { range: value || null }); setErr(""); } catch (e: any) { setErr(e.message); }
+    void partners.reload();
+  }
   const hooks = useLoad<any[]>("/admin/webhooks", 8000);
   async function create(e: React.FormEvent) {
     e.preventDefault();
-    try { setCreated(await api("/admin/partners", { name, webhookUrl: url || undefined })); setErr(""); setName(""); setUrl(""); void partners.reload(); }
+    try { setCreated(await api("/admin/partners", { name, webhookUrl: url || undefined, range: newRange || null })); setErr(""); setName(""); setUrl(""); setNewRange(""); void partners.reload(); }
     catch (e: any) { setErr(e.message); }
   }
   async function downloadStatement() {
@@ -645,6 +663,10 @@ function Partners() {
         <div className="row">
           <input placeholder="Nom (ex. une agence de voyage)" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: 260 }} />
           <input placeholder="URL webhook (https://…)" value={url} onChange={(e) => setUrl(e.target.value)} style={{ minWidth: 300 }} />
+          <select aria-label="Gamme CliCab" value={newRange} onChange={(e) => setNewRange(e.target.value)}>
+            <option value="">Sans gamme (plateforme, agence…)</option>
+            {RANGE_KEYS.map((k) => <option key={k} value={k}>{RANGES[k].label} ({RANGES[k].who})</option>)}
+          </select>
           <button className="btn" disabled={!name}>Créer</button>
         </div>
         {err && <div className="err">{err}</div>}
@@ -656,6 +678,22 @@ function Partners() {
           </div>
         )}
       </form>
+      <div className="card">
+        <h3>Gammes CliCab</h3>
+        <p className="muted" style={{ fontSize: 13 }}>La gamme donne une couleur aux courses du partenaire dans le tableau, et permet de les filtrer. Elle ne change ni le prix ni la commission.</p>
+        <table>
+          <thead><tr><th>Partenaire</th><th>Gamme</th></tr></thead>
+          <tbody>{partners.data?.map((pt) => (
+            <tr key={pt.id}>
+              <td><span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 3, marginRight: 8, background: rangeOf(pt.range)?.color ?? "transparent", border: "1px solid var(--line, #999)" }} />{pt.name}</td>
+              <td><select aria-label={`Gamme de ${pt.name}`} value={pt.range ?? ""} onChange={(e) => changeRange(pt.id, e.target.value)}>
+                <option value="">Sans gamme</option>
+                {RANGE_KEYS.map((k) => <option key={k} value={k}>{RANGES[k].label}</option>)}
+              </select></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
       <div className="card">
         <h3>Relevé partenaire des 30 derniers jours</h3>
         <div className="row">

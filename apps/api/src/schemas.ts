@@ -13,6 +13,8 @@ export const DocumentUploadSchema = z.object({
   storageKey: z.string().min(1),
   expiresAt: z.string().datetime().optional(),
 });
+/** Gammes CliCab : Hôtel (hôtels, restaurants), Dépannage (garages, assurances), Association, Care (établissements de santé). */
+export const PARTNER_RANGES = ["HOTEL", "DEPANNAGE", "ASSOCIATION", "CARE"] as const;
 export const PartnerCreateSchema = z.object({
   name: z.string().min(1),
   webhookUrl: z.string().url().optional(),
@@ -20,6 +22,7 @@ export const PartnerCreateSchema = z.object({
   commissionRate: z.number().min(0).max(0.9).default(0.2),
   paymentMode: z.enum(["PREPAID", "INVOICE"]).default("INVOICE"),
   notifyPassenger: z.boolean().default(true),
+  range: z.enum(PARTNER_RANGES).nullable().optional(),
 });
 /** Caractéristiques contrôlées à l'admission du véhicule (voir vehicle-rules.ts). */
 const vehicleFacts = {

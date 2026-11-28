@@ -202,3 +202,24 @@ describe("bornes d'un mois en heure de Paris", () => {
     expect(monthBounds("2026-07").from).toEqual(new Date("2026-06-30T22:00:00Z"));
   });
 });
+
+describe("gammes CliCab des partenaires", () => {
+  it("choisie à la création ou ensuite ; visible au tableau ; valeur inconnue refusée", async () => {
+    const h = (await call("/admin/partners", { admin: true, body: { name: "Hôtel Le Belvédère", range: "HOTEL" } })).json;
+    const g = (await call("/admin/partners", { admin: true, body: { name: "Garage Martin" } })).json;
+    expect((await prisma.partner.findUniqueOrThrow({ where: { id: h.partnerId } })).range).toBe("HOTEL");
+    expect((await prisma.partner.findUniqueOrThrow({ where: { id: g.partnerId } })).range).toBeNull();
+    expect((await call(`/admin/partners/${g.partnerId}/range`, { admin: true, body: { range: "DEPANNAGE" } })).status).toBe(201);
+    expect((await call(`/admin/partners/${g.partnerId}/range`, { admin: true, body: { range: "TAXI" } })).status).toBe(422);
+    expect((await call("/admin/partners", { admin: true, body: { name: "X", range: "SPA" } })).status).toBe(422);
+    const list = (await call("/admin/partners", { admin: true })).json;
+    expect(list.find((p: any) => p.id === g.partnerId).range).toBe("DEPANNAGE");
+    // Le tableau du dispatcheur reçoit la gamme avec la course.
+    const q = await call("/v1/quotes", { token: g.apiKey, body: { pickup: PARIS, dropoff: CDG, pickupAt: new Date(Date.now() + 2 * 86400_000).toISOString(), category: "BERLINE", passengers: 1 } });
+    await call("/v1/bookings", { token: g.apiKey, headers: { "idempotency-key": "g1" }, body: { quoteId: q.json.quoteId, passenger: { firstName: "Tomás", lastName: "Ferreira", phone: "+33612000111" } } });
+    const rides = (await call("/admin/rides", { admin: true })).json;
+    expect(rides[0].booking.partner.range).toBe("DEPANNAGE");
+    expect((await call(`/admin/partners/${g.partnerId}/range`, { admin: true, body: { range: null } })).status).toBe(201);
+    expect(await prisma.auditLog.count({ where: { action: "partner.range" } })).toBe(2);
+  });
+});

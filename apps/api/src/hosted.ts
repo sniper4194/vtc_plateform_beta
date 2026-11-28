@@ -128,7 +128,7 @@ export class HostedService {
     const base = (process.env.TRACKING_BASE_URL ?? "http://localhost:3002").replace(/\/$/, "");
     const rows = await this.prisma.partner.findMany({ orderBy: { createdAt: "desc" }, take: 200 });
     return rows.map((p) => ({
-      id: p.id, name: p.name, active: p.active, hosted: {
+      id: p.id, name: p.name, active: p.active, range: p.range, hosted: {
         enabled: p.hostedEnabled, slug: p.hostedSlug, placeLabel: p.hostedPlaceLabel, address: p.hostedAddress, lat: p.hostedLat, lng: p.hostedLng, needsCode: !!p.hostedCodeHash,
         url: p.hostedSlug ? `${base}/reserver/${p.hostedSlug}` : null,
       },
