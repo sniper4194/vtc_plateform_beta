@@ -21,12 +21,17 @@ appId: com.clicab.driver
     times: 3
     while:
       notVisible: "(?i)adresse du serveur"
+    # Facultatif : si la fenêtre s'est ouverte juste après le contrôle du « while », le lien est caché
+    # dessous et la recherche échouerait (passage 46149323046) ; on laisse alors le contrôle suivant trancher.
     commands:
       - scrollUntilVisible:
           element: "Changer le serveur"
           direction: DOWN
+          optional: true
       - waitForAnimationToEnd
-      - tapOn: "Changer le serveur"
+      - tapOn:
+          text: "Changer le serveur"
+          optional: true
       - waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "(?i)adresse du serveur"
